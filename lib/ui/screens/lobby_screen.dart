@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../services/game_service.dart';
 import '../../services/online_service.dart';
 import '../../utils/constants.dart';
 import '../theme.dart';
+import 'game_screen.dart';
 
 class LobbyScreen extends StatefulWidget {
   const LobbyScreen({super.key});
@@ -24,7 +26,21 @@ class _LobbyScreenState extends State<LobbyScreen> {
   void initState() {
     super.initState();
     _onlineService.roomStream.listen((room) {
-      if (mounted) setState(() => _room = room);
+      if (mounted) {
+        setState(() => _room = room);
+        if (room.status == RoomStatus.playing) {
+          final gameService = GameService(
+            boardType: room.boardType,
+            players: room.players,
+          );
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => GameScreen(service: gameService),
+            ),
+          );
+        }
+      }
     });
   }
 
