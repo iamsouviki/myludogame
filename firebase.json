@@ -12,44 +12,5 @@
         "destination": "/index.html"
       }
     ]
-  },
-  "flutter": {
-    "platforms": {
-      "android": {
-        "default": {
-          "projectId": "my-ludo-73080",
-          "appId": "1:94304183673:android:9ff71b362fbb0d30afbba8",
-          "fileOutput": "android/app/google-services.json"
-        }
-      },
-      "ios": {
-        "default": {
-          "projectId": "my-ludo-73080",
-          "appId": "1:94304183673:ios:8c3cc69f2b75547cafbba8",
-          "uploadDebugSymbols": false,
-          "fileOutput": "ios/Runner/GoogleService-Info.plist"
-        }
-      },
-      "macos": {
-        "default": {
-          "projectId": "my-ludo-73080",
-          "appId": "1:94304183673:ios:8c3cc69f2b75547cafbba8",
-          "uploadDebugSymbols": false,
-          "fileOutput": "macos/Runner/GoogleService-Info.plist"
-        }
-      },
-      "dart": {
-        "lib/firebase_options.dart": {
-          "projectId": "my-ludo-73080",
-          "configurations": {
-            "android": "1:94304183673:android:9ff71b362fbb0d30afbba8",
-            "ios": "1:94304183673:ios:8c3cc69f2b75547cafbba8",
-            "macos": "1:94304183673:ios:8c3cc69f2b75547cafbba8",
-            "web": "1:94304183673:web:6f616796a3fd09a1afbba8",
-            "windows": "1:94304183673:web:b8c2a4c1704ce9deafbba8"
-          }
-        }
-      }
-    }
   }
 }
