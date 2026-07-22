@@ -22,9 +22,12 @@ class _LobbyScreenState extends State<LobbyScreen> {
   final _onlineService = OnlineService();
   final _nameController = TextEditingController(text: 'Player');
   final _codeController = TextEditingController();
-  BoardType _boardType = BoardType.classic4;
+  final BoardType _boardType = BoardType.classic4;
   PlayerColor _selectedColor = PlayerColor.red;
-  int _selectedAvatarIndex = 0;
+  final int _selectedAvatarIndex = 0;
+  int _onlineMatchSize = 4;
+  bool _onlineEnableTeamUp = false;
+  int _activeTab = 0; // 0 for Create Room, 1 for Join Room
   RoomData? _room;
   bool _isLoading = false;
 
@@ -74,6 +77,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
       boardType: _boardType,
       preferredColor: _selectedColor,
       avatarIndex: _selectedAvatarIndex,
+      targetPlayerCount: _onlineMatchSize,
+      isTeamUp: _onlineMatchSize == 4 && _onlineEnableTeamUp,
     );
     setState(() => _isLoading = false);
   }
@@ -123,277 +128,123 @@ class _LobbyScreenState extends State<LobbyScreen> {
 
   Widget _buildJoinCreate() {
     return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 400),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
+              // Top Bar Header
               Row(
-                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.public_rounded, color: Color(0xFF58A6FF), size: 28),
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back_rounded, color: Colors.white70),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                  const SizedBox(width: 4),
+                  const Icon(Icons.public_rounded, color: Color(0xFF00E5FF), size: 24),
                   const SizedBox(width: 8),
-                  Text(
-                    'Online Play',
-                    style: Theme.of(context)
-                        .textTheme
-                        .headlineMedium
-                        ?.copyWith(color: Colors.white),
+                  const Text(
+                    'Online Multiplayer',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ],
               ),
-              const SizedBox(height: 32),
 
-              // Name input
+              // Player Identity Card (Name & 20 Colors)
               Container(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(14),
                 decoration: AppTheme.glassCard(),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'Your Name & Avatar',
-                      style: TextStyle(color: Color(0xFFC9D1D9), fontSize: 14),
+                      'Your Player Profile',
+                      style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 8),
-                    TextField(
-                      controller: _nameController,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
-                        filled: true,
-                        fillColor: const Color(0xFF21262D),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide:
-                              const BorderSide(color: Color(0xFF30363D)),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide:
-                              const BorderSide(color: Color(0xFF30363D)),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'Select Avatar',
-                      style: TextStyle(color: Color(0xFF8B949E), fontSize: 12),
-                    ),
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      height: 52,
-                      child: ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: Avatars.list.length,
-                        itemBuilder: (context, index) {
-                          final selected = _selectedAvatarIndex == index;
-                          return GestureDetector(
-                            onTap: () => setState(() => _selectedAvatarIndex = index),
-                            child: Padding(
-                              padding: const EdgeInsets.only(right: 10),
-                              child: PlayerAvatarWidget(
-                                avatarIndex: index,
-                                size: 44,
-                                borderColor: selected ? Colors.white : Colors.transparent,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Create room
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: AppTheme.glassCard(),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Create Room',
-                      style: TextStyle(
-                        color: Color(0xFFC9D1D9),
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    // Board type toggle
-                    Row(
-                      children: BoardType.values.map((type) {
-                        final selected = _boardType == type;
-                        return Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 4),
-                            child: GestureDetector(
-                              onTap: () =>
-                                  setState(() => _boardType = type),
-                              child: Container(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 10),
-                                decoration: BoxDecoration(
-                                  color: selected
-                                      ? const Color(0xFF238636)
-                                          .withValues(alpha: 0.3)
-                                      : const Color(0xFF21262D),
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(
-                                    color: selected
-                                        ? const Color(0xFF56D364)
-                                        : const Color(0xFF30363D),
-                                  ),
-                                ),
-                                child: Text(
-                                  type.label,
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    color: selected
-                                        ? const Color(0xFF56D364)
-                                        : const Color(0xFF8B949E),
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 14),
-                    const Text(
-                      'Choose Your Color',
-                      style: TextStyle(color: Color(0xFF8B949E), fontSize: 13),
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      height: 44,
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(
-                        color: AppTheme.bg3,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppTheme.border),
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<PlayerColor>(
-                          value: _selectedColor,
-                          isExpanded: true,
-                          dropdownColor: AppTheme.surface,
-                          icon: const Icon(Icons.arrow_drop_down_rounded, color: Colors.white70),
-                          items: PlayerColor.values.map((color) {
-                            return DropdownMenuItem<PlayerColor>(
-                              value: color,
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 18,
-                                    height: 18,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: color.color,
-                                      border: Border.all(color: Colors.white38),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Text(
-                                    color.label,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }).toList(),
-                          onChanged: (val) {
-                            if (val != null) setState(() => _selectedColor = val);
-                          },
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _isLoading ? null : _createRoom,
-                        child: _isLoading
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : const Text('CREATE ROOM'),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Join room
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: AppTheme.glassCard(),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Join Room',
-                      style: TextStyle(
-                        color: Color(0xFFC9D1D9),
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
                     Row(
                       children: [
-                        Expanded(
+                        SizedBox(
+                          width: 130,
+                          height: 38,
                           child: TextField(
-                            controller: _codeController,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              letterSpacing: 4,
-                              fontWeight: FontWeight.w700,
-                            ),
-                            textCapitalization: TextCapitalization.characters,
-                            maxLength: 6,
+                            controller: _nameController,
+                            style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
                             decoration: InputDecoration(
-                              hintText: 'ROOM CODE',
-                              hintStyle: const TextStyle(
-                                color: Color(0xFF484F58),
-                                letterSpacing: 2,
-                              ),
-                              counterText: '',
+                              hintText: 'Player Name',
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                               filled: true,
-                              fillColor: const Color(0xFF21262D),
+                              fillColor: AppTheme.bg3,
                               border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide:
-                                    const BorderSide(color: Color(0xFF30363D)),
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: BorderSide(color: AppTheme.border),
                               ),
                               enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide:
-                                    const BorderSide(color: Color(0xFF30363D)),
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: BorderSide(color: AppTheme.border),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: const BorderSide(color: Color(0xFF00E5FF)),
                               ),
                             ),
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        ElevatedButton(
-                          onPressed: _isLoading ? null : _joinRoom,
-                          child: const Text('JOIN'),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Container(
+                            height: 38,
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            decoration: BoxDecoration(
+                              color: AppTheme.bg3,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: AppTheme.border),
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<PlayerColor>(
+                                value: _selectedColor,
+                                isExpanded: true,
+                                dropdownColor: AppTheme.surface,
+                                icon: const Icon(Icons.arrow_drop_down_rounded, color: Colors.white70),
+                                items: PlayerColor.values.map((color) {
+                                  return DropdownMenuItem<PlayerColor>(
+                                    value: color,
+                                    child: Row(
+                                      children: [
+                                        Container(
+                                          width: 14,
+                                          height: 14,
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            color: color.color,
+                                            border: Border.all(color: Colors.white38),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          color.label,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }).toList(),
+                                onChanged: (val) {
+                                  if (val != null) setState(() => _selectedColor = val);
+                                },
+                              ),
+                            ),
+                          ),
                         ),
                       ],
                     ),
@@ -401,11 +252,272 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 ),
               ),
 
-              const SizedBox(height: 16),
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('← Back to menu'),
+              // Segment Switcher (Create Room vs Join Room)
+              Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: AppTheme.bg3,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppTheme.border),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => setState(() => _activeTab = 0),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          decoration: BoxDecoration(
+                            gradient: _activeTab == 0 ? AppTheme.primaryGradient : null,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            'CREATE ROOM',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: _activeTab == 0 ? Colors.white : Colors.white70,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => setState(() => _activeTab = 1),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          decoration: BoxDecoration(
+                            gradient: _activeTab == 1 ? AppTheme.primaryGradient : null,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            'JOIN ROOM',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: _activeTab == 1 ? Colors.white : Colors.white70,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
+
+              // Active Tab Content Card
+              if (_activeTab == 0) ...[
+                // CREATE ROOM
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: AppTheme.glassCard(),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Select Match Size',
+                        style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [2, 4].map((size) {
+                          final selected = _onlineMatchSize == size;
+                          return Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 4),
+                              child: GestureDetector(
+                                onTap: () => setState(() => _onlineMatchSize = size),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(vertical: 8),
+                                  decoration: BoxDecoration(
+                                    gradient: selected ? AppTheme.primaryGradient : null,
+                                    color: selected ? null : AppTheme.bg3,
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: selected ? AppTheme.accentLight : AppTheme.border,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    '$size Players',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: selected ? Colors.white : AppTheme.textSecondary,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                      if (_onlineMatchSize == 4) ...[
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            const Icon(Icons.groups_rounded, size: 18, color: Color(0xFF00E5FF)),
+                            const SizedBox(width: 8),
+                            const Expanded(
+                              child: Text(
+                                '2v2 Team Up Mode',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                            Switch(
+                              value: _onlineEnableTeamUp,
+                              activeThumbColor: const Color(0xFF00E5FF),
+                              onChanged: (val) => setState(() => _onlineEnableTeamUp = val),
+                            ),
+                          ],
+                        ),
+                      ],
+                      const SizedBox(height: 14),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: ElevatedButton(
+                          onPressed: _isLoading ? null : _createRoom,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.transparent,
+                            shadowColor: Colors.transparent,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          child: Ink(
+                            decoration: BoxDecoration(
+                              gradient: AppTheme.primaryGradient,
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Center(
+                              child: _isLoading
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Text(
+                                      'CREATE ROOM',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: 1.2,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ] else ...[
+                // JOIN ROOM
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: AppTheme.glassCard(),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Enter 6-Digit Room Code',
+                        style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: _codeController,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          letterSpacing: 6,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                        ),
+                        textCapitalization: TextCapitalization.characters,
+                        textAlign: TextAlign.center,
+                        maxLength: 6,
+                        decoration: InputDecoration(
+                          hintText: 'ROOM CODE',
+                          hintStyle: TextStyle(
+                            color: AppTheme.textMuted,
+                            letterSpacing: 2,
+                            fontSize: 13,
+                          ),
+                          counterText: '',
+                          filled: true,
+                          fillColor: AppTheme.bg3,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: AppTheme.border),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: AppTheme.border),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFF00E5FF)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: ElevatedButton(
+                          onPressed: _isLoading ? null : _joinRoom,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.transparent,
+                            shadowColor: Colors.transparent,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          child: Ink(
+                            decoration: BoxDecoration(
+                              gradient: AppTheme.primaryGradient,
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Center(
+                              child: _isLoading
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Text(
+                                      'JOIN ROOM',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: 1.2,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         ),

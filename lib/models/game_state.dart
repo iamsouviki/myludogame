@@ -179,8 +179,10 @@ class GameState extends ChangeNotifier {
           nextPos >= 0 &&
           nextPos < boardType.trackLength &&
           !safeSpots.contains(nextPos)) {
+        final currentTeam = players[playerIndex].teamId;
         for (var p = 0; p < players.length; p++) {
           if (p == playerIndex) continue;
+          if (currentTeam != null && players[p].teamId == currentTeam) continue; // teammates don't block each other
           var count = 0;
           for (var t = 0; t < tokensPerPlayer; t++) {
             if (tokenPositions[p][t] == nextPos) count++;
@@ -277,9 +279,12 @@ class GameState extends ChangeNotifier {
     if (pos < 0 || pos >= boardType.trackLength) return false;
     if (safeSpots.contains(pos)) return false; // safe spot, no capture
 
+    final currentTeam = players[playerIndex].teamId;
+
     var captured = false;
     for (var p = 0; p < players.length; p++) {
       if (p == playerIndex) continue;
+      if (currentTeam != null && players[p].teamId == currentTeam) continue; // teammates don't capture each other
       for (var t = 0; t < tokensPerPlayer; t++) {
         if (tokenPositions[p][t] == pos) {
           tokenPositions[p][t] = posInBase; // send home

@@ -182,6 +182,7 @@ class GameService {
     List<String>? humanNames,
     List<PlayerColor>? humanColors,
     bool enableJodi = true,
+    bool enableTeamUp = false,
   }) {
     final allColors = boardType == BoardType.classic4
         ? [PlayerColor.red, PlayerColor.green, PlayerColor.yellow, PlayerColor.blue]
@@ -189,6 +190,8 @@ class GameService {
 
     final players = <Player>[];
     final assignedColors = <PlayerColor>[];
+
+    final totalPlayersCount = humanPlayers + aiPlayers;
 
     for (var i = 0; i < humanPlayers; i++) {
       final name = (humanNames != null && i < humanNames.length && humanNames[i].trim().isNotEmpty)
@@ -198,25 +201,38 @@ class GameService {
           ? humanColors[i]
           : allColors[i % allColors.length];
       assignedColors.add(color);
+
+      final teamId = enableTeamUp && totalPlayersCount == 4
+          ? (i % 2 == 0 ? 0 : 1)
+          : null;
+
       players.add(Player(
         id: 'human_$i',
         name: name,
         color: color,
         type: PlayerType.human,
+        teamId: teamId,
       ));
     }
 
     final remainingColors = allColors.where((c) => !assignedColors.contains(c)).toList();
     for (var i = 0; i < aiPlayers; i++) {
+      final playerIndex = humanPlayers + i;
       final color = i < remainingColors.length
           ? remainingColors[i]
-          : allColors[(humanPlayers + i) % allColors.length];
+          : allColors[playerIndex % allColors.length];
+
+      final teamId = enableTeamUp && totalPlayersCount == 4
+          ? (playerIndex % 2 == 0 ? 0 : 1)
+          : null;
+
       players.add(Player(
         id: 'ai_$i',
         name: 'Bot ${i + 1}',
         color: color,
         type: PlayerType.ai,
         difficulty: aiDifficulty,
+        teamId: teamId,
       ));
     }
 
@@ -225,6 +241,7 @@ class GameService {
       players: players,
       enableJodi: enableJodi,
     );
+
     return GameService(state: state);
   }
 }

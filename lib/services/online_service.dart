@@ -21,6 +21,8 @@ class RoomData {
   final List<Player> players;
   final RoomStatus status;
   final Map<String, dynamic>? gameState;
+  final bool isTeamUp;
+  final int targetPlayerCount;
 
   const RoomData({
     required this.code,
@@ -29,9 +31,11 @@ class RoomData {
     required this.players,
     this.status = RoomStatus.waiting,
     this.gameState,
+    this.isTeamUp = false,
+    this.targetPlayerCount = 4,
   });
 
-  int get maxPlayers => boardType.maxPlayers;
+  int get maxPlayers => targetPlayerCount;
   bool get isFull => players.length >= maxPlayers;
 
   Map<String, dynamic> toJson() => {
@@ -41,6 +45,8 @@ class RoomData {
         'players': players.map((p) => p.toJson()).toList(),
         'status': status.index,
         'gameState': gameState,
+        'isTeamUp': isTeamUp,
+        'targetPlayerCount': targetPlayerCount,
       };
 
   factory RoomData.fromJson(Map<String, dynamic> json) => RoomData(
@@ -54,6 +60,8 @@ class RoomData {
         gameState: json['gameState'] != null
             ? Map<String, dynamic>.from(json['gameState'] as Map)
             : null,
+        isTeamUp: (json['isTeamUp'] as bool?) ?? false,
+        targetPlayerCount: (json['targetPlayerCount'] as int?) ?? 4,
       );
 }
 
@@ -197,6 +205,8 @@ class OnlineService {
     required BoardType boardType,
     PlayerColor? preferredColor,
     int avatarIndex = 0,
+    bool isTeamUp = false,
+    int targetPlayerCount = 4,
   }) async {
     final code = RoomCodeGenerator.generate();
     final player = Player(
@@ -208,6 +218,7 @@ class OnlineService {
               : PlayerColor.values[0]),
       type: PlayerType.human,
       avatarIndex: avatarIndex,
+      teamId: (isTeamUp && targetPlayerCount == 4) ? 0 : null,
     );
 
     final room = RoomData(
@@ -215,6 +226,8 @@ class OnlineService {
       hostId: localPlayerId!,
       boardType: boardType,
       players: [player],
+      isTeamUp: isTeamUp,
+      targetPlayerCount: targetPlayerCount,
     );
 
     _localRooms[code] = room;
@@ -283,12 +296,18 @@ class OnlineService {
       orElse: () => allColors[targetRoom.players.length % allColors.length],
     );
 
+    final playerIndex = targetRoom.players.length;
+    final teamId = (targetRoom.isTeamUp && targetRoom.targetPlayerCount == 4)
+        ? (playerIndex % 2 == 0 ? 0 : 1)
+        : null;
+
     final player = Player(
       id: localPlayerId!,
       name: playerName,
       color: availableColor,
       type: PlayerType.human,
       avatarIndex: avatarIndex,
+      teamId: teamId,
     );
 
     final updatedRoom = RoomData(
@@ -298,6 +317,8 @@ class OnlineService {
       players: [...room.players, player],
       status: room.status,
       gameState: room.gameState,
+      isTeamUp: room.isTeamUp,
+      targetPlayerCount: room.targetPlayerCount,
     );
 
     _localRooms[cleanCode] = updatedRoom;
