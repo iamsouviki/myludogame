@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "94304183673",
+    "firebase_url": "https://my-ludo-73080-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "my-ludo-73080",
+    "storage_bucket": "my-ludo-73080.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:94304183673:android:9ff71b362fbb0d30afbba8",
+        "android_client_info": {
+          "package_name": "com.myludo.my_ludo"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCQ39qxmLb_JOikf_RzAoFgrG-Tgx2soLs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

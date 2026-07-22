@@ -1,0 +1,509 @@
+import 'package:flutter/material.dart';
+
+import '../../services/game_service.dart';
+import '../../utils/constants.dart';
+import '../theme.dart';
+import 'game_screen.dart';
+import 'lobby_screen.dart';
+
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  BoardType _boardType = BoardType.classic4;
+  int _humanPlayers = 1;
+  int _aiPlayers = 1;
+  AIDifficulty _aiDifficulty = AIDifficulty.medium;
+
+  int get _totalPlayers => _humanPlayers + _aiPlayers;
+  int get _maxPlayers => _boardType.maxPlayers;
+
+  List<PlayerColor> get _activeColors {
+    final all = _boardType == BoardType.classic4
+        ? [PlayerColor.red, PlayerColor.green, PlayerColor.yellow, PlayerColor.blue]
+        : PlayerColor.values;
+    return all.take(_totalPlayers).toList();
+  }
+
+  void _startGame() {
+    if (_totalPlayers < 2 || _totalPlayers > _maxPlayers) return;
+    final service = GameService.createLocalGame(
+      boardType: _boardType,
+      humanPlayers: _humanPlayers,
+      aiPlayers: _aiPlayers,
+      aiDifficulty: _aiDifficulty,
+    );
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        pageBuilder: (_, a1, a2) => GameScreen(service: service),
+        transitionsBuilder: (_, animation, a2, child) {
+          return FadeTransition(
+            opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
+            child: child,
+          );
+        },
+        transitionDuration: const Duration(milliseconds: 350),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
+    final screenHeight = mediaQuery.size.height - mediaQuery.padding.top - mediaQuery.padding.bottom;
+    final isCompact = screenHeight < 720;
+
+    return Scaffold(
+      body: Container(
+        decoration: const BoxDecoration(gradient: AppTheme.heroGradient),
+        child: SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 440),
+              child: Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: isCompact ? 8 : 16,
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _buildHero(isCompact),
+                    _buildBoardTypeSelector(isCompact),
+                    _buildPlayerConfig(isCompact),
+                    if (_aiPlayers > 0)
+                      _buildDifficultySelector(isCompact),
+                    _buildPlayerColorPreview(isCompact),
+                    _buildActionButtons(isCompact),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Hero title ──
+
+  Widget _buildHero(bool isCompact) {
+    return Column(
+      children: [
+        Container(
+          width: isCompact ? 52 : 64,
+          height: isCompact ? 52 : 64,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: AppTheme.accent.withValues(alpha: 0.15),
+            border: Border.all(color: AppTheme.accent.withValues(alpha: 0.4), width: 1.5),
+          ),
+          child: Icon(
+            Icons.casino_rounded,
+            size: isCompact ? 28 : 34,
+            color: AppTheme.accentLight,
+          ),
+        ),
+        SizedBox(height: isCompact ? 6 : 10),
+        Text(
+          'MY LUDO',
+          style: TextStyle(
+            fontSize: isCompact ? 28 : 34,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 3,
+            color: AppTheme.textPrimary,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Board type selector ──
+
+  Widget _buildBoardTypeSelector(bool isCompact) {
+    return Container(
+      padding: EdgeInsets.all(isCompact ? 12 : 16),
+      decoration: AppTheme.glassCard(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.grid_view_rounded, size: 16, color: AppTheme.accentLight),
+              const SizedBox(width: 8),
+              Text(
+                'Board Type',
+                style: TextStyle(
+                  color: AppTheme.textPrimary,
+                  fontSize: isCompact ? 13 : 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: isCompact ? 8 : 12),
+          Row(
+            children: BoardType.values.map((type) {
+              final selected = _boardType == type;
+              return Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _boardType = type;
+                        if (_totalPlayers > type.maxPlayers) {
+                          _aiPlayers = type.maxPlayers - _humanPlayers;
+                          if (_aiPlayers < 0) {
+                            _humanPlayers = type.maxPlayers;
+                            _aiPlayers = 0;
+                          }
+                        }
+                      });
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: EdgeInsets.symmetric(vertical: isCompact ? 8 : 12),
+                      decoration: BoxDecoration(
+                        gradient: selected
+                            ? const LinearGradient(
+                                colors: [Color(0xFF6366F1), Color(0xFF4F46E5)],
+                              )
+                            : null,
+                        color: selected ? null : AppTheme.bg3,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: selected
+                              ? AppTheme.accentLight.withValues(alpha: 0.5)
+                              : AppTheme.border,
+                        ),
+                        boxShadow: selected
+                            ? [AppTheme.playerGlow(AppTheme.accent)]
+                            : null,
+                      ),
+                      child: Column(
+                        children: [
+                          Text(
+                            type == BoardType.classic4 ? 'Classic' : 'Star',
+                            style: TextStyle(
+                              color: selected ? Colors.white : AppTheme.textSecondary,
+                              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                              fontSize: 13,
+                            ),
+                          ),
+                          Text(
+                            '${type.maxPlayers} Players',
+                            style: TextStyle(
+                              color: selected ? Colors.white70 : AppTheme.textMuted,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Player count config ──
+
+  Widget _buildPlayerConfig(bool isCompact) {
+    return Container(
+      padding: EdgeInsets.all(isCompact ? 12 : 16),
+      decoration: AppTheme.glassCard(),
+      child: Column(
+        children: [
+          _buildPlayerRow(
+            icon: Icons.person_rounded,
+            label: 'Humans',
+            value: _humanPlayers,
+            color: AppTheme.success,
+            min: 0,
+            max: _maxPlayers,
+            isCompact: isCompact,
+            onChanged: (v) {
+              setState(() {
+                _humanPlayers = v;
+                if (_totalPlayers > _maxPlayers) {
+                  _aiPlayers = _maxPlayers - _humanPlayers;
+                }
+                if (_totalPlayers < 2) _aiPlayers = 2 - _humanPlayers;
+              });
+            },
+          ),
+          Padding(
+            padding: EdgeInsets.symmetric(vertical: isCompact ? 6 : 10),
+            child: Divider(color: AppTheme.border, height: 1),
+          ),
+          _buildPlayerRow(
+            icon: Icons.smart_toy_rounded,
+            label: 'Bots',
+            value: _aiPlayers,
+            color: AppTheme.accentLight,
+            min: 0,
+            max: _maxPlayers,
+            isCompact: isCompact,
+            onChanged: (v) {
+              setState(() {
+                _aiPlayers = v;
+                if (_totalPlayers > _maxPlayers) {
+                  _humanPlayers = _maxPlayers - _aiPlayers;
+                }
+                if (_totalPlayers < 2) _humanPlayers = 2 - _aiPlayers;
+              });
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPlayerRow({
+    required IconData icon,
+    required String label,
+    required int value,
+    required Color color,
+    required int min,
+    required int max,
+    required bool isCompact,
+    required ValueChanged<int> onChanged,
+  }) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: color),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              color: AppTheme.textPrimary,
+              fontWeight: FontWeight.w500,
+              fontSize: isCompact ? 13 : 14,
+            ),
+          ),
+        ),
+        _stepperBtn(
+          icon: Icons.remove_rounded,
+          enabled: value > min,
+          onTap: () => onChanged(value - 1),
+        ),
+        SizedBox(
+          width: 32,
+          child: Text(
+            '$value',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: color,
+            ),
+          ),
+        ),
+        _stepperBtn(
+          icon: Icons.add_rounded,
+          enabled: value < max,
+          onTap: () => onChanged(value + 1),
+        ),
+      ],
+    );
+  }
+
+  Widget _stepperBtn({
+    required IconData icon,
+    required bool enabled,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        width: 30,
+        height: 30,
+        decoration: BoxDecoration(
+          color: enabled ? AppTheme.surfaceLight : AppTheme.bg2,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: enabled ? AppTheme.borderLight : AppTheme.border,
+          ),
+        ),
+        child: Icon(
+          icon,
+          size: 16,
+          color: enabled ? AppTheme.textPrimary : AppTheme.textMuted,
+        ),
+      ),
+    );
+  }
+
+  // ── AI Difficulty ──
+
+  Widget _buildDifficultySelector(bool isCompact) {
+    return Container(
+      padding: EdgeInsets.all(isCompact ? 10 : 14),
+      decoration: AppTheme.glassCard(),
+      child: Row(
+        children: [
+          Icon(Icons.psychology_rounded, size: 16, color: AppTheme.warning),
+          const SizedBox(width: 8),
+          Text(
+            'Bot Level',
+            style: TextStyle(
+              color: AppTheme.textPrimary,
+              fontSize: isCompact ? 12 : 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Row(
+              children: AIDifficulty.values.map((d) {
+                final selected = _aiDifficulty == d;
+                final diffColors = {
+                  AIDifficulty.easy: AppTheme.success,
+                  AIDifficulty.medium: AppTheme.warning,
+                  AIDifficulty.hard: AppTheme.danger,
+                };
+                final color = diffColors[d]!;
+
+                return Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 2),
+                    child: GestureDetector(
+                      onTap: () => setState(() => _aiDifficulty = d),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        decoration: BoxDecoration(
+                          color: selected ? color.withValues(alpha: 0.15) : AppTheme.bg3,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: selected ? color.withValues(alpha: 0.6) : AppTheme.border,
+                          ),
+                        ),
+                        child: Text(
+                          d.label,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: selected ? color : AppTheme.textSecondary,
+                            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Player color preview ──
+
+  Widget _buildPlayerColorPreview(bool isCompact) {
+    final colors = _activeColors;
+    return Container(
+      padding: EdgeInsets.all(isCompact ? 12 : 14),
+      decoration: AppTheme.glassCard(),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: List.generate(colors.length, (i) {
+          final playerColor = colors[i];
+          final isHuman = i < _humanPlayers;
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: playerColor.color.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: playerColor.color.withValues(alpha: 0.5)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: playerColor.color,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  isHuman ? 'P${i + 1}' : 'Bot',
+                  style: TextStyle(
+                    color: playerColor.color,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }),
+      ),
+    );
+  }
+
+  // ── Action buttons ──
+
+  Widget _buildActionButtons(bool isCompact) {
+    final canStart = _totalPlayers >= 2 && _totalPlayers <= _maxPlayers;
+
+    return Column(
+      children: [
+        SizedBox(
+          width: double.infinity,
+          height: isCompact ? 48 : 54,
+          child: ElevatedButton(
+            onPressed: canStart ? _startGame : null,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: canStart ? null : AppTheme.bg3,
+              disabledBackgroundColor: AppTheme.bg3,
+              disabledForegroundColor: AppTheme.textMuted,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+            child: const Text('START GAME'),
+          ),
+        ),
+        SizedBox(height: isCompact ? 8 : 10),
+        SizedBox(
+          width: double.infinity,
+          height: isCompact ? 42 : 46,
+          child: OutlinedButton.icon(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const LobbyScreen()),
+              );
+            },
+            icon: const Icon(Icons.public_rounded, size: 16),
+            label: const Text('PLAY ONLINE'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppTheme.accentLight,
+              side: BorderSide(
+                  color: AppTheme.accentLight.withValues(alpha: 0.4)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
