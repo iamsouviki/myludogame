@@ -92,32 +92,13 @@ class _HomeScreenState extends State<HomeScreen> {
   // ── Hero title ──
 
   Widget _buildHero(bool isCompact) {
-    return Column(
-      children: [
-        Container(
-          width: isCompact ? 70 : 90,
-          height: isCompact ? 70 : 90,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF00E5FF).withValues(alpha: 0.4),
-                blurRadius: 20,
-                spreadRadius: 3,
-              ),
-            ],
-          ),
-          child: ClipOval(
-            child: Image.asset('assets/images/app_icon.png', fit: BoxFit.cover),
-          ),
-        ),
-        SizedBox(height: isCompact ? 4 : 8),
-        Image.asset(
-          'assets/images/ludo_banner_logo.png',
-          height: isCompact ? 60 : 85,
-          fit: BoxFit.contain,
-        ),
-      ],
+    return Container(
+      padding: EdgeInsets.symmetric(vertical: isCompact ? 4 : 8),
+      child: Image.asset(
+        'assets/images/ludo_banner_logo.png',
+        height: isCompact ? 90 : 135,
+        fit: BoxFit.contain,
+      ),
     );
   }
 
@@ -170,7 +151,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       decoration: BoxDecoration(
                         gradient: selected
                             ? const LinearGradient(
-                                colors: [Color(0xFF6366F1), Color(0xFF4F46E5)],
+                                colors: [Color(0xFFEC4899), Color(0xFF8B5CF6)],
                               )
                             : null,
                         color: selected ? null : AppTheme.bg3,
@@ -464,44 +445,78 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Column(
       children: [
-        SizedBox(
+        Container(
           width: double.infinity,
-          height: isCompact ? 48 : 54,
+          height: isCompact ? 50 : 56,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            gradient: canStart ? AppTheme.primaryGradient : null,
+            color: canStart ? null : AppTheme.bg3,
+            boxShadow: canStart
+                ? [
+                    BoxShadow(
+                      color: const Color(0xFFEC4899).withValues(alpha: 0.4),
+                      blurRadius: 18,
+                      spreadRadius: 1,
+                    )
+                  ]
+                : [],
+          ),
           child: ElevatedButton(
             onPressed: canStart ? _startGame : null,
             style: ElevatedButton.styleFrom(
-              backgroundColor: canStart ? null : AppTheme.bg3,
-              disabledBackgroundColor: AppTheme.bg3,
-              disabledForegroundColor: AppTheme.textMuted,
+              backgroundColor: Colors.transparent,
+              shadowColor: Colors.transparent,
+              foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(16),
               ),
             ),
-            child: const Text('START GAME'),
+            child: const Text(
+              'START GAME',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.5,
+              ),
+            ),
           ),
         ),
-        SizedBox(height: isCompact ? 8 : 10),
-        SizedBox(
+        SizedBox(height: isCompact ? 10 : 14),
+        Container(
           width: double.infinity,
-          height: isCompact ? 42 : 46,
+          height: isCompact ? 46 : 50,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF00E5FF).withValues(alpha: 0.15),
+                blurRadius: 14,
+              ),
+            ],
+          ),
           child: OutlinedButton.icon(
             onPressed: () {
               Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const LobbyScreen()),
               );
             },
-            icon: const Icon(Icons.public_rounded, size: 16),
-            label: const Text('PLAY ONLINE'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppTheme.accentLight,
-              side: BorderSide(
-                  color: AppTheme.accentLight.withValues(alpha: 0.4)),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
+            icon: const Icon(Icons.public_rounded, size: 18, color: Color(0xFF00E5FF)),
+            label: const Text(
+              'PLAY ONLINE',
+              style: TextStyle(
+                color: Color(0xFF00E5FF),
+                fontWeight: FontWeight.w800,
+                fontSize: 14,
+                letterSpacing: 1.2,
               ),
             ),
-          ),
-        ),
+            style: OutlinedButton.styleFrom(
+              side: const BorderSide(color: Color(0xFF00E5FF), width: 1.8),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
       ],
     );
   }

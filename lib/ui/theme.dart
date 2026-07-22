@@ -16,13 +16,17 @@ class AppTheme {
   static const Color textPrimary = Color(0xFFF8FAFC);
   static const Color textSecondary = Color(0xFFA0AEC0);
   static const Color textMuted = Color(0xFF64748B);
-  static const Color accent = Color(0xFF6366F1); // Electric Indigo
-  static const Color accentLight = Color(0xFF818CF8);
+  static const Color accent = Color(0xFFD946EF); // Vibrant Neon Fuchsia/Magenta
+  static const Color accentLight = Color(0xFFF0ABFC);
   static const Color success = Color(0xFF10B981);
   static const Color successLight = Color(0xFF34D399);
   static const Color warning = Color(0xFFF59E0B);
   static const Color danger = Color(0xFFEF4444);
   static const Color gold = Color(0xFFFFD700);
+
+  static const LinearGradient primaryGradient = LinearGradient(
+    colors: [Color(0xFFEC4899), Color(0xFF8B5CF6)],
+  );
 
   static ThemeData get darkTheme => ThemeData(
         brightness: Brightness.dark,
