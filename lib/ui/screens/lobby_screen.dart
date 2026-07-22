@@ -209,7 +209,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 children: [
                   IconButton(
                     icon: const Icon(Icons.arrow_back_rounded, color: Colors.white70),
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
                   ),
                   const SizedBox(width: 4),
                   const Icon(Icons.public_rounded, color: Color(0xFF00E5FF), size: 24),

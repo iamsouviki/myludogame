@@ -246,6 +246,8 @@ class OnlineService {
       try {
         debugPrint('[OnlineService] Creating room $code on Firebase...');
         await ref.set(room.toJson());
+        // Configure onDisconnect so if host drops connection, room is cleaned up
+        await ref.onDisconnect().remove();
         debugPrint('[OnlineService] Room $code created successfully on Firebase.');
         _listenToRoom(code);
       } catch (e, stack) {
@@ -437,19 +439,62 @@ class OnlineService {
     }
   }
 
-  /// Leave room
+  /// Store completed game leaderboard data and delete active room data
+  Future<void> storeFinishedMatch(GameState state) async {
+    if (currentRoomCode == null) return;
+    final code = currentRoomCode!;
+    try {
+      // 1. Save minimal leaderboard record
+      final leaderboardRef = FirebaseDatabase.instance.ref('leaderboards/$code');
+      await leaderboardRef.set({
+        'roomCode': code,
+        'finishedAt': DateTime.now().millisecondsSinceEpoch,
+        'winnerName': state.winner != null ? state.players[state.winner!].name : 'Unknown',
+        'winnerColor': state.winner != null ? state.players[state.winner!].color.label : '',
+        'players': state.players.map((p) => {
+          'name': p.name,
+          'color': p.color.label,
+          'avatarIndex': p.avatarIndex,
+        }).toList(),
+        'rankings': state.finishOrder.map((idx) => {
+          'rank': state.finishOrder.indexOf(idx) + 1,
+          'name': state.players[idx].name,
+          'color': state.players[idx].color.label,
+        }).toList(),
+      });
+
+      // 2. Delete room data from DB to free up room memory
+      final roomRef = _roomRef(code);
+      if (roomRef != null) {
+        await roomRef.remove();
+      }
+    } catch (_) {}
+  }
+
+  /// Leave room gracefully
   Future<void> leaveRoom() async {
     if (currentRoomCode == null) return;
+    final code = currentRoomCode!;
     _firebaseSubscription?.cancel();
+    _chatSubscription?.cancel();
 
-    final ref = _roomRef(currentRoomCode!);
-    if (ref != null) {
+    final room = _localRooms[code];
+    final ref = _roomRef(code);
+
+    if (ref != null && room != null) {
       try {
-        await ref.remove();
+        if (room.hostId == localPlayerId || room.players.length <= 1) {
+          // Host leaves or last player -> remove room
+          await ref.remove();
+        } else {
+          // Non-host leaves -> remove self from player list & update DB
+          final remainingPlayers = room.players.where((p) => p.id != localPlayerId).toList();
+          await ref.child('players').set(remainingPlayers.map((p) => p.toJson()).toList());
+        }
       } catch (_) {}
     }
 
-    _localRooms.remove(currentRoomCode);
+    _localRooms.remove(code);
     currentRoomCode = null;
   }
 

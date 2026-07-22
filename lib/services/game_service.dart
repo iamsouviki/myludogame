@@ -29,6 +29,9 @@ class GameService {
   /// Callback for dice roll
   ValueChanged<int>? onDiceRoll;
 
+  /// Callback when a token move finishes animating
+  VoidCallback? onMoveComplete;
+
   GameService({
     required this.state,
     this.displayDelay = const Duration(milliseconds: 2000),
@@ -51,12 +54,21 @@ class GameService {
     onDiceRoll?.call(value);
 
     if (state.validTokenMoves.isEmpty) {
-      // No valid moves — display dice result in player's color for 2s before passing turn
+      // No valid moves — check if player gets another roll (rolled 6) or pass
       _turnTimer?.cancel();
       _turnTimer = Timer(displayDelay, () {
         if (_disposed || state.isGameOver) return;
-        state.advanceTurn();
-        _tryAITurn();
+        if (state.getsExtraRoll) {
+          // Rolled a 6 but no moves — still get another roll
+          state.getsExtraRoll = false;
+          state.phase = GamePhase.rolling;
+          state.lastDiceRoll = null;
+          state.validTokenMoves = [];
+          state.notifyChange();
+        } else {
+          state.advanceTurn();
+          _tryAITurn();
+        }
       });
     } else if (state.validTokenMoves.length == 1) {
       // Single valid token available — display dice result clearly for 1.2s before auto-moving
@@ -158,15 +170,18 @@ class GameService {
     if (state.isGameOver) {
       SoundService.playVictorySound();
     }
+    onMoveComplete?.call();
 
     if (!state.isGameOver) {
-      if (state.pendingExtraRolls > 0) {
-        state.pendingExtraRolls--;
+      // Ludo King: extra turn if rolled 6 OR captured (boolean, no stacking)
+      if (state.getsExtraRoll) {
+        state.getsExtraRoll = false;
         state.phase = GamePhase.rolling;
+        state.lastDiceRoll = null;
+        state.validTokenMoves = [];
         state.notifyChange();
         _tryAITurn();
       } else {
-        // Move to next player immediately
         state.advanceTurn();
         _tryAITurn();
       }
@@ -200,12 +215,21 @@ class GameService {
           _animateStepByStepMove(token);
         });
       } else {
-        // No valid moves — display AI dice result for 2s before advancing to next color
+        // No valid moves — check extra roll or pass
         _turnTimer?.cancel();
         _turnTimer = Timer(displayDelay, () {
           if (_disposed || state.isGameOver) return;
-          state.advanceTurn();
-          _tryAITurn();
+          if (state.getsExtraRoll) {
+            state.getsExtraRoll = false;
+            state.phase = GamePhase.rolling;
+            state.lastDiceRoll = null;
+            state.validTokenMoves = [];
+            state.notifyChange();
+            _tryAITurn();
+          } else {
+            state.advanceTurn();
+            _tryAITurn();
+          }
         });
       }
     }

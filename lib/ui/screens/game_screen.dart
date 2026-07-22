@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -35,6 +36,15 @@ class _GameScreenState extends State<GameScreen>
     with TickerProviderStateMixin {
   GameState get state => widget.service.state;
   late AnimationController _turnGlow;
+  StreamSubscription<RoomData>? _roomSubscription;
+
+  /// Whether the local player is the one whose turn it is
+  bool get _isLocalPlayerTurn {
+    if (widget.localPlayerId == null) return true; // offline game
+    return state.currentPlayer.id == widget.localPlayerId;
+  }
+
+  bool get _isOnline => widget.onlineService != null;
 
   @override
   void initState() {
@@ -44,13 +54,34 @@ class _GameScreenState extends State<GameScreen>
       vsync: this,
     )..repeat(reverse: true);
     state.addListener(_onStateChange);
+    widget.service.onMoveComplete = _syncToFirebase;
     widget.service.start();
+
+    // Online: listen for remote game state updates & room events
+    if (_isOnline) {
+      _roomSubscription = widget.onlineService!.roomStream.listen((room) {
+        if (!mounted) return;
+        if (room.gameState != null) {
+          _onRemoteStateUpdate(room.gameState!);
+        }
+      }, onDone: () {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('A player disconnected or room was closed.'),
+              backgroundColor: Colors.orangeAccent,
+            ),
+          );
+        }
+      });
+    }
   }
 
   @override
   void dispose() {
     _turnGlow.dispose();
     state.removeListener(_onStateChange);
+    _roomSubscription?.cancel();
     widget.service.dispose();
     super.dispose();
   }
@@ -62,13 +93,39 @@ class _GameScreenState extends State<GameScreen>
       setState(() {});
       if (state.isGameOver && !_dialogShown) {
         _dialogShown = true;
+        if (_isOnline) {
+          widget.onlineService!.storeFinishedMatch(state);
+        }
         Future.microtask(() => _showVictoryModal());
       }
     }
   }
 
-  void _onDiceRoll() => widget.service.rollDice();
-  void _onTokenTap(int tokenIndex) => widget.service.selectToken(tokenIndex);
+  /// Apply remote state from Firebase (for the non-active player's device)
+  void _onRemoteStateUpdate(Map<String, dynamic> remoteState) {
+    // Only apply if it's NOT our turn (the active player drives their own state)
+    if (_isLocalPlayerTurn) return;
+    state.loadFromJson(remoteState);
+  }
+
+  /// Sync local state to Firebase after an action
+  void _syncToFirebase() {
+    if (_isOnline) {
+      widget.onlineService!.syncGameState(state);
+    }
+  }
+
+  void _onDiceRoll() {
+    if (!_isLocalPlayerTurn) return;
+    widget.service.rollDice();
+    _syncToFirebase();
+  }
+
+  void _onTokenTap(int tokenIndex) {
+    if (!_isLocalPlayerTurn) return;
+    widget.service.selectToken(tokenIndex);
+    // Sync will happen after animation completes via _finishMoveTurn
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -503,7 +560,7 @@ class _GameScreenState extends State<GameScreen>
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
-              Navigator.pop(context);
+              Navigator.of(context).popUntil((route) => route.isFirst);
             },
             child: Text('Leave', style: TextStyle(color: AppTheme.danger)),
           ),
@@ -651,7 +708,7 @@ class _GameScreenState extends State<GameScreen>
                     child: OutlinedButton(
                       onPressed: () {
                         Navigator.pop(ctx);
-                        Navigator.pop(context);
+                        Navigator.of(context).popUntil((route) => route.isFirst);
                       },
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppTheme.textSecondary,

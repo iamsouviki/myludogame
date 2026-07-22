@@ -6,23 +6,21 @@ import '../utils/constants.dart';
 import 'player.dart';
 import 'dice.dart';
 
-// ponytail: West Bengal regional rules (Viti capture requirement, Jodi blockades, extra roll queue)
+// Ludo King standard rules
 
 class GameState extends ChangeNotifier {
   final BoardType boardType;
   final List<Player> players;
-  final bool enableJodi;
   final Dice _dice;
 
   // Token positions: tokenPositions[playerIndex][tokenIndex]
   // Values: posInBase (-1), posHome (-2), or 0..trackLength-1 (board position)
   late List<List<int>> tokenPositions;
-  late List<bool> hasCapturedOpponent;
 
   int currentPlayerIndex = 0;
   int? lastDiceRoll;
   int consecutiveSixes = 0;
-  int pendingExtraRolls = 0;
+  bool getsExtraRoll = false; // Ludo King: rolling 6 or capturing = one extra turn
   GamePhase phase = GamePhase.rolling;
   List<int> validTokenMoves = []; // indices of tokens that can move
   int? winner; // player index of winner, null if game ongoing
@@ -31,7 +29,7 @@ class GameState extends ChangeNotifier {
   GameState({
     required this.boardType,
     required this.players,
-    this.enableJodi = true,
+    bool enableJodi = true, // kept for API compat, ignored
     Dice? dice,
   }) : _dice = dice ?? Dice() {
     assert(players.length >= 2 && players.length <= boardType.maxPlayers);
@@ -39,7 +37,6 @@ class GameState extends ChangeNotifier {
       players.length,
       (_) => List.filled(tokensPerPlayer, posInBase),
     );
-    hasCapturedOpponent = List.filled(players.length, false);
   }
 
   Player get currentPlayer => players[currentPlayerIndex];
@@ -90,23 +87,25 @@ class GameState extends ChangeNotifier {
   bool hasPlayerFinished(int playerIndex) =>
       tokenPositions[playerIndex].every((pos) => pos == posHome);
 
-  /// Roll the dice
+  /// Roll the dice (Ludo King rules)
   int rollDice() {
     final rolled = _dice.roll();
     lastDiceRoll = rolled;
+    getsExtraRoll = false; // reset before evaluating
 
     if (rolled == diceMax) {
       consecutiveSixes++;
       if (consecutiveSixes >= maxConsecutiveSixes) {
-        // Triple-6: cancel roll, clear pending extra rolls, lose turn
+        // Triple-6: lose turn entirely
         consecutiveSixes = 0;
-        pendingExtraRolls = 0;
+        getsExtraRoll = false;
         phase = GamePhase.rolling;
         _nextTurn();
         notifyListeners();
         return rolled;
       }
-      pendingExtraRolls++;
+      // Rolling a 6 grants an extra turn (set after move in moveToken)
+      getsExtraRoll = true;
     } else {
       consecutiveSixes = 0;
     }
@@ -115,7 +114,7 @@ class GameState extends ChangeNotifier {
     validTokenMoves = _findValidMoves(currentPlayerIndex, rolled);
 
     if (validTokenMoves.isEmpty) {
-      // No valid moves — if extra rolls pending, consume one; else prepare to pass turn
+      // No valid moves
       phase = GamePhase.rolling;
     } else {
       phase = GamePhase.moving;
@@ -125,9 +124,9 @@ class GameState extends ChangeNotifier {
     return rolled;
   }
 
-  /// Advance to next turn explicitly
+  /// Advance to next turn explicitly (no extra roll)
   void advanceTurn() {
-    pendingExtraRolls = 0;
+    getsExtraRoll = false;
     _nextTurn();
     phase = GamePhase.rolling;
     notifyListeners();
@@ -153,6 +152,7 @@ class GameState extends ChangeNotifier {
       return diceValue == diceToEnter; // need 6 to enter
     }
 
+    // Ludo King: simple path check — no Jodi/Star blockades
     var currPos = pos;
     for (var s = 1; s <= diceValue; s++) {
       if (currPos == posHome) return false;
@@ -167,36 +167,12 @@ class GameState extends ChangeNotifier {
         } else {
           nextPos = boardType.trackLength + stepsIntoHome;
         }
-      } else if (currPos == homeEntryPosition(playerIndex) &&
-          hasCapturedOpponent[playerIndex]) {
-        // Mandatory capture rule satisfied: turn into home stretch
+      } else if (currPos == homeEntryPosition(playerIndex)) {
+        // Turn into home stretch
         nextPos = boardType.trackLength;
       } else {
-        // Bypass home entry or continue along shared track
+        // Continue along shared track
         nextPos = (currPos + 1) % boardType.trackLength;
-      }
-
-      // Jodi & Star Blockade Check: cannot pass through or land on opponent Jodi, or cross opponent tokens standing on a Star spot
-      if (nextPos >= 0 && nextPos < boardType.trackLength) {
-        final currentTeam = players[playerIndex].teamId;
-        final isStarSpot = safeSpots.contains(nextPos);
-
-        for (var p = 0; p < players.length; p++) {
-          if (p == playerIndex) continue;
-          if (currentTeam != null && players[p].teamId == currentTeam) continue;
-
-          var count = 0;
-          for (var t = 0; t < tokensPerPlayer; t++) {
-            if (tokenPositions[p][t] == nextPos) count++;
-          }
-
-          if (count >= 2) {
-            return false; // Path or target blocked by opponent Jodi
-          }
-          if (isStarSpot && count >= 1 && s < diceValue) {
-            return false; // Cannot cross an opponent standing on a Star cell!
-          }
-        }
       }
 
       currPos = nextPos;
@@ -217,25 +193,28 @@ class GameState extends ChangeNotifier {
       final stepsIntoHome = (pos - boardType.trackLength) + 1;
       if (stepsIntoHome >= boardType.homeStretchLength) {
         tokenPositions[playerIndex][tokenIndex] = posHome;
-        if (hasPlayerFinished(playerIndex)) {
+        if (hasPlayerFinished(playerIndex) && !finishOrder.contains(playerIndex)) {
           finishOrder.add(playerIndex);
           winner ??= playerIndex;
-          pendingExtraRolls = 0; // Win rule: extra rolls discarded on final home entry
+          // Game ends when all but 1 player have finished
           if (finishOrder.length >= players.length - 1) {
+            getsExtraRoll = false;
+            // Add the last remaining player to the end
             for (var i = 0; i < players.length; i++) {
               if (!finishOrder.contains(i)) finishOrder.add(i);
             }
             phase = GamePhase.finished;
+          } else {
+            getsExtraRoll = true; // Finished but game continues — extra turn
           }
         } else {
-          pendingExtraRolls++; // Reaching home yields an extra roll
+          getsExtraRoll = true; // Token reached home — extra turn
         }
       } else {
         tokenPositions[playerIndex][tokenIndex] =
             boardType.trackLength + stepsIntoHome;
       }
-    } else if (pos == homeEntryPosition(playerIndex) &&
-        hasCapturedOpponent[playerIndex]) {
+    } else if (pos == homeEntryPosition(playerIndex)) {
       tokenPositions[playerIndex][tokenIndex] = boardType.trackLength;
     } else {
       tokenPositions[playerIndex][tokenIndex] =
@@ -308,9 +287,13 @@ class GameState extends ChangeNotifier {
     final captured = _checkCapture(playerIndex, tokenIndex);
 
     if (phase != GamePhase.finished) {
-      if (pendingExtraRolls > 0) {
-        pendingExtraRolls--;
+      // Ludo King: extra turn if rolled 6 OR captured (getsExtraRoll already
+      // set by rollDice for 6; _checkCapture sets it for capture)
+      if (getsExtraRoll) {
+        // Stay on same player, let them roll again
         phase = GamePhase.rolling;
+        lastDiceRoll = null;
+        validTokenMoves = [];
       } else {
         _nextTurn();
         phase = GamePhase.rolling;
@@ -341,8 +324,7 @@ class GameState extends ChangeNotifier {
       }
     }
     if (captured) {
-      hasCapturedOpponent[playerIndex] = true;
-      pendingExtraRolls++; // Capturing an opponent grants an extra roll
+      getsExtraRoll = true; // Ludo King: capture grants an extra turn
     }
     return captured;
   }
@@ -356,7 +338,7 @@ class GameState extends ChangeNotifier {
     }
     currentPlayerIndex = next;
     consecutiveSixes = 0;
-    pendingExtraRolls = 0;
+    getsExtraRoll = false;
     lastDiceRoll = null;
     validTokenMoves = [];
   }
@@ -367,11 +349,10 @@ class GameState extends ChangeNotifier {
       players.length,
       (_) => List.filled(tokensPerPlayer, posInBase),
     );
-    hasCapturedOpponent = List.filled(players.length, false);
     currentPlayerIndex = 0;
     lastDiceRoll = null;
     consecutiveSixes = 0;
-    pendingExtraRolls = 0;
+    getsExtraRoll = false;
     phase = GamePhase.rolling;
     validTokenMoves = [];
     winner = null;
@@ -385,11 +366,10 @@ class GameState extends ChangeNotifier {
         'players': players.map((p) => p.toJson()).toList(),
         'tokenPositions':
             tokenPositions.map((t) => t.toList()).toList(),
-        'hasCapturedOpponent': hasCapturedOpponent,
         'currentPlayerIndex': currentPlayerIndex,
         'lastDiceRoll': lastDiceRoll,
         'consecutiveSixes': consecutiveSixes,
-        'pendingExtraRolls': pendingExtraRolls,
+        'getsExtraRoll': getsExtraRoll,
         'phase': phase.index,
         'validTokenMoves': validTokenMoves,
         'winner': winner,
@@ -401,13 +381,10 @@ class GameState extends ChangeNotifier {
     tokenPositions = (json['tokenPositions'] as List)
         .map((t) => List<int>.from(t as List))
         .toList();
-    if (json['hasCapturedOpponent'] != null) {
-      hasCapturedOpponent = List<bool>.from(json['hasCapturedOpponent'] as List);
-    }
     currentPlayerIndex = json['currentPlayerIndex'] as int;
     lastDiceRoll = json['lastDiceRoll'] as int?;
     consecutiveSixes = json['consecutiveSixes'] as int;
-    pendingExtraRolls = (json['pendingExtraRolls'] as int?) ?? 0;
+    getsExtraRoll = (json['getsExtraRoll'] as bool?) ?? false;
     phase = GamePhase.values[json['phase'] as int];
     validTokenMoves = List<int>.from(json['validTokenMoves'] as List);
     winner = json['winner'] as int?;
