@@ -176,14 +176,15 @@ class OnlineService {
       debugPrint('[OnlineService] Cannot join room $cleanCode (room null: ${room == null}, isFull: ${room?.isFull}, status: ${room?.status})');
       return null;
     }
+    final targetRoom = room;
 
-    final usedColors = room.players.map((p) => p.color).toSet();
-    final allColors = room.boardType == BoardType.classic4
+    final usedColors = targetRoom.players.map((p) => p.color).toSet();
+    final allColors = targetRoom.boardType == BoardType.classic4
         ? [PlayerColor.red, PlayerColor.green, PlayerColor.yellow, PlayerColor.blue]
         : PlayerColor.values;
     final availableColor = allColors.firstWhere(
       (c) => !usedColors.contains(c),
-      orElse: () => allColors[room.players.length % allColors.length],
+      orElse: () => allColors[targetRoom.players.length % allColors.length],
     );
 
     final player = Player(
