@@ -6,6 +6,7 @@ import '../../services/game_service.dart';
 import '../../services/online_service.dart';
 import '../../utils/constants.dart';
 import '../theme.dart';
+import '../widgets/player_avatar_widget.dart';
 import 'game_screen.dart';
 
 class LobbyScreen extends StatefulWidget {
@@ -21,6 +22,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
   final _codeController = TextEditingController();
   BoardType _boardType = BoardType.classic4;
   PlayerColor _selectedColor = PlayerColor.red;
+  int _selectedAvatarIndex = 0;
   RoomData? _room;
   bool _isLoading = false;
 
@@ -68,6 +70,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
           : _nameController.text.trim(),
       boardType: _boardType,
       preferredColor: _selectedColor,
+      avatarIndex: _selectedAvatarIndex,
     );
     setState(() => _isLoading = false);
   }
@@ -87,6 +90,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
       playerName: _nameController.text.trim().isEmpty
           ? 'Player'
           : _nameController.text.trim(),
+      avatarIndex: _selectedAvatarIndex,
     );
     setState(() => _isLoading = false);
 
@@ -106,7 +110,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(gradient: AppTheme.boardBackground),
+        decoration: AppTheme.artisticBackground(),
         child: SafeArea(
           child: _room == null ? _buildJoinCreate() : _buildLobby(),
         ),
@@ -140,7 +144,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'Your Name',
+                      'Your Name & Avatar',
                       style: TextStyle(color: Color(0xFFC9D1D9), fontSize: 14),
                     ),
                     const SizedBox(height: 8),
@@ -160,6 +164,33 @@ class _LobbyScreenState extends State<LobbyScreen> {
                           borderSide:
                               const BorderSide(color: Color(0xFF30363D)),
                         ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Select Avatar',
+                      style: TextStyle(color: Color(0xFF8B949E), fontSize: 12),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      height: 52,
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: Avatars.list.length,
+                        itemBuilder: (context, index) {
+                          final selected = _selectedAvatarIndex == index;
+                          return GestureDetector(
+                            onTap: () => setState(() => _selectedAvatarIndex = index),
+                            child: Padding(
+                              padding: const EdgeInsets.only(right: 10),
+                              child: PlayerAvatarWidget(
+                                avatarIndex: index,
+                                size: 44,
+                                borderColor: selected ? Colors.white : Colors.transparent,
+                              ),
+                            ),
+                          );
+                        },
                       ),
                     ),
                   ],
@@ -445,16 +476,13 @@ class _LobbyScreenState extends State<LobbyScreen> {
                     ),
                     const SizedBox(height: 12),
                     ...room.players.map((player) => Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.only(bottom: 10),
                           child: Row(
                             children: [
-                              Container(
-                                width: 20,
-                                height: 20,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: player.color.color,
-                                ),
+                              PlayerAvatarWidget(
+                                avatarIndex: player.avatarIndex,
+                                size: 36,
+                                borderColor: player.color.color,
                               ),
                               const SizedBox(width: 12),
                               Expanded(
@@ -463,6 +491,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontSize: 15,
+                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
                               ),

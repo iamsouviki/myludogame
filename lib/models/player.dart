@@ -6,6 +6,7 @@ class Player {
   final PlayerColor color;
   final PlayerType type;
   final AIDifficulty? difficulty;
+  final int avatarIndex;
 
   const Player({
     required this.id,
@@ -13,6 +14,7 @@ class Player {
     required this.color,
     required this.type,
     this.difficulty,
+    this.avatarIndex = 0,
   });
 
   bool get isAI => type == PlayerType.ai;
@@ -24,6 +26,7 @@ class Player {
     PlayerColor? color,
     PlayerType? type,
     AIDifficulty? difficulty,
+    int? avatarIndex,
   }) =>
       Player(
         id: id ?? this.id,
@@ -31,6 +34,7 @@ class Player {
         color: color ?? this.color,
         type: type ?? this.type,
         difficulty: difficulty ?? this.difficulty,
+        avatarIndex: avatarIndex ?? this.avatarIndex,
       );
 
   Map<String, dynamic> toJson() => {
@@ -39,6 +43,7 @@ class Player {
         'color': color.index,
         'type': type.index,
         'difficulty': difficulty?.index,
+        'avatarIndex': avatarIndex,
       };
 
   factory Player.fromJson(Map<String, dynamic> json) => Player(
@@ -49,5 +54,6 @@ class Player {
         difficulty: json['difficulty'] != null
             ? AIDifficulty.values[json['difficulty'] as int]
             : null,
+        avatarIndex: (json['avatarIndex'] as int?) ?? 0,
       );
 }

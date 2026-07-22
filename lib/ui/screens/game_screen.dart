@@ -9,6 +9,7 @@ import '../../utils/constants.dart';
 import '../theme.dart';
 import '../widgets/board_painter.dart';
 import '../widgets/dice_widget.dart';
+import '../widgets/player_avatar_widget.dart';
 import '../widgets/token_widget.dart';
 
 class GameScreen extends StatefulWidget {
@@ -56,7 +57,7 @@ class _GameScreenState extends State<GameScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(gradient: AppTheme.boardBackground),
+        decoration: AppTheme.artisticBackground(),
         child: SafeArea(
           child: LayoutBuilder(
             builder: (context, constraints) {
@@ -310,21 +311,34 @@ class _GameScreenState extends State<GameScreen>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Status text header
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 300),
-              child: Text(
-                _statusText(),
-                key: ValueKey(_statusText()),
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: state.isGameOver
-                      ? AppTheme.gold
-                      : AppTheme.textPrimary,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
+            // Active player avatar & Status header
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                PlayerAvatarWidget(
+                  avatarIndex: state.currentPlayer.avatarIndex,
+                  size: 32,
+                  borderColor: activePlayerColor,
                 ),
-              ),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 300),
+                    child: Text(
+                      _statusText(),
+                      key: ValueKey(_statusText()),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: state.isGameOver
+                            ? AppTheme.gold
+                            : AppTheme.textPrimary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 10),
             // Dice Container

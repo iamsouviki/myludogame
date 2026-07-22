@@ -103,6 +103,7 @@ class OnlineService {
     required String playerName,
     required BoardType boardType,
     PlayerColor? preferredColor,
+    int avatarIndex = 0,
   }) async {
     final code = RoomCodeGenerator.generate();
     final player = Player(
@@ -113,6 +114,7 @@ class OnlineService {
               ? PlayerColor.red
               : PlayerColor.values[0]),
       type: PlayerType.human,
+      avatarIndex: avatarIndex,
     );
 
     final room = RoomData(
@@ -148,6 +150,7 @@ class OnlineService {
   Future<RoomData?> joinRoom({
     required String code,
     required String playerName,
+    int avatarIndex = 0,
   }) async {
     final cleanCode = code.toUpperCase();
     debugPrint('[OnlineService] Attempting to join room: $cleanCode');
@@ -192,6 +195,7 @@ class OnlineService {
       name: playerName,
       color: availableColor,
       type: PlayerType.human,
+      avatarIndex: avatarIndex,
     );
 
     final updatedRoom = RoomData(

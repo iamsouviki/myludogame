@@ -59,7 +59,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(gradient: AppTheme.heroGradient),
+        decoration: AppTheme.artisticBackground(),
         child: SafeArea(
           child: Center(
             child: ConstrainedBox(

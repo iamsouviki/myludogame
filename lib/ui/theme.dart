@@ -122,7 +122,7 @@ class AppTheme {
         ],
       );
 
-  // Eye-catching vibrant dark background gradients
+  // Eye-catching vibrant dark background gradients & artistic background
   static const boardBackground = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
@@ -132,6 +132,15 @@ class AppTheme {
       Color(0xFF1B1B36),
     ],
   );
+
+  static BoxDecoration artisticBackground() => const BoxDecoration(
+        color: bg1,
+        image: DecorationImage(
+          image: AssetImage('assets/images/artistic_bg.png'),
+          fit: BoxFit.cover,
+          opacity: 0.35,
+        ),
+      );
 
   static const heroGradient = LinearGradient(
     begin: Alignment.topCenter,
