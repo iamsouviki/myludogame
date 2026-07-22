@@ -228,7 +228,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       // Start Button
                       SizedBox(
                         width: double.infinity,
-                        height: 50,
+                        height: 58,
                         child: ElevatedButton(
                           onPressed: () {
                             Navigator.pop(ctx);
@@ -538,7 +538,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       // Start Button
                       SizedBox(
                         width: double.infinity,
-                        height: 50,
+                        height: 58,
                         child: ElevatedButton(
                           onPressed: () {
                             Navigator.pop(ctx);

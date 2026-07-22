@@ -384,7 +384,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                       const SizedBox(height: 14),
                       SizedBox(
                         width: double.infinity,
-                        height: 48,
+                        height: 58,
                         child: ElevatedButton(
                           onPressed: _isLoading ? null : _createRoom,
                           style: ElevatedButton.styleFrom(
@@ -476,7 +476,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                       const SizedBox(height: 14),
                       SizedBox(
                         width: double.infinity,
-                        height: 48,
+                        height: 58,
                         child: ElevatedButton(
                           onPressed: _isLoading ? null : _joinRoom,
                           style: ElevatedButton.styleFrom(
@@ -689,7 +689,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
               if (isHost && room.players.length >= 2) ...[
                 SizedBox(
                   width: double.infinity,
-                  height: 50,
+                  height: 58,
                   child: ElevatedButton(
                     onPressed: _startGame,
                     child: const Text('START GAME'),

@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/foundation.dart';
 
 import '../utils/constants.dart';
@@ -174,21 +176,25 @@ class GameState extends ChangeNotifier {
         nextPos = (currPos + 1) % boardType.trackLength;
       }
 
-      // Jodi Blockade Check: cannot pass through or land on opponent Jodi on non-safe tiles (if enableJodi is true)
-      if (enableJodi &&
-          nextPos >= 0 &&
-          nextPos < boardType.trackLength &&
-          !safeSpots.contains(nextPos)) {
+      // Jodi & Star Blockade Check: cannot pass through or land on opponent Jodi, or cross opponent tokens standing on a Star spot
+      if (nextPos >= 0 && nextPos < boardType.trackLength) {
         final currentTeam = players[playerIndex].teamId;
+        final isStarSpot = safeSpots.contains(nextPos);
+
         for (var p = 0; p < players.length; p++) {
           if (p == playerIndex) continue;
-          if (currentTeam != null && players[p].teamId == currentTeam) continue; // teammates don't block each other
+          if (currentTeam != null && players[p].teamId == currentTeam) continue;
+
           var count = 0;
           for (var t = 0; t < tokensPerPlayer; t++) {
             if (tokenPositions[p][t] == nextPos) count++;
           }
+
           if (count >= 2) {
             return false; // Path or target blocked by opponent Jodi
+          }
+          if (isStarSpot && count >= 1 && s < diceValue) {
+            return false; // Cannot cross an opponent standing on a Star cell!
           }
         }
       }
@@ -238,6 +244,48 @@ class GameState extends ChangeNotifier {
 
     notifyListeners();
     return false;
+  }
+
+  /// Move a token 1 step backwards along its track toward its base
+  void reverseTokenStep(int playerIndex, int tokenIndex) {
+    final pos = tokenPositions[playerIndex][tokenIndex];
+    if (pos == posInBase) return;
+
+    if (pos == startPosition(playerIndex)) {
+      tokenPositions[playerIndex][tokenIndex] = posInBase;
+    } else if (pos >= boardType.trackLength) {
+      final stepsIntoHome = pos - boardType.trackLength;
+      if (stepsIntoHome == 0) {
+        tokenPositions[playerIndex][tokenIndex] = homeEntryPosition(playerIndex);
+      } else {
+        tokenPositions[playerIndex][tokenIndex] = pos - 1;
+      }
+    } else {
+      tokenPositions[playerIndex][tokenIndex] = (pos - 1 + boardType.trackLength) % boardType.trackLength;
+    }
+
+    notifyListeners();
+  }
+
+  /// Returns list of (playerIndex, tokenIndex) opponents at current pos if captured
+  List<Point<int>> findCapturedOpponents(int playerIndex, int tokenIndex) {
+    final pos = tokenPositions[playerIndex][tokenIndex];
+    if (pos < 0 || pos >= boardType.trackLength) return [];
+    if (safeSpots.contains(pos)) return [];
+
+    final currentTeam = players[playerIndex].teamId;
+    final capturedList = <Point<int>>[];
+
+    for (var p = 0; p < players.length; p++) {
+      if (p == playerIndex) continue;
+      if (currentTeam != null && players[p].teamId == currentTeam) continue;
+      for (var t = 0; t < tokensPerPlayer; t++) {
+        if (tokenPositions[p][t] == pos) {
+          capturedList.add(Point(p, t));
+        }
+      }
+    }
+    return capturedList;
   }
 
   /// Perform final capture check when token lands on final cell

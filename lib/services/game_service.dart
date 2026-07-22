@@ -7,6 +7,8 @@ import '../models/game_state.dart';
 import '../models/player.dart';
 import '../utils/constants.dart';
 
+import 'sound_service.dart';
+
 // ponytail: orchestrates local game loop with step-by-step tile traversal
 
 class GameService {
@@ -44,6 +46,7 @@ class GameService {
     if (state.phase != GamePhase.rolling || _isMovingStep) return;
     if (state.isCurrentPlayerAI) return;
 
+    SoundService.playDiceRollSound();
     final value = state.rollDice();
     onDiceRoll?.call(value);
 
@@ -83,14 +86,13 @@ class GameService {
 
     if (pos == posInBase) {
       // Entering board (1 step out of base)
+      SoundService.playStepSound();
       state.moveTokenStep(playerIndex, tokenIndex);
-      final captured = state.checkFinalCapture(playerIndex, tokenIndex);
-      _isMovingStep = false;
-      _finishMoveTurn(captured);
+      _checkAndFinishMove(playerIndex, tokenIndex);
     } else {
-      // Step-by-step tile traversal (140ms per step for 60fps smooth stepping)
+      // Step-by-step tile traversal with sound ("pig, pig, pig...")
       var stepCount = 0;
-      Timer.periodic(const Duration(milliseconds: 140), (timer) {
+      Timer.periodic(const Duration(milliseconds: 160), (timer) {
         if (_disposed || state.isGameOver) {
           timer.cancel();
           _isMovingStep = false;
@@ -98,22 +100,63 @@ class GameService {
         }
 
         stepCount++;
+        SoundService.playStepSound();
         state.moveTokenStep(playerIndex, tokenIndex);
 
         if (stepCount >= diceValue) {
           timer.cancel();
+          _checkAndFinishMove(playerIndex, tokenIndex);
+        }
+      });
+    }
+  }
+
+  void _checkAndFinishMove(int playerIndex, int tokenIndex) {
+    final capturedOpponents = state.findCapturedOpponents(playerIndex, tokenIndex);
+
+    if (capturedOpponents.isNotEmpty) {
+      // Fast reverse animation for captured tokens back to base with cut sound
+      SoundService.playCaptureSound();
+
+      Timer.periodic(const Duration(milliseconds: 40), (revTimer) {
+        if (_disposed) {
+          revTimer.cancel();
+          _isMovingStep = false;
+          return;
+        }
+
+        var allBackInBase = true;
+        for (final opp in capturedOpponents) {
+          final oppP = opp.x;
+          final oppT = opp.y;
+          if (state.tokenPositions[oppP][oppT] != posInBase) {
+            state.reverseTokenStep(oppP, oppT);
+            allBackInBase = false;
+          }
+        }
+
+        if (allBackInBase) {
+          revTimer.cancel();
           final captured = state.checkFinalCapture(playerIndex, tokenIndex);
           _isMovingStep = false;
           _finishMoveTurn(captured);
         }
       });
+    } else {
+      final captured = state.checkFinalCapture(playerIndex, tokenIndex);
+      _isMovingStep = false;
+      _finishMoveTurn(captured);
     }
   }
 
   void _finishMoveTurn(bool captured) {
     if (captured) onCapture?.call();
     if (state.hasPlayerFinished(state.currentPlayerIndex)) {
+      SoundService.playVictorySound();
       onHome?.call();
+    }
+    if (state.isGameOver) {
+      SoundService.playVictorySound();
     }
 
     if (!state.isGameOver) {

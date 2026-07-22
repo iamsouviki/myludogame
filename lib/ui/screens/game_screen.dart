@@ -242,13 +242,20 @@ class _GameScreenState extends State<GameScreen>
     for (var p = 0; p < state.players.length; p++) {
       for (var t = 0; t < tokensPerPlayer; t++) {
         final pos = state.tokenPositions[p][t];
-        if (pos == posHome) continue;
-
         Offset pixelPos;
         bool isInBase = false;
         double tokenSize = defaultTokenSize;
 
-        if (pos == posInBase) {
+        if (pos == posHome) {
+          final homeCenter = config.homeStretchPosition(p, 5);
+          final row = t ~/ 2;
+          final col = t % 2;
+          pixelPos = homeCenter + Offset(
+            (col - 0.5) * (config.cellSize * 0.28),
+            (row - 0.5) * (config.cellSize * 0.28),
+          );
+          tokenSize = config.cellSize * 0.48;
+        } else if (pos == posInBase) {
           pixelPos = config.basePosition(p, t);
           isInBase = true;
         } else if (pos >= state.boardType.trackLength) {
