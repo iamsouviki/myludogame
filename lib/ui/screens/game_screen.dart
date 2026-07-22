@@ -137,19 +137,26 @@ class _GameScreenState extends State<GameScreen>
                   ),
                 ],
               ),
-              child: const Text(
-                '🏆 GAME OVER',
-                style: TextStyle(
-                  color: Colors.black87,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 14,
-                  letterSpacing: 1,
-                ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: const [
+                  Icon(Icons.emoji_events_rounded, color: Colors.black87, size: 16),
+                  SizedBox(width: 4),
+                  Text(
+                    'GAME OVER',
+                    style: TextStyle(
+                      color: Colors.black87,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                ],
               ),
             )
           else
             Text(
-              'MY LUDO',
+              'LUDOVERSE',
               style: TextStyle(
                 color: AppTheme.textSecondary,
                 fontSize: 15,
@@ -422,15 +429,15 @@ class _GameScreenState extends State<GameScreen>
 
   String _statusText() {
     if (state.isGameOver) {
-      return '🏆 ${state.players[state.winner!].name} wins the game!';
+      return '${state.players[state.winner!].name} wins the game!';
     }
     final name = state.currentPlayer.name;
-    if (state.isCurrentPlayerAI) return '🤖 $name is thinking...';
+    if (state.isCurrentPlayerAI) return '$name (AI) is thinking...';
 
     switch (state.phase) {
       case GamePhase.rolling:
         if (state.consecutiveSixes > 0) {
-          return '🔥 $name rolled ${state.consecutiveSixes}× sixes! Roll again!';
+          return '$name rolled ${state.consecutiveSixes}× sixes! Roll again!';
         }
         return '$name\'s turn';
       case GamePhase.moving:

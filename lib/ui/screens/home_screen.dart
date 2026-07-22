@@ -95,28 +95,27 @@ class _HomeScreenState extends State<HomeScreen> {
     return Column(
       children: [
         Container(
-          width: isCompact ? 52 : 64,
-          height: isCompact ? 52 : 64,
+          width: isCompact ? 70 : 90,
+          height: isCompact ? 70 : 90,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: AppTheme.accent.withValues(alpha: 0.15),
-            border: Border.all(color: AppTheme.accent.withValues(alpha: 0.4), width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF00E5FF).withValues(alpha: 0.4),
+                blurRadius: 20,
+                spreadRadius: 3,
+              ),
+            ],
           ),
-          child: Icon(
-            Icons.casino_rounded,
-            size: isCompact ? 28 : 34,
-            color: AppTheme.accentLight,
+          child: ClipOval(
+            child: Image.asset('assets/images/app_icon.png', fit: BoxFit.cover),
           ),
         ),
-        SizedBox(height: isCompact ? 6 : 10),
-        Text(
-          'MY LUDO',
-          style: TextStyle(
-            fontSize: isCompact ? 28 : 34,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 3,
-            color: AppTheme.textPrimary,
-          ),
+        SizedBox(height: isCompact ? 4 : 8),
+        Image.asset(
+          'assets/images/ludo_banner_logo.png',
+          height: isCompact ? 60 : 85,
+          fit: BoxFit.contain,
         ),
       ],
     );

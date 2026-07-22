@@ -127,12 +127,19 @@ class _LobbyScreenState extends State<LobbyScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(
-                '🌐 Online Play',
-                style: Theme.of(context)
-                    .textTheme
-                    .headlineMedium
-                    ?.copyWith(color: Colors.white),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.public_rounded, color: Color(0xFF58A6FF), size: 28),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Online Play',
+                    style: Theme.of(context)
+                        .textTheme
+                        .headlineMedium
+                        ?.copyWith(color: Colors.white),
+                  ),
+                ],
               ),
               const SizedBox(height: 32),
 

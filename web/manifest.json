@@ -1,11 +1,11 @@
 {
-    "name": "my_ludo",
-    "short_name": "my_ludo",
+    "name": "LudoVerse: Astral Arena",
+    "short_name": "LudoVerse",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "Cross-platform Ludo game",
+    "background_color": "#0B0F19",
+    "theme_color": "#0B0F19",
+    "description": "LudoVerse: Astral Arena - Premier Online Multiplayer Ludo",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
