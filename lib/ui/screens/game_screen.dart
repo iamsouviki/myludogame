@@ -560,7 +560,7 @@ class _GameScreenState extends State<GameScreen>
                 children: [
                   PlayerAvatarWidget(
                     avatarIndex: winnerPlayer.avatarIndex,
-                    color: winnerPlayer.color.color,
+                    borderColor: winnerPlayer.color.color,
                     size: 32,
                   ),
                   const SizedBox(width: 10),
@@ -600,7 +600,7 @@ class _GameScreenState extends State<GameScreen>
                           const SizedBox(width: 10),
                           PlayerAvatarWidget(
                             avatarIndex: player.avatarIndex,
-                            color: player.color.color,
+                            borderColor: player.color.color,
                             size: 22,
                           ),
                           const SizedBox(width: 8),
