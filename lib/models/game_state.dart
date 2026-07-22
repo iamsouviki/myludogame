@@ -63,6 +63,11 @@ class GameState extends ChangeNotifier {
   int distanceTraveled(int playerIndex, int tokenIndex) {
     final pos = tokenPositions[playerIndex][tokenIndex];
     if (pos == posInBase || pos == posHome) return pos;
+    if (pos >= boardType.trackLength) {
+      // Token is on home stretch (encoded as trackLength + stepsIntoHome)
+      final stepsIntoHome = pos - boardType.trackLength;
+      return (boardType.trackLength - 1) + stepsIntoHome;
+    }
     final start = startPosition(playerIndex);
     return (pos - start + boardType.trackLength) % boardType.trackLength;
   }
