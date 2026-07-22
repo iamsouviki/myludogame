@@ -117,13 +117,13 @@ class GameService {
     }
 
     if (!state.isGameOver) {
-      if (state.lastDiceRoll == diceMax && !captured) {
-        // Extra turn for rolling a 6 — stay on same player
+      if (state.lastDiceRoll == diceMax || captured) {
+        // Extra turn for rolling a 6 or capturing an opponent token
         state.phase = GamePhase.rolling;
         state.notifyChange();
         _tryAITurn();
       } else {
-        // Move to next player immediately with zero gap
+        // Move to next player immediately
         state.advanceTurn();
         _tryAITurn();
       }
