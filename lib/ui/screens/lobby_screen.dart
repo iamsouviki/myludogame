@@ -9,6 +9,8 @@ import '../theme.dart';
 import '../widgets/player_avatar_widget.dart';
 import 'game_screen.dart';
 
+import '../widgets/online_chat_widget.dart';
+
 class LobbyScreen extends StatefulWidget {
   const LobbyScreen({super.key});
 
@@ -46,6 +48,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
               builder: (_) => GameScreen(
                 service: gameService,
                 localPlayerId: _onlineService.localPlayerId,
+                onlineService: _onlineService,
               ),
             ),
           );
@@ -268,41 +271,52 @@ class _LobbyScreenState extends State<LobbyScreen> {
                       style: TextStyle(color: Color(0xFF8B949E), fontSize: 13),
                     ),
                     const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: PlayerColor.values.map((color) {
-                        final selected = _selectedColor == color;
-                        return GestureDetector(
-                          onTap: () => setState(() => _selectedColor = color),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 200),
-                            width: 38,
-                            height: 38,
-                            decoration: BoxDecoration(
-                              color: color.color,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: selected
-                                    ? Colors.white
-                                    : Colors.transparent,
-                                width: 3,
+                    Container(
+                      height: 44,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: AppTheme.bg3,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppTheme.border),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<PlayerColor>(
+                          value: _selectedColor,
+                          isExpanded: true,
+                          dropdownColor: AppTheme.surface,
+                          icon: const Icon(Icons.arrow_drop_down_rounded, color: Colors.white70),
+                          items: PlayerColor.values.map((color) {
+                            return DropdownMenuItem<PlayerColor>(
+                              value: color,
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 18,
+                                    height: 18,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: color.color,
+                                      border: Border.all(color: Colors.white38),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Text(
+                                    color.label,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
                               ),
-                              boxShadow: selected
-                                  ? [
-                                      BoxShadow(
-                                        color: color.color.withValues(alpha: 0.6),
-                                        blurRadius: 10,
-                                        spreadRadius: 2,
-                                      )
-                                    ]
-                                  : [],
-                            ),
-                            child: selected
-                                ? const Icon(Icons.check, color: Colors.white, size: 20)
-                                : null,
-                          ),
-                        );
-                      }).toList(),
+                            );
+                          }).toList(),
+                          onChanged: (val) {
+                            if (val != null) setState(() => _selectedColor = val);
+                          },
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 16),
                     SizedBox(
@@ -559,8 +573,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
               ),
               const SizedBox(height: 24),
 
-              // Start / Leave buttons
-              if (isHost && room.players.length >= 2)
+              // Start / Chat / Leave buttons
+              if (isHost && room.players.length >= 2) ...[
                 SizedBox(
                   width: double.infinity,
                   height: 50,
@@ -569,6 +583,30 @@ class _LobbyScreenState extends State<LobbyScreen> {
                     child: const Text('START GAME'),
                   ),
                 ),
+                const SizedBox(height: 12),
+              ],
+              SizedBox(
+                width: double.infinity,
+                height: 44,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    OnlineChatWidget.showChatModal(
+                      context,
+                      _onlineService,
+                      _nameController.text.trim().isEmpty ? 'Player' : _nameController.text.trim(),
+                    );
+                  },
+                  icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18, color: Color(0xFF00E5FF)),
+                  label: const Text(
+                    'LIVE LOBBY CHAT',
+                    style: TextStyle(color: Color(0xFF00E5FF), fontWeight: FontWeight.w700),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFF00E5FF)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
               const SizedBox(height: 12),
               TextButton(
                 onPressed: () async {

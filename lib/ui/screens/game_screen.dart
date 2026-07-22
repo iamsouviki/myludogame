@@ -12,11 +12,20 @@ import '../widgets/dice_widget.dart';
 import '../widgets/player_avatar_widget.dart';
 import '../widgets/token_widget.dart';
 
+import '../../services/online_service.dart';
+import '../widgets/online_chat_widget.dart';
+
 class GameScreen extends StatefulWidget {
   final GameService service;
   final String? localPlayerId;
+  final OnlineService? onlineService;
 
-  const GameScreen({super.key, required this.service, this.localPlayerId});
+  const GameScreen({
+    super.key,
+    required this.service,
+    this.localPlayerId,
+    this.onlineService,
+  });
 
   @override
   State<GameScreen> createState() => _GameScreenState();
@@ -173,7 +182,17 @@ class _GameScreenState extends State<GameScreen>
               ),
             ),
           const Spacer(),
-          _iconBtn(Icons.refresh_rounded, _showRestartDialog),
+          if (widget.onlineService != null)
+            _iconBtn(Icons.chat_bubble_outline_rounded, () {
+              final myName = state.players
+                  .firstWhere((p) => p.id == widget.localPlayerId,
+                      orElse: () => state.players.first)
+                  .name;
+              OnlineChatWidget.showChatModal(
+                  context, widget.onlineService!, myName);
+            })
+          else
+            _iconBtn(Icons.refresh_rounded, _showRestartDialog),
         ],
       ),
     );

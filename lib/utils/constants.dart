@@ -8,7 +8,21 @@ enum PlayerColor {
   yellow,
   blue,
   orange,
-  purple;
+  purple,
+  pink,
+  cyan,
+  lime,
+  amber,
+  teal,
+  indigo,
+  deepOrange,
+  magenta,
+  emerald,
+  crimson,
+  violet,
+  coral,
+  gold,
+  skyBlue;
 
   Color get color => switch (this) {
         red => const Color(0xFFE53935),
@@ -17,6 +31,20 @@ enum PlayerColor {
         blue => const Color(0xFF1E88E5),
         orange => const Color(0xFFFB8C00),
         purple => const Color(0xFF8E24AA),
+        pink => const Color(0xFFEC4899),
+        cyan => const Color(0xFF00E5FF),
+        lime => const Color(0xFF76FF03),
+        amber => const Color(0xFFFFC107),
+        teal => const Color(0xFF009688),
+        indigo => const Color(0xFF3F51B5),
+        deepOrange => const Color(0xFFFF5722),
+        magenta => const Color(0xFFD500F9),
+        emerald => const Color(0xFF10B981),
+        crimson => const Color(0xFF990000),
+        violet => const Color(0xFF7C3AED),
+        coral => const Color(0xFFFF6F61),
+        gold => const Color(0xFFFFD700),
+        skyBlue => const Color(0xFF38BDF8),
       };
 
   Color get lightColor => switch (this) {
@@ -26,6 +54,20 @@ enum PlayerColor {
         blue => const Color(0xFFBBDEFB),
         orange => const Color(0xFFFFE0B2),
         purple => const Color(0xFFE1BEE7),
+        pink => const Color(0xFFFCE7F3),
+        cyan => const Color(0xFFE0F7FA),
+        lime => const Color(0xFFF4FF81),
+        amber => const Color(0xFFFFECB3),
+        teal => const Color(0xFFE0F2F1),
+        indigo => const Color(0xFFC5CAE9),
+        deepOrange => const Color(0xFFFFCCBC),
+        magenta => const Color(0xFFF8BBD0),
+        emerald => const Color(0xFFD1FAE5),
+        crimson => const Color(0xFFFFCDD2),
+        violet => const Color(0xFFEDE9FE),
+        coral => const Color(0xFFFFD1DC),
+        gold => const Color(0xFFFFF59D),
+        skyBlue => const Color(0xFFE0F2FE),
       };
 
   String get label => switch (this) {
@@ -35,6 +77,20 @@ enum PlayerColor {
         blue => 'Blue',
         orange => 'Orange',
         purple => 'Purple',
+        pink => 'Pink',
+        cyan => 'Cyan',
+        lime => 'Lime',
+        amber => 'Amber',
+        teal => 'Teal',
+        indigo => 'Indigo',
+        deepOrange => 'Deep Orange',
+        magenta => 'Magenta',
+        emerald => 'Emerald',
+        crimson => 'Crimson',
+        violet => 'Violet',
+        coral => 'Coral',
+        gold => 'Gold',
+        skyBlue => 'Sky Blue',
       };
 }
 

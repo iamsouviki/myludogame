@@ -14,29 +14,64 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  BoardType _boardType = BoardType.classic4;
+  final BoardType _boardType = BoardType.classic4;
   int _humanPlayers = 1;
   int _aiPlayers = 1;
   AIDifficulty _aiDifficulty = AIDifficulty.medium;
+  bool _enableJodi = true;
+
+  final List<TextEditingController> _nameControllers = [
+    TextEditingController(text: 'Player 1'),
+    TextEditingController(text: 'Player 2'),
+    TextEditingController(text: 'Player 3'),
+    TextEditingController(text: 'Player 4'),
+  ];
+
+  final List<PlayerColor> _humanColors = [
+    PlayerColor.red,
+    PlayerColor.green,
+    PlayerColor.yellow,
+    PlayerColor.blue,
+  ];
 
   int get _totalPlayers => _humanPlayers + _aiPlayers;
   int get _maxPlayers => _boardType.maxPlayers;
 
-  List<PlayerColor> get _activeColors {
-    final all = _boardType == BoardType.classic4
-        ? [PlayerColor.red, PlayerColor.green, PlayerColor.yellow, PlayerColor.blue]
-        : PlayerColor.values;
-    return all.take(_totalPlayers).toList();
+  @override
+  void dispose() {
+    for (final c in _nameControllers) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  void _selectColorForPlayer(int playerIndex, PlayerColor newColor) {
+    setState(() {
+      final existingIndex = _humanColors.indexOf(newColor);
+      if (existingIndex != -1 && existingIndex != playerIndex) {
+        // Swap colors
+        _humanColors[existingIndex] = _humanColors[playerIndex];
+      }
+      _humanColors[playerIndex] = newColor;
+    });
   }
 
   void _startGame() {
     if (_totalPlayers < 2 || _totalPlayers > _maxPlayers) return;
+
+    final names = _nameControllers.take(_humanPlayers).map((c) => c.text).toList();
+    final colors = _humanColors.take(_humanPlayers).toList();
+
     final service = GameService.createLocalGame(
       boardType: _boardType,
       humanPlayers: _humanPlayers,
       aiPlayers: _aiPlayers,
       aiDifficulty: _aiDifficulty,
+      humanNames: names,
+      humanColors: colors,
+      enableJodi: _enableJodi,
     );
+
     Navigator.of(context).push(
       PageRouteBuilder(
         pageBuilder: (_, a1, a2) => GameScreen(service: service),
@@ -55,7 +90,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
     final screenHeight = mediaQuery.size.height - mediaQuery.padding.top - mediaQuery.padding.bottom;
-    final isCompact = screenHeight < 720;
+    final isCompact = screenHeight < 740;
 
     return Scaffold(
       body: Container(
@@ -64,20 +99,27 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 440),
-              child: Padding(
+              child: SingleChildScrollView(
                 padding: EdgeInsets.symmetric(
                   horizontal: 20,
                   vertical: isCompact ? 8 : 16,
                 ),
                 child: Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
                     _buildHero(isCompact),
+                    const SizedBox(height: 12),
                     _buildBoardTypeSelector(isCompact),
+                    const SizedBox(height: 12),
                     _buildPlayerConfig(isCompact),
-                    if (_aiPlayers > 0)
+                    const SizedBox(height: 12),
+                    _buildHumanPlayersCustomization(isCompact),
+                    const SizedBox(height: 12),
+                    _buildJodiOption(isCompact),
+                    if (_aiPlayers > 0) ...[
+                      const SizedBox(height: 12),
                       _buildDifficultySelector(isCompact),
-                    _buildPlayerColorPreview(isCompact),
+                    ],
+                    const SizedBox(height: 16),
                     _buildActionButtons(isCompact),
                   ],
                 ),
@@ -96,17 +138,17 @@ class _HomeScreenState extends State<HomeScreen> {
       padding: EdgeInsets.symmetric(vertical: isCompact ? 4 : 8),
       child: Image.asset(
         'assets/images/ludo_banner_logo.png',
-        height: isCompact ? 90 : 135,
+        height: isCompact ? 80 : 110,
         fit: BoxFit.contain,
       ),
     );
   }
 
-  // ── Board type selector ──
+  // ── Board type selector (Disabled 6-Player Star Button) ──
 
   Widget _buildBoardTypeSelector(bool isCompact) {
     return Container(
-      padding: EdgeInsets.all(isCompact ? 12 : 16),
+      padding: EdgeInsets.all(isCompact ? 12 : 14),
       decoration: AppTheme.glassCard(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -128,61 +170,74 @@ class _HomeScreenState extends State<HomeScreen> {
           SizedBox(height: isCompact ? 8 : 12),
           Row(
             children: BoardType.values.map((type) {
-              final selected = _boardType == type;
+              final isDisabled = type == BoardType.hex6;
+              final selected = _boardType == type && !isDisabled;
               return Expanded(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 4),
                   child: GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        _boardType = type;
-                        if (_totalPlayers > type.maxPlayers) {
-                          _aiPlayers = type.maxPlayers - _humanPlayers;
-                          if (_aiPlayers < 0) {
-                            _humanPlayers = type.maxPlayers;
-                            _aiPlayers = 0;
+                    onTap: isDisabled
+                        ? () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('6-Player Star mode coming soon!'),
+                                duration: Duration(seconds: 2),
+                              ),
+                            );
                           }
-                        }
-                      });
-                    },
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      padding: EdgeInsets.symmetric(vertical: isCompact ? 8 : 12),
-                      decoration: BoxDecoration(
-                        gradient: selected
-                            ? const LinearGradient(
-                                colors: [Color(0xFFEC4899), Color(0xFF8B5CF6)],
-                              )
-                            : null,
-                        color: selected ? null : AppTheme.bg3,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: selected
-                              ? AppTheme.accentLight.withValues(alpha: 0.5)
-                              : AppTheme.border,
+                        : () {
+                            setState(() {
+                              if (_totalPlayers > type.maxPlayers) {
+                                _aiPlayers = type.maxPlayers - _humanPlayers;
+                                if (_aiPlayers < 0) {
+                                  _humanPlayers = type.maxPlayers;
+                                  _aiPlayers = 0;
+                                }
+                              }
+                            });
+                          },
+                    child: Opacity(
+                      opacity: isDisabled ? 0.45 : 1.0,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: EdgeInsets.symmetric(vertical: isCompact ? 8 : 12),
+                        decoration: BoxDecoration(
+                          gradient: selected
+                              ? const LinearGradient(
+                                  colors: [Color(0xFFEC4899), Color(0xFF8B5CF6)],
+                                )
+                              : null,
+                          color: selected ? null : AppTheme.bg3,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: selected
+                                ? AppTheme.accentLight.withValues(alpha: 0.5)
+                                : AppTheme.border,
+                          ),
+                          boxShadow: selected
+                              ? [AppTheme.playerGlow(AppTheme.accent)]
+                              : null,
                         ),
-                        boxShadow: selected
-                            ? [AppTheme.playerGlow(AppTheme.accent)]
-                            : null,
-                      ),
-                      child: Column(
-                        children: [
-                          Text(
-                            type == BoardType.classic4 ? 'Classic' : 'Star',
-                            style: TextStyle(
-                              color: selected ? Colors.white : AppTheme.textSecondary,
-                              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                              fontSize: 13,
+                        child: Column(
+                          children: [
+                            Text(
+                              type == BoardType.classic4 ? 'Classic' : 'Star',
+                              style: TextStyle(
+                                color: selected ? Colors.white : AppTheme.textSecondary,
+                                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                                fontSize: 13,
+                              ),
                             ),
-                          ),
-                          Text(
-                            '${type.maxPlayers} Players',
-                            style: TextStyle(
-                              color: selected ? Colors.white70 : AppTheme.textMuted,
-                              fontSize: 11,
+                            Text(
+                              isDisabled ? 'Coming Soon' : '${type.maxPlayers} Players',
+                              style: TextStyle(
+                                color: selected ? Colors.white70 : (isDisabled ? AppTheme.warning : AppTheme.textMuted),
+                                fontSize: 11,
+                                fontWeight: isDisabled ? FontWeight.w700 : FontWeight.w400,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -199,7 +254,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildPlayerConfig(bool isCompact) {
     return Container(
-      padding: EdgeInsets.all(isCompact ? 12 : 16),
+      padding: EdgeInsets.all(isCompact ? 12 : 14),
       decoration: AppTheme.glassCard(),
       child: Column(
         children: [
@@ -208,7 +263,7 @@ class _HomeScreenState extends State<HomeScreen> {
             label: 'Humans',
             value: _humanPlayers,
             color: AppTheme.success,
-            min: 0,
+            min: 1,
             max: _maxPlayers,
             isCompact: isCompact,
             onChanged: (v) {
@@ -217,12 +272,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 if (_totalPlayers > _maxPlayers) {
                   _aiPlayers = _maxPlayers - _humanPlayers;
                 }
-                if (_totalPlayers < 2) _aiPlayers = 2 - _humanPlayers;
               });
             },
           ),
           Padding(
-            padding: EdgeInsets.symmetric(vertical: isCompact ? 6 : 10),
+            padding: EdgeInsets.symmetric(vertical: isCompact ? 6 : 8),
             child: Divider(color: AppTheme.border, height: 1),
           ),
           _buildPlayerRow(
@@ -231,15 +285,11 @@ class _HomeScreenState extends State<HomeScreen> {
             value: _aiPlayers,
             color: AppTheme.accentLight,
             min: 0,
-            max: _maxPlayers,
+            max: _maxPlayers - _humanPlayers,
             isCompact: isCompact,
             onChanged: (v) {
               setState(() {
                 _aiPlayers = v;
-                if (_totalPlayers > _maxPlayers) {
-                  _humanPlayers = _maxPlayers - _aiPlayers;
-                }
-                if (_totalPlayers < 2) _humanPlayers = 2 - _aiPlayers;
               });
             },
           ),
@@ -325,6 +375,167 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // ── Human Player Customization (Names & Color Choice) ──
+
+  Widget _buildHumanPlayersCustomization(bool isCompact) {
+    return Container(
+      padding: EdgeInsets.all(isCompact ? 12 : 14),
+      decoration: AppTheme.glassCard(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.palette_rounded, size: 16, color: AppTheme.accentLight),
+              const SizedBox(width: 8),
+              Text(
+                'Player Names & Colors',
+                style: TextStyle(
+                  color: AppTheme.textPrimary,
+                  fontSize: isCompact ? 13 : 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Column(
+            children: List.generate(_humanPlayers, (i) {
+              final currentColor = _humanColors[i];
+
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 130,
+                      height: 36,
+                      child: TextField(
+                        controller: _nameControllers[i],
+                        style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                        decoration: InputDecoration(
+                          hintText: 'Player ${i + 1}',
+                          hintStyle: TextStyle(color: AppTheme.textMuted, fontSize: 12),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          filled: true,
+                          fillColor: AppTheme.bg3,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide(color: AppTheme.border),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide(color: AppTheme.border),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(color: Color(0xFF00E5FF)),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Container(
+                        height: 38,
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        decoration: BoxDecoration(
+                          color: AppTheme.bg3,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: AppTheme.border),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<PlayerColor>(
+                            value: currentColor,
+                            isExpanded: true,
+                            dropdownColor: AppTheme.surface,
+                            icon: const Icon(Icons.arrow_drop_down_rounded, color: Colors.white70),
+                            items: PlayerColor.values.map((color) {
+                              return DropdownMenuItem<PlayerColor>(
+                                value: color,
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 14,
+                                      height: 14,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: color.color,
+                                        border: Border.all(color: Colors.white38),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      color.label,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }).toList(),
+                            onChanged: (val) {
+                              if (val != null) _selectColorForPlayer(i, val);
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Option to play as Jodi ──
+
+  Widget _buildJodiOption(bool isCompact) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 14, vertical: isCompact ? 4 : 8),
+      decoration: AppTheme.glassCard(),
+      child: Row(
+        children: [
+          const Icon(Icons.shield_rounded, size: 18, color: Color(0xFFFFD700)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Play as Jodi (Blockades)',
+                  style: TextStyle(
+                    color: AppTheme.textPrimary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: isCompact ? 13 : 14,
+                  ),
+                ),
+                Text(
+                  'Double tokens form path blockades',
+                  style: TextStyle(
+                    color: AppTheme.textMuted,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Switch(
+            value: _enableJodi,
+            activeThumbColor: const Color(0xFF00E5FF),
+            onChanged: (val) => setState(() => _enableJodi = val),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ── AI Difficulty ──
 
   Widget _buildDifficultySelector(bool isCompact) {
@@ -391,53 +602,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ── Player color preview ──
-
-  Widget _buildPlayerColorPreview(bool isCompact) {
-    final colors = _activeColors;
-    return Container(
-      padding: EdgeInsets.all(isCompact ? 12 : 14),
-      decoration: AppTheme.glassCard(),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: List.generate(colors.length, (i) {
-          final playerColor = colors[i];
-          final isHuman = i < _humanPlayers;
-          return Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: playerColor.color.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: playerColor.color.withValues(alpha: 0.5)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 12,
-                  height: 12,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: playerColor.color,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  isHuman ? 'P${i + 1}' : 'Bot',
-                  style: TextStyle(
-                    color: playerColor.color,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          );
-        }),
-      ),
-    );
-  }
-
   // ── Action buttons ──
 
   Widget _buildActionButtons(bool isCompact) {
@@ -447,7 +611,7 @@ class _HomeScreenState extends State<HomeScreen> {
       children: [
         Container(
           width: double.infinity,
-          height: isCompact ? 50 : 56,
+          height: isCompact ? 50 : 54,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             gradient: canStart ? AppTheme.primaryGradient : null,
@@ -482,7 +646,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
         ),
-        SizedBox(height: isCompact ? 10 : 14),
+        SizedBox(height: isCompact ? 10 : 12),
         Container(
           width: double.infinity,
           height: isCompact ? 46 : 50,

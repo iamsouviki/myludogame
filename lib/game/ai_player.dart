@@ -62,7 +62,7 @@ class AIPlayer {
       }
     }
 
-    // 3. Capture an opponent (high priority)
+    // 3. Capture an opponent (high priority, extra high if not yet captured for Viti rule)
     if (pos != posInBase) {
       final newPos = _simulateNewPosition(state, playerIndex, tokenIndex, diceValue);
       if (newPos >= 0 && newPos < state.boardType.trackLength) {
@@ -72,6 +72,9 @@ class AIPlayer {
             for (var t = 0; t < tokensPerPlayer; t++) {
               if (state.tokenPositions[p][t] == newPos) {
                 score += 70; // capture!
+                if (!state.hasCapturedOpponent[playerIndex]) {
+                  score += 60; // critical: unlock home corridor!
+                }
                 // Extra points for capturing a token that's far along
                 score += state.distanceTraveled(p, t) * 0.3;
               }

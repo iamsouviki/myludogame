@@ -117,8 +117,8 @@ class GameService {
     }
 
     if (!state.isGameOver) {
-      if (state.lastDiceRoll == diceMax || captured) {
-        // Extra turn for rolling a 6 or capturing an opponent token
+      if (state.pendingExtraRolls > 0) {
+        state.pendingExtraRolls--;
         state.phase = GamePhase.rolling;
         state.notifyChange();
         _tryAITurn();
@@ -179,31 +179,52 @@ class GameService {
     required int humanPlayers,
     required int aiPlayers,
     AIDifficulty aiDifficulty = AIDifficulty.medium,
+    List<String>? humanNames,
+    List<PlayerColor>? humanColors,
+    bool enableJodi = true,
   }) {
-    final colors = boardType == BoardType.classic4
+    final allColors = boardType == BoardType.classic4
         ? [PlayerColor.red, PlayerColor.green, PlayerColor.yellow, PlayerColor.blue]
         : PlayerColor.values;
 
     final players = <Player>[];
+    final assignedColors = <PlayerColor>[];
+
     for (var i = 0; i < humanPlayers; i++) {
+      final name = (humanNames != null && i < humanNames.length && humanNames[i].trim().isNotEmpty)
+          ? humanNames[i].trim()
+          : 'Player ${i + 1}';
+      final color = (humanColors != null && i < humanColors.length)
+          ? humanColors[i]
+          : allColors[i % allColors.length];
+      assignedColors.add(color);
       players.add(Player(
         id: 'human_$i',
-        name: 'Player ${i + 1}',
-        color: colors[i],
+        name: name,
+        color: color,
         type: PlayerType.human,
       ));
     }
+
+    final remainingColors = allColors.where((c) => !assignedColors.contains(c)).toList();
     for (var i = 0; i < aiPlayers; i++) {
+      final color = i < remainingColors.length
+          ? remainingColors[i]
+          : allColors[(humanPlayers + i) % allColors.length];
       players.add(Player(
         id: 'ai_$i',
         name: 'Bot ${i + 1}',
-        color: colors[humanPlayers + i],
+        color: color,
         type: PlayerType.ai,
         difficulty: aiDifficulty,
       ));
     }
 
-    final state = GameState(boardType: boardType, players: players);
+    final state = GameState(
+      boardType: boardType,
+      players: players,
+      enableJodi: enableJodi,
+    );
     return GameService(state: state);
   }
 }

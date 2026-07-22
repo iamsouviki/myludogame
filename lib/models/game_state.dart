@@ -4,18 +4,23 @@ import '../utils/constants.dart';
 import 'player.dart';
 import 'dice.dart';
 
+// ponytail: West Bengal regional rules (Viti capture requirement, Jodi blockades, extra roll queue)
+
 class GameState extends ChangeNotifier {
   final BoardType boardType;
   final List<Player> players;
+  final bool enableJodi;
   final Dice _dice;
 
   // Token positions: tokenPositions[playerIndex][tokenIndex]
   // Values: posInBase (-1), posHome (-2), or 0..trackLength-1 (board position)
   late List<List<int>> tokenPositions;
+  late List<bool> hasCapturedOpponent;
 
   int currentPlayerIndex = 0;
   int? lastDiceRoll;
   int consecutiveSixes = 0;
+  int pendingExtraRolls = 0;
   GamePhase phase = GamePhase.rolling;
   List<int> validTokenMoves = []; // indices of tokens that can move
   int? winner; // player index of winner, null if game ongoing
@@ -24,6 +29,7 @@ class GameState extends ChangeNotifier {
   GameState({
     required this.boardType,
     required this.players,
+    this.enableJodi = true,
     Dice? dice,
   }) : _dice = dice ?? Dice() {
     assert(players.length >= 2 && players.length <= boardType.maxPlayers);
@@ -31,6 +37,7 @@ class GameState extends ChangeNotifier {
       players.length,
       (_) => List.filled(tokensPerPlayer, posInBase),
     );
+    hasCapturedOpponent = List.filled(players.length, false);
   }
 
   Player get currentPlayer => players[currentPlayerIndex];
@@ -41,11 +48,10 @@ class GameState extends ChangeNotifier {
   int startPosition(int playerIndex) =>
       playerIndex * boardType.cellsPerArm;
 
-  /// Absolute board position for a player's entry into home stretch
+  /// Absolute board position for a player's entry into home stretch (Tile 50 for Red)
   int homeEntryPosition(int playerIndex) {
-    // The cell just before home stretch begins
     final start = startPosition(playerIndex);
-    return (start + boardType.trackLength - 1) % boardType.trackLength;
+    return (start + boardType.trackLength - 2) % boardType.trackLength;
   }
 
   /// Safe spots on the board (star cells)
@@ -66,7 +72,7 @@ class GameState extends ChangeNotifier {
     if (pos >= boardType.trackLength) {
       // Token is on home stretch (encoded as trackLength + stepsIntoHome)
       final stepsIntoHome = pos - boardType.trackLength;
-      return (boardType.trackLength - 1) + stepsIntoHome;
+      return (boardType.trackLength - 2) + stepsIntoHome + 1;
     }
     final start = startPosition(playerIndex);
     return (pos - start + boardType.trackLength) % boardType.trackLength;
@@ -74,9 +80,8 @@ class GameState extends ChangeNotifier {
 
   /// Check if a token is on the home stretch
   bool isOnHomeStretch(int playerIndex, int tokenIndex) {
-    final dist = distanceTraveled(playerIndex, tokenIndex);
-    if (dist < 0) return false;
-    return dist > boardType.trackLength - boardType.homeStretchLength - 1;
+    final pos = tokenPositions[playerIndex][tokenIndex];
+    return pos >= boardType.trackLength;
   }
 
   /// Check if all tokens of a player have reached home
@@ -91,13 +96,15 @@ class GameState extends ChangeNotifier {
     if (rolled == diceMax) {
       consecutiveSixes++;
       if (consecutiveSixes >= maxConsecutiveSixes) {
-        // Triple-6: lose turn
+        // Triple-6: cancel roll, clear pending extra rolls, lose turn
         consecutiveSixes = 0;
+        pendingExtraRolls = 0;
         phase = GamePhase.rolling;
         _nextTurn();
         notifyListeners();
         return rolled;
       }
+      pendingExtraRolls++;
     } else {
       consecutiveSixes = 0;
     }
@@ -106,7 +113,7 @@ class GameState extends ChangeNotifier {
     validTokenMoves = _findValidMoves(currentPlayerIndex, rolled);
 
     if (validTokenMoves.isEmpty) {
-      // No valid moves — phase stays in rolling for state display, caller/service handles delayed nextTurn
+      // No valid moves — if extra rolls pending, consume one; else prepare to pass turn
       phase = GamePhase.rolling;
     } else {
       phase = GamePhase.moving;
@@ -118,6 +125,7 @@ class GameState extends ChangeNotifier {
 
   /// Advance to next turn explicitly
   void advanceTurn() {
+    pendingExtraRolls = 0;
     _nextTurn();
     phase = GamePhase.rolling;
     notifyListeners();
@@ -143,14 +151,52 @@ class GameState extends ChangeNotifier {
       return diceValue == diceToEnter; // need 6 to enter
     }
 
-    // Calculate new position
-    final dist = distanceTraveled(playerIndex, tokenIndex);
-    final newDist = dist + diceValue;
-    final maxDist = boardType.trackLength + boardType.homeStretchLength - 1;
+    var currPos = pos;
+    for (var s = 1; s <= diceValue; s++) {
+      if (currPos == posHome) return false;
 
-    // Can't overshoot home
-    return newDist <= maxDist;
+      int nextPos;
+      if (currPos >= boardType.trackLength) {
+        final stepsIntoHome = (currPos - boardType.trackLength) + 1;
+        if (stepsIntoHome == boardType.homeStretchLength) {
+          nextPos = posHome;
+        } else if (stepsIntoHome > boardType.homeStretchLength) {
+          return false; // overshooting home
+        } else {
+          nextPos = boardType.trackLength + stepsIntoHome;
+        }
+      } else if (currPos == homeEntryPosition(playerIndex) &&
+          hasCapturedOpponent[playerIndex]) {
+        // Mandatory capture rule satisfied: turn into home stretch
+        nextPos = boardType.trackLength;
+      } else {
+        // Bypass home entry or continue along shared track
+        nextPos = (currPos + 1) % boardType.trackLength;
+      }
+
+      // Jodi Blockade Check: cannot pass through or land on opponent Jodi on non-safe tiles (if enableJodi is true)
+      if (enableJodi &&
+          nextPos >= 0 &&
+          nextPos < boardType.trackLength &&
+          !safeSpots.contains(nextPos)) {
+        for (var p = 0; p < players.length; p++) {
+          if (p == playerIndex) continue;
+          var count = 0;
+          for (var t = 0; t < tokensPerPlayer; t++) {
+            if (tokenPositions[p][t] == nextPos) count++;
+          }
+          if (count >= 2) {
+            return false; // Path or target blocked by opponent Jodi
+          }
+        }
+      }
+
+      currPos = nextPos;
+    }
+
+    return true;
   }
+
   bool moveTokenStep(int playerIndex, int tokenIndex) {
     final pos = tokenPositions[playerIndex][tokenIndex];
     if (pos == posInBase) {
@@ -159,31 +205,33 @@ class GameState extends ChangeNotifier {
       return true;
     }
 
-    final dist = distanceTraveled(playerIndex, tokenIndex);
-    final nextDist = dist + 1;
-    final homeEntry = boardType.trackLength - 1;
-
-    if (nextDist > homeEntry) {
-      final stepsIntoHome = nextDist - homeEntry;
+    if (pos >= boardType.trackLength) {
+      final stepsIntoHome = (pos - boardType.trackLength) + 1;
       if (stepsIntoHome >= boardType.homeStretchLength) {
         tokenPositions[playerIndex][tokenIndex] = posHome;
         if (hasPlayerFinished(playerIndex)) {
           finishOrder.add(playerIndex);
           winner ??= playerIndex;
+          pendingExtraRolls = 0; // Win rule: extra rolls discarded on final home entry
           if (finishOrder.length >= players.length - 1) {
             for (var i = 0; i < players.length; i++) {
               if (!finishOrder.contains(i)) finishOrder.add(i);
             }
             phase = GamePhase.finished;
           }
+        } else {
+          pendingExtraRolls++; // Reaching home yields an extra roll
         }
       } else {
         tokenPositions[playerIndex][tokenIndex] =
             boardType.trackLength + stepsIntoHome;
       }
+    } else if (pos == homeEntryPosition(playerIndex) &&
+        hasCapturedOpponent[playerIndex]) {
+      tokenPositions[playerIndex][tokenIndex] = boardType.trackLength;
     } else {
-      final newPos = (startPosition(playerIndex) + nextDist) % boardType.trackLength;
-      tokenPositions[playerIndex][tokenIndex] = newPos;
+      tokenPositions[playerIndex][tokenIndex] =
+          (pos + 1) % boardType.trackLength;
     }
 
     notifyListeners();
@@ -201,57 +249,17 @@ class GameState extends ChangeNotifier {
     if (!validTokenMoves.contains(tokenIndex)) return false;
 
     final playerIndex = currentPlayerIndex;
-    final pos = tokenPositions[playerIndex][tokenIndex];
     final diceValue = lastDiceRoll!;
-    var captured = false;
 
-    if (pos == posInBase) {
-      // Enter the board
-      tokenPositions[playerIndex][tokenIndex] = startPosition(playerIndex);
-      captured = _checkCapture(playerIndex, tokenIndex);
-    } else {
-      final dist = distanceTraveled(playerIndex, tokenIndex);
-      final newDist = dist + diceValue;
-      final homeEntry = boardType.trackLength - 1;
-
-      if (newDist > homeEntry) {
-        // Moving into home stretch or reaching home
-        final stepsIntoHome = newDist - homeEntry;
-        if (stepsIntoHome >= boardType.homeStretchLength) {
-          // Reached home!
-          tokenPositions[playerIndex][tokenIndex] = posHome;
-          if (hasPlayerFinished(playerIndex)) {
-            finishOrder.add(playerIndex);
-            winner ??= playerIndex;
-            if (finishOrder.length >= players.length - 1) {
-              // Only one player left, game over
-              for (var i = 0; i < players.length; i++) {
-                if (!finishOrder.contains(i)) finishOrder.add(i);
-              }
-              phase = GamePhase.finished;
-              notifyListeners();
-              return captured;
-            }
-          }
-        } else {
-          // On home stretch — encode as trackLength + stepsIntoHome
-          // Home stretch positions are unique per player, can't be captured
-          tokenPositions[playerIndex][tokenIndex] =
-              boardType.trackLength + stepsIntoHome;
-        }
-      } else {
-        // Normal move on main track
-        final newPos =
-            (startPosition(playerIndex) + newDist) % boardType.trackLength;
-        tokenPositions[playerIndex][tokenIndex] = newPos;
-        captured = _checkCapture(playerIndex, tokenIndex);
-      }
+    for (var i = 0; i < diceValue; i++) {
+      moveTokenStep(playerIndex, tokenIndex);
     }
 
-    // Next turn logic
+    final captured = _checkCapture(playerIndex, tokenIndex);
+
     if (phase != GamePhase.finished) {
-      if (lastDiceRoll == diceMax || captured) {
-        // Rolled 6 or captured: bonus turn
+      if (pendingExtraRolls > 0) {
+        pendingExtraRolls--;
         phase = GamePhase.rolling;
       } else {
         _nextTurn();
@@ -279,11 +287,14 @@ class GameState extends ChangeNotifier {
         }
       }
     }
+    if (captured) {
+      hasCapturedOpponent[playerIndex] = true;
+      pendingExtraRolls++; // Capturing an opponent grants an extra roll
+    }
     return captured;
   }
 
   void _nextTurn() {
-    // Skip finished players
     var next = (currentPlayerIndex + 1) % players.length;
     var attempts = 0;
     while (hasPlayerFinished(next) && attempts < players.length) {
@@ -292,6 +303,7 @@ class GameState extends ChangeNotifier {
     }
     currentPlayerIndex = next;
     consecutiveSixes = 0;
+    pendingExtraRolls = 0;
     lastDiceRoll = null;
     validTokenMoves = [];
   }
@@ -302,9 +314,11 @@ class GameState extends ChangeNotifier {
       players.length,
       (_) => List.filled(tokensPerPlayer, posInBase),
     );
+    hasCapturedOpponent = List.filled(players.length, false);
     currentPlayerIndex = 0;
     lastDiceRoll = null;
     consecutiveSixes = 0;
+    pendingExtraRolls = 0;
     phase = GamePhase.rolling;
     validTokenMoves = [];
     winner = null;
@@ -318,9 +332,11 @@ class GameState extends ChangeNotifier {
         'players': players.map((p) => p.toJson()).toList(),
         'tokenPositions':
             tokenPositions.map((t) => t.toList()).toList(),
+        'hasCapturedOpponent': hasCapturedOpponent,
         'currentPlayerIndex': currentPlayerIndex,
         'lastDiceRoll': lastDiceRoll,
         'consecutiveSixes': consecutiveSixes,
+        'pendingExtraRolls': pendingExtraRolls,
         'phase': phase.index,
         'validTokenMoves': validTokenMoves,
         'winner': winner,
@@ -332,9 +348,13 @@ class GameState extends ChangeNotifier {
     tokenPositions = (json['tokenPositions'] as List)
         .map((t) => List<int>.from(t as List))
         .toList();
+    if (json['hasCapturedOpponent'] != null) {
+      hasCapturedOpponent = List<bool>.from(json['hasCapturedOpponent'] as List);
+    }
     currentPlayerIndex = json['currentPlayerIndex'] as int;
     lastDiceRoll = json['lastDiceRoll'] as int?;
     consecutiveSixes = json['consecutiveSixes'] as int;
+    pendingExtraRolls = (json['pendingExtraRolls'] as int?) ?? 0;
     phase = GamePhase.values[json['phase'] as int];
     validTokenMoves = List<int>.from(json['validTokenMoves'] as List);
     winner = json['winner'] as int?;

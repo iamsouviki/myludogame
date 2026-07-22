@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../game/board_config.dart';
 import '../../models/game_state.dart';
+import '../../models/player.dart';
 import '../../utils/constants.dart';
 
 class BoardPainter extends CustomPainter {
@@ -44,42 +45,47 @@ class BoardPainter extends CustomPainter {
     // 1. Board Background (Clean Crisp White)
     canvas.drawRect(boardRect, Paint()..color = Colors.white);
 
-    // 2. Draw 4 Corner Base Blocks (Matching image exactly: Green TL, Yellow TR, Red BL, Blue BR)
-    _drawClassicBase(canvas, boardOrigin, cellSize, 0, 0, PlayerColor.green);  // Top Left: GREEN
-    _drawClassicBase(canvas, boardOrigin, cellSize, 9, 0, PlayerColor.yellow); // Top Right: YELLOW
-    _drawClassicBase(canvas, boardOrigin, cellSize, 0, 9, PlayerColor.red);    // Bottom Left: RED
-    _drawClassicBase(canvas, boardOrigin, cellSize, 9, 9, PlayerColor.blue);   // Bottom Right: BLUE
+    final p0Color = state.players.isNotEmpty ? state.players[0].color : PlayerColor.red;
+    final p1Color = state.players.length > 1 ? state.players[1].color : PlayerColor.green;
+    final p2Color = state.players.length > 2 ? state.players[2].color : PlayerColor.yellow;
+    final p3Color = state.players.length > 3 ? state.players[3].color : PlayerColor.blue;
+
+    // 2. Draw 4 Corner Base Blocks with custom player colors
+    _drawClassicBase(canvas, boardOrigin, cellSize, 0, 0, p1Color); // Top Left
+    _drawClassicBase(canvas, boardOrigin, cellSize, 9, 0, p2Color); // Top Right
+    _drawClassicBase(canvas, boardOrigin, cellSize, 0, 9, p0Color); // Bottom Left
+    _drawClassicBase(canvas, boardOrigin, cellSize, 9, 9, p3Color); // Bottom Right
 
     // 3. Colored Start Cells & Entry Arrows
-    _drawEntryArrowsAndColoredStarts(canvas, boardOrigin, cellSize);
+    _drawEntryArrowsAndColoredStarts(canvas, boardOrigin, cellSize, p0Color, p1Color, p2Color, p3Color);
 
     // 4. Colored Home Stretches
-    // Red: Bottom arm going up (Col 7, Rows 9..13)
+    // P0: Bottom arm going up (Col 7, Rows 9..13)
     for (var r = 9; r <= 13; r++) {
       canvas.drawRect(
         Rect.fromLTWH(boardOrigin.dx + 7 * cellSize, boardOrigin.dy + r * cellSize, cellSize, cellSize),
-        Paint()..color = PlayerColor.red.color,
+        Paint()..color = p0Color.color,
       );
     }
-    // Green: Left arm going right (Row 7, Cols 1..5)
+    // P1: Left arm going right (Row 7, Cols 1..5)
     for (var c = 1; c <= 5; c++) {
       canvas.drawRect(
         Rect.fromLTWH(boardOrigin.dx + c * cellSize, boardOrigin.dy + 7 * cellSize, cellSize, cellSize),
-        Paint()..color = PlayerColor.green.color,
+        Paint()..color = p1Color.color,
       );
     }
-    // Yellow: Top arm going down (Col 7, Rows 1..5)
+    // P2: Top arm going down (Col 7, Rows 1..5)
     for (var r = 1; r <= 5; r++) {
       canvas.drawRect(
         Rect.fromLTWH(boardOrigin.dx + 7 * cellSize, boardOrigin.dy + r * cellSize, cellSize, cellSize),
-        Paint()..color = PlayerColor.yellow.color,
+        Paint()..color = p2Color.color,
       );
     }
-    // Blue: Right arm going left (Row 7, Cols 9..13)
+    // P3: Right arm going left (Row 7, Cols 9..13)
     for (var c = 9; c <= 13; c++) {
       canvas.drawRect(
         Rect.fromLTWH(boardOrigin.dx + c * cellSize, boardOrigin.dy + 7 * cellSize, cellSize, cellSize),
-        Paint()..color = PlayerColor.blue.color,
+        Paint()..color = p3Color.color,
       );
     }
 
@@ -95,13 +101,13 @@ class BoardPainter extends CustomPainter {
     _drawCenterHome(canvas, boardOrigin, cellSize);
 
     // 7. Safe Spot Outline Stars
-    _drawStarAtCell(canvas, boardOrigin, cellSize, 1, 6, PlayerColor.green.color);  // Green safe spot
+    _drawStarAtCell(canvas, boardOrigin, cellSize, 1, 6, p1Color.color);  // P1 safe spot
     _drawStarAtCell(canvas, boardOrigin, cellSize, 2, 8, Colors.black87);
-    _drawStarAtCell(canvas, boardOrigin, cellSize, 8, 1, PlayerColor.yellow.color); // Yellow safe spot
+    _drawStarAtCell(canvas, boardOrigin, cellSize, 8, 1, p2Color.color);  // P2 safe spot
     _drawStarAtCell(canvas, boardOrigin, cellSize, 6, 2, Colors.black87);
-    _drawStarAtCell(canvas, boardOrigin, cellSize, 13, 8, PlayerColor.blue.color);  // Blue safe spot
+    _drawStarAtCell(canvas, boardOrigin, cellSize, 13, 8, p3Color.color); // P3 safe spot
     _drawStarAtCell(canvas, boardOrigin, cellSize, 12, 6, Colors.black87);
-    _drawStarAtCell(canvas, boardOrigin, cellSize, 6, 13, PlayerColor.red.color);   // Red safe spot
+    _drawStarAtCell(canvas, boardOrigin, cellSize, 6, 13, p0Color.color);  // P0 safe spot
     _drawStarAtCell(canvas, boardOrigin, cellSize, 8, 12, Colors.black87);
 
     // Outer Board Frame
@@ -186,6 +192,57 @@ class BoardPainter extends CustomPainter {
         ..strokeWidth = 1.5,
     );
 
+    // Draw Player Name Banner at the top of the base box
+    Player? matchingPlayer;
+    for (final p in state.players) {
+      if (p.color == playerColor) {
+        matchingPlayer = p;
+        break;
+      }
+    }
+    if (matchingPlayer != null) {
+      final textPainter = TextPainter(
+        text: TextSpan(
+          text: matchingPlayer.name,
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w800,
+            fontSize: cellSize * 0.38,
+            shadows: const [
+              Shadow(color: Colors.black54, blurRadius: 4),
+            ],
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+        maxLines: 1,
+        ellipsis: '...',
+      )..layout(maxWidth: 5.2 * cellSize);
+
+      final bgWidth = textPainter.width + 12;
+      final bgHeight = textPainter.height + 4;
+      final bgRect = RRect.fromRectAndRadius(
+        Rect.fromLTWH(
+          rect.left + (rect.width - bgWidth) / 2,
+          rect.top + cellSize * 0.15,
+          bgWidth,
+          bgHeight,
+        ),
+        Radius.circular(cellSize * 0.25),
+      );
+
+      canvas.drawRRect(
+        bgRect,
+        Paint()..color = Colors.black.withValues(alpha: 0.45),
+      );
+      textPainter.paint(
+        canvas,
+        Offset(
+          rect.left + (rect.width - textPainter.width) / 2,
+          rect.top + cellSize * 0.15 + 2,
+        ),
+      );
+    }
+
     // White Rounded Inner Base Plate (Left: gridX + 0.8, Top: gridY + 0.8, Size: 4.4 x 4.4 cellSize)
     final innerRect = Rect.fromLTWH(
       origin.dx + (gridX + 0.8) * cellSize,
@@ -229,60 +286,61 @@ class BoardPainter extends CustomPainter {
   }
 
   void _drawEntryArrowsAndColoredStarts(
-      Canvas canvas, Offset origin, double cellSize) {
-    // 1. Red Start Cell (Col 6, Row 13)
+      Canvas canvas, Offset origin, double cellSize,
+      PlayerColor p0, PlayerColor p1, PlayerColor p2, PlayerColor p3) {
+    // 1. P0 Start Cell (Col 6, Row 13)
     canvas.drawRect(
       Rect.fromLTWH(origin.dx + 6 * cellSize, origin.dy + 13 * cellSize, cellSize, cellSize),
-      Paint()..color = PlayerColor.red.color,
+      Paint()..color = p0.color,
     );
-    // Red Arrow at (Col 7, Row 14) pointing UP
+    // P0 Arrow at (Col 7, Row 14) pointing UP
     _drawArrow(
       canvas,
       Offset(origin.dx + 7.5 * cellSize, origin.dy + 14.5 * cellSize),
       cellSize * 0.35,
-      PlayerColor.red.color,
+      p0.color,
       -pi / 2,
     );
 
-    // 2. Green Start Cell (Col 1, Row 6)
+    // 2. P1 Start Cell (Col 1, Row 6)
     canvas.drawRect(
       Rect.fromLTWH(origin.dx + 1 * cellSize, origin.dy + 6 * cellSize, cellSize, cellSize),
-      Paint()..color = PlayerColor.green.color,
+      Paint()..color = p1.color,
     );
-    // Green Arrow at (Col 0, Row 7) pointing RIGHT
+    // P1 Arrow at (Col 0, Row 7) pointing RIGHT
     _drawArrow(
       canvas,
       Offset(origin.dx + 0.5 * cellSize, origin.dy + 7.5 * cellSize),
       cellSize * 0.35,
-      PlayerColor.green.color,
+      p1.color,
       0,
     );
 
-    // 3. Yellow Start Cell (Col 8, Row 1)
+    // 3. P2 Start Cell (Col 8, Row 1)
     canvas.drawRect(
       Rect.fromLTWH(origin.dx + 8 * cellSize, origin.dy + 1 * cellSize, cellSize, cellSize),
-      Paint()..color = PlayerColor.yellow.color,
+      Paint()..color = p2.color,
     );
-    // Yellow Arrow at (Col 7, Row 0) pointing DOWN
+    // P2 Arrow at (Col 7, Row 0) pointing DOWN
     _drawArrow(
       canvas,
       Offset(origin.dx + 7.5 * cellSize, origin.dy + 0.5 * cellSize),
       cellSize * 0.35,
-      PlayerColor.yellow.color,
+      p2.color,
       pi / 2,
     );
 
-    // 4. Blue Start Cell (Col 13, Row 8)
+    // 4. P3 Start Cell (Col 13, Row 8)
     canvas.drawRect(
       Rect.fromLTWH(origin.dx + 13 * cellSize, origin.dy + 8 * cellSize, cellSize, cellSize),
-      Paint()..color = PlayerColor.blue.color,
+      Paint()..color = p3.color,
     );
-    // Blue Arrow at (Col 14, Row 7) pointing LEFT
+    // P3 Arrow at (Col 14, Row 7) pointing LEFT
     _drawArrow(
       canvas,
       Offset(origin.dx + 14.5 * cellSize, origin.dy + 7.5 * cellSize),
       cellSize * 0.35,
-      PlayerColor.blue.color,
+      p3.color,
       pi,
     );
   }

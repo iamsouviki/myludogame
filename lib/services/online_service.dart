@@ -57,16 +57,49 @@ class RoomData {
       );
 }
 
+class ChatMessage {
+  final String senderId;
+  final String senderName;
+  final String text;
+  final int timestamp;
+
+  const ChatMessage({
+    required this.senderId,
+    required this.senderName,
+    required this.text,
+    required this.timestamp,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'senderId': senderId,
+        'senderName': senderName,
+        'text': text,
+        'timestamp': timestamp,
+      };
+
+  factory ChatMessage.fromJson(Map<String, dynamic> json) => ChatMessage(
+        senderId: json['senderId'] as String,
+        senderName: json['senderName'] as String,
+        text: json['text'] as String,
+        timestamp: (json['timestamp'] as int?) ?? DateTime.now().millisecondsSinceEpoch,
+      );
+}
+
 /// Online service interface powered by Firebase Realtime DB.
 class OnlineService {
   static final Map<String, RoomData> _localRooms = {};
+  static final Map<String, List<ChatMessage>> _localChats = {};
 
   final StreamController<RoomData> _roomController =
       StreamController<RoomData>.broadcast();
+  final StreamController<List<ChatMessage>> _chatController =
+      StreamController<List<ChatMessage>>.broadcast();
 
   Stream<RoomData> get roomStream => _roomController.stream;
+  Stream<List<ChatMessage>> get chatStream => _chatController.stream;
 
   StreamSubscription<DatabaseEvent>? _firebaseSubscription;
+  StreamSubscription<DatabaseEvent>? _chatSubscription;
 
   String? currentRoomCode;
   String? localPlayerId;
@@ -85,6 +118,8 @@ class OnlineService {
 
   void _listenToRoom(String code) {
     _firebaseSubscription?.cancel();
+    _chatSubscription?.cancel();
+
     final ref = _roomRef(code);
     if (ref != null) {
       _firebaseSubscription = ref.onValue.listen((event) {
@@ -95,6 +130,64 @@ class OnlineService {
           _roomController.add(room);
         }
       });
+
+      _chatSubscription = ref.child('chat').onValue.listen((event) {
+        if (event.snapshot.value != null) {
+          final raw = event.snapshot.value;
+          final messages = <ChatMessage>[];
+          if (raw is List) {
+            for (final item in raw) {
+              if (item != null) {
+                messages.add(ChatMessage.fromJson(Map<String, dynamic>.from(item as Map)));
+              }
+            }
+          } else if (raw is Map) {
+            raw.forEach((_, val) {
+              if (val != null) {
+                messages.add(ChatMessage.fromJson(Map<String, dynamic>.from(val as Map)));
+              }
+            });
+          }
+          messages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+          _localChats[code] = messages;
+          _chatController.add(messages);
+        }
+      });
+    }
+  }
+
+  Future<void> sendChatMessage(String text, {String? senderName}) async {
+    if (currentRoomCode == null || text.trim().isEmpty) return;
+    final code = currentRoomCode!;
+    final room = _localRooms[code];
+
+    String name = senderName ?? 'Player';
+    if (room != null) {
+      for (final p in room.players) {
+        if (p.id == localPlayerId) {
+          name = p.name;
+          break;
+        }
+      }
+    }
+
+    final msg = ChatMessage(
+      senderId: localPlayerId!,
+      senderName: name,
+      text: text.trim(),
+      timestamp: DateTime.now().millisecondsSinceEpoch,
+    );
+
+    final list = _localChats[code] ?? [];
+    list.add(msg);
+    _localChats[code] = list;
+    _chatController.add(list);
+
+    final ref = _roomRef(code);
+    if (ref != null) {
+      try {
+        await ref.child('chat').push().set(msg.toJson());
+      } catch (_) {}
     }
   }
 
