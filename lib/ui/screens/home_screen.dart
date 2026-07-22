@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../services/game_service.dart';
+import '../../services/online_service.dart';
 import '../../utils/constants.dart';
 import '../theme.dart';
 import '../widgets/player_avatar_widget.dart';
@@ -43,20 +44,9 @@ class _HomeScreenState extends State<HomeScreen> {
     PlayerColor.blue,
   ];
 
-  // Play Online modal state
-  final TextEditingController _onlineNameController = TextEditingController(text: 'Player 1');
-  final TextEditingController _onlineCodeController = TextEditingController();
-  PlayerColor _onlineColor = PlayerColor.red;
-  int _onlineAvatarIndex = 0;
-  int _onlineMatchSize = 4;
-  bool _onlineEnableTeamUp = false;
-  int _onlineActiveTab = 0;
-
   @override
   void dispose() {
     _vsCompNameController.dispose();
-    _onlineNameController.dispose();
-    _onlineCodeController.dispose();
     for (final c in _passPlayNameControllers) {
       c.dispose();
     }
@@ -593,11 +583,113 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // ── Main Non-Scrollable Build Method ──
+
+  @override
+  Widget build(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
+    final screenHeight = mediaQuery.size.height - mediaQuery.padding.top - mediaQuery.padding.bottom;
+    final isCompact = screenHeight < 680;
+
+    return Scaffold(
+      body: Container(
+        decoration: AppTheme.artisticBackground(),
+        child: SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 440),
+              child: Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: isCompact ? 12 : 24,
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _buildHero(isCompact),
+                    _buildThreeMainButtons(isCompact),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Hero Banner ──
+
+  Widget _buildHero(bool isCompact) {
+    return Column(
+      children: [
+        Image.asset(
+          'assets/images/ludo_banner_logo.png',
+          height: isCompact ? 110 : 150,
+          fit: BoxFit.contain,
+        ),
+      ],
+    );
+  }
+
+  // ── 3 Main Buttons ──
+
+  Widget _buildThreeMainButtons(bool isCompact) {
+    return Column(
+      children: [
+        // 1. VS COMPUTER
+        _buildMenuButtonCard(
+          isCompact: isCompact,
+          icon: Icons.smart_toy_rounded,
+          title: 'VS COMPUTER',
+          subtitle: 'Single Player vs Bots (2 or 4 Players)',
+          gradient: const LinearGradient(
+            colors: [Color(0xFF8B5CF6), Color(0xFF6366F1)],
+          ),
+          glowColor: const Color(0xFF8B5CF6),
+          onTap: _showVsComputerModal,
+        ),
+        SizedBox(height: isCompact ? 12 : 16),
+        // 2. PASS & PLAY
+        _buildMenuButtonCard(
+          isCompact: isCompact,
+          icon: Icons.people_alt_rounded,
+          title: 'PASS & PLAY',
+          subtitle: 'Local Friends, Bots & 2v2 Teams',
+          gradient: AppTheme.primaryGradient,
+          glowColor: const Color(0xFFEC4899),
+          onTap: _showPassAndPlayModal,
+        ),
+        SizedBox(height: isCompact ? 12 : 16),
+        // 3. PLAY ONLINE
+        _buildMenuButtonCard(
+          isCompact: isCompact,
+          icon: Icons.public_rounded,
+          title: 'PLAY ONLINE',
+          subtitle: 'Multiplayer Rooms & Live Chat',
+          isOutline: true,
+          borderColor: const Color(0xFF00E5FF),
+          glowColor: const Color(0xFF00E5FF),
+          onTap: _showPlayOnlineModal,
+        ),
+      ],
+    );
+  }
+
   void _showPlayOnlineModal() {
     showDialog(
       context: context,
       barrierDismissible: true,
       builder: (ctx) {
+        final onlineService = OnlineService();
+        int activeTab = 0;
+        int avatarIndex = 0;
+        PlayerColor selectedColor = PlayerColor.red;
+        int matchSize = 4;
+        bool enableTeamUp = false;
+        final nameController = TextEditingController(text: 'Player 1');
+        final codeController = TextEditingController();
+
         return StatefulBuilder(
           builder: (context, setModalState) {
             return Dialog(
@@ -648,8 +740,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
                       // Avatar Selector
                       _buildModalAvatarPicker(
-                        selectedIndex: _onlineAvatarIndex,
-                        onSelected: (idx) => setModalState(() => _onlineAvatarIndex = idx),
+                        selectedIndex: avatarIndex,
+                        onSelected: (idx) => setModalState(() => avatarIndex = idx),
                       ),
                       const SizedBox(height: 12),
 
@@ -663,7 +755,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               width: 130,
                               height: 38,
                               child: TextField(
-                                controller: _onlineNameController,
+                                controller: nameController,
                                 style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
                                 decoration: InputDecoration(
                                   hintText: 'Your Name',
@@ -688,8 +780,8 @@ class _HomeScreenState extends State<HomeScreen> {
                             const SizedBox(width: 8),
                             Expanded(
                               child: _buildColorDropdown(
-                                currentColor: _onlineColor,
-                                onChanged: (color) => setModalState(() => _onlineColor = color),
+                                currentColor: selectedColor,
+                                onChanged: (color) => setModalState(() => selectedColor = color),
                               ),
                             ),
                           ],
@@ -709,19 +801,19 @@ class _HomeScreenState extends State<HomeScreen> {
                           children: [
                             Expanded(
                               child: GestureDetector(
-                                onTap: () => setModalState(() => _onlineActiveTab = 0),
+                                onTap: () => setModalState(() => activeTab = 0),
                                 child: AnimatedContainer(
                                   duration: const Duration(milliseconds: 200),
                                   padding: const EdgeInsets.symmetric(vertical: 10),
                                   decoration: BoxDecoration(
-                                    gradient: _onlineActiveTab == 0 ? AppTheme.primaryGradient : null,
+                                    gradient: activeTab == 0 ? AppTheme.primaryGradient : null,
                                     borderRadius: BorderRadius.circular(10),
                                   ),
                                   child: Text(
                                     'CREATE ROOM',
                                     textAlign: TextAlign.center,
                                     style: TextStyle(
-                                      color: _onlineActiveTab == 0 ? Colors.white : Colors.white70,
+                                      color: activeTab == 0 ? Colors.white : Colors.white70,
                                       fontWeight: FontWeight.w800,
                                       fontSize: 13,
                                     ),
@@ -731,19 +823,19 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                             Expanded(
                               child: GestureDetector(
-                                onTap: () => setModalState(() => _onlineActiveTab = 1),
+                                onTap: () => setModalState(() => activeTab = 1),
                                 child: AnimatedContainer(
                                   duration: const Duration(milliseconds: 200),
                                   padding: const EdgeInsets.symmetric(vertical: 10),
                                   decoration: BoxDecoration(
-                                    gradient: _onlineActiveTab == 1 ? AppTheme.primaryGradient : null,
+                                    gradient: activeTab == 1 ? AppTheme.primaryGradient : null,
                                     borderRadius: BorderRadius.circular(10),
                                   ),
                                   child: Text(
                                     'JOIN ROOM',
                                     textAlign: TextAlign.center,
                                     style: TextStyle(
-                                      color: _onlineActiveTab == 1 ? Colors.white : Colors.white70,
+                                      color: activeTab == 1 ? Colors.white : Colors.white70,
                                       fontWeight: FontWeight.w800,
                                       fontSize: 13,
                                     ),
@@ -756,13 +848,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       const SizedBox(height: 14),
 
-                      if (_onlineActiveTab == 0) ...[
+                      if (activeTab == 0) ...[
                         // CREATE ROOM TAB CONTENT
                         _buildMatchSizeSelector(
-                          selectedSize: _onlineMatchSize,
-                          onSelected: (size) => setModalState(() => _onlineMatchSize = size),
+                          selectedSize: matchSize,
+                          onSelected: (size) => setModalState(() => matchSize = size),
                         ),
-                        if (_onlineMatchSize == 4) ...[
+                        if (matchSize == 4) ...[
                           const SizedBox(height: 10),
                           Row(
                             children: [
@@ -779,24 +871,39 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ),
                               ),
                               Switch(
-                                value: _onlineEnableTeamUp,
+                                value: enableTeamUp,
                                 activeThumbColor: const Color(0xFF00E5FF),
-                                onChanged: (val) => setModalState(() => _onlineEnableTeamUp = val),
+                                onChanged: (val) => setModalState(() => enableTeamUp = val),
                               ),
                             ],
                           ),
                         ],
                         const SizedBox(height: 18),
-                        // Big 68px High Button
                         SizedBox(
                           width: double.infinity,
                           height: 68,
                           child: ElevatedButton(
-                            onPressed: () {
-                              Navigator.pop(ctx);
-                              Navigator.of(context).push(
-                                MaterialPageRoute(builder: (_) => const LobbyScreen()),
+                            onPressed: () async {
+                              final name = nameController.text.trim().isEmpty ? 'Player 1' : nameController.text.trim();
+                              final room = await onlineService.createRoom(
+                                playerName: name,
+                                boardType: _boardType,
+                                preferredColor: selectedColor,
+                                avatarIndex: avatarIndex,
+                                targetPlayerCount: matchSize,
+                                isTeamUp: matchSize == 4 && enableTeamUp,
                               );
+                              if (context.mounted) {
+                                Navigator.pop(ctx);
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => LobbyScreen(
+                                      initialRoom: room,
+                                      onlineService: onlineService,
+                                    ),
+                                  ),
+                                );
+                              }
                             },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.transparent,
@@ -827,7 +934,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ] else ...[
                         // JOIN ROOM TAB CONTENT
                         TextField(
-                          controller: _onlineCodeController,
+                          controller: codeController,
                           style: const TextStyle(
                             color: Colors.white,
                             letterSpacing: 6,
@@ -862,16 +969,43 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ),
                         const SizedBox(height: 18),
-                        // Big 68px High Button
                         SizedBox(
                           width: double.infinity,
                           height: 68,
                           child: ElevatedButton(
-                            onPressed: () {
-                              Navigator.pop(ctx);
-                              Navigator.of(context).push(
-                                MaterialPageRoute(builder: (_) => const LobbyScreen()),
+                            onPressed: () async {
+                              final name = nameController.text.trim().isEmpty ? 'Player 1' : nameController.text.trim();
+                              final code = codeController.text.trim().toUpperCase();
+                              if (code.length != 6) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Enter a 6-character room code')),
+                                );
+                                return;
+                              }
+                              final res = await onlineService.joinRoomResult(
+                                code: code,
+                                playerName: name,
+                                avatarIndex: avatarIndex,
+                                preferredColor: selectedColor,
                               );
+                              if (res.isSuccess && res.room != null && context.mounted) {
+                                Navigator.pop(ctx);
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => LobbyScreen(
+                                      initialRoom: res.room,
+                                      onlineService: onlineService,
+                                    ),
+                                  ),
+                                );
+                              } else if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(res.error ?? 'Unable to join room.'),
+                                    backgroundColor: Colors.redAccent,
+                                  ),
+                                );
+                              }
                             },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.transparent,
@@ -965,99 +1099,6 @@ class _HomeScreenState extends State<HomeScreen> {
               );
             },
           ),
-        ),
-      ],
-    );
-  }
-
-  // ── Main Non-Scrollable Build Method ──
-
-  @override
-  Widget build(BuildContext context) {
-    final mediaQuery = MediaQuery.of(context);
-    final screenHeight = mediaQuery.size.height - mediaQuery.padding.top - mediaQuery.padding.bottom;
-    final isCompact = screenHeight < 680;
-
-    return Scaffold(
-      body: Container(
-        decoration: AppTheme.artisticBackground(),
-        child: SafeArea(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 440),
-              child: Padding(
-                padding: EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: isCompact ? 12 : 24,
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _buildHero(isCompact),
-                    _buildThreeMainButtons(isCompact),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ── Hero Banner ──
-
-  Widget _buildHero(bool isCompact) {
-    return Column(
-      children: [
-        Image.asset(
-          'assets/images/ludo_banner_logo.png',
-          height: isCompact ? 110 : 150,
-          fit: BoxFit.contain,
-        ),
-      ],
-    );
-  }
-
-  // ── 3 Main Buttons ──
-
-  Widget _buildThreeMainButtons(bool isCompact) {
-    return Column(
-      children: [
-        // 1. VS COMPUTER
-        _buildMenuButtonCard(
-          isCompact: isCompact,
-          icon: Icons.smart_toy_rounded,
-          title: 'VS COMPUTER',
-          subtitle: 'Single Player vs Bots (2 or 4 Players)',
-          gradient: const LinearGradient(
-            colors: [Color(0xFF8B5CF6), Color(0xFF6366F1)],
-          ),
-          glowColor: const Color(0xFF8B5CF6),
-          onTap: _showVsComputerModal,
-        ),
-        SizedBox(height: isCompact ? 12 : 16),
-        // 2. PASS & PLAY
-        _buildMenuButtonCard(
-          isCompact: isCompact,
-          icon: Icons.people_alt_rounded,
-          title: 'PASS & PLAY',
-          subtitle: 'Local Friends, Bots & 2v2 Teams',
-          gradient: AppTheme.primaryGradient,
-          glowColor: const Color(0xFFEC4899),
-          onTap: _showPassAndPlayModal,
-        ),
-        SizedBox(height: isCompact ? 12 : 16),
-        // 3. PLAY ONLINE
-        _buildMenuButtonCard(
-          isCompact: isCompact,
-          icon: Icons.public_rounded,
-          title: 'PLAY ONLINE',
-          subtitle: 'Multiplayer Rooms & Live Chat',
-          isOutline: true,
-          borderColor: const Color(0xFF00E5FF),
-          glowColor: const Color(0xFF00E5FF),
-          onTap: _showPlayOnlineModal,
         ),
       ],
     );

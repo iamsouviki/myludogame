@@ -12,14 +12,21 @@ import 'game_screen.dart';
 import '../widgets/online_chat_widget.dart';
 
 class LobbyScreen extends StatefulWidget {
-  const LobbyScreen({super.key});
+  final RoomData? initialRoom;
+  final OnlineService? onlineService;
+
+  const LobbyScreen({
+    super.key,
+    this.initialRoom,
+    this.onlineService,
+  });
 
   @override
   State<LobbyScreen> createState() => _LobbyScreenState();
 }
 
 class _LobbyScreenState extends State<LobbyScreen> {
-  final _onlineService = OnlineService();
+  late final OnlineService _onlineService;
   final _nameController = TextEditingController(text: 'Player');
   final _codeController = TextEditingController();
   final BoardType _boardType = BoardType.classic4;
@@ -34,6 +41,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
   @override
   void initState() {
     super.initState();
+    _onlineService = widget.onlineService ?? OnlineService();
+    _room = widget.initialRoom;
     _onlineService.roomStream.listen((room) {
       if (mounted) {
         setState(() => _room = room);

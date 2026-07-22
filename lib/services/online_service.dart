@@ -121,7 +121,10 @@ class OnlineService {
   String? localPlayerId;
 
   OnlineService() {
-    localPlayerId = 'player_${Random().nextInt(99999)}';
+    final prefix = kIsWeb ? 'web' : 'app';
+    final ts = DateTime.now().microsecondsSinceEpoch;
+    final rand = Random().nextInt(99999);
+    localPlayerId = '${prefix}_${ts}_$rand';
   }
 
   DatabaseReference? _roomRef(String code) {
@@ -246,8 +249,6 @@ class OnlineService {
       try {
         debugPrint('[OnlineService] Creating room $code on Firebase...');
         await ref.set(room.toJson());
-        // Configure onDisconnect so if host drops connection, room is cleaned up
-        await ref.onDisconnect().remove();
         debugPrint('[OnlineService] Room $code created successfully on Firebase.');
         _listenToRoom(code);
       } catch (e, stack) {
