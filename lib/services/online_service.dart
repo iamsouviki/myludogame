@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_database/firebase_database.dart';
 
 import '../models/game_state.dart';
@@ -125,12 +126,16 @@ class OnlineService {
     final ref = _roomRef(code);
     if (ref != null) {
       try {
+        debugPrint('[OnlineService] Creating room $code on Firebase...');
         await ref.set(room.toJson());
+        debugPrint('[OnlineService] Room $code created successfully on Firebase.');
         _listenToRoom(code);
-      } catch (_) {
+      } catch (e, stack) {
+        debugPrint('[OnlineService] ERROR creating room $code on Firebase: $e\n$stack');
         _roomController.add(room);
       }
     } else {
+      debugPrint('[OnlineService] Firebase ref is null. Operating in local memory fallback.');
       _roomController.add(room);
     }
 
@@ -143,20 +148,30 @@ class OnlineService {
     required String playerName,
   }) async {
     final cleanCode = code.toUpperCase();
+    debugPrint('[OnlineService] Attempting to join room: $cleanCode');
     RoomData? room = _localRooms[cleanCode];
 
     final ref = _roomRef(cleanCode);
     if (ref != null) {
       try {
+        debugPrint('[OnlineService] Fetching room $cleanCode from Firebase Realtime DB...');
         final snapshot = await ref.get();
         if (snapshot.exists && snapshot.value != null) {
+          debugPrint('[OnlineService] Room $cleanCode found on Firebase: ${snapshot.value}');
           final data = Map<String, dynamic>.from(snapshot.value as Map);
           room = RoomData.fromJson(data);
+        } else {
+          debugPrint('[OnlineService] Snapshot for room $cleanCode does not exist on Firebase.');
         }
-      } catch (_) {}
+      } catch (e, stack) {
+        debugPrint('[OnlineService] ERROR fetching room $cleanCode from Firebase: $e\n$stack');
+      }
+    } else {
+      debugPrint('[OnlineService] Firebase ref is null. Checking local memory for $cleanCode.');
     }
 
     if (room == null || room.isFull || room.status != RoomStatus.waiting) {
+      debugPrint('[OnlineService] Cannot join room $cleanCode (room null: ${room == null}, isFull: ${room?.isFull}, status: ${room?.status})');
       return null;
     }
 
@@ -186,9 +201,12 @@ class OnlineService {
 
     if (ref != null) {
       try {
+        debugPrint('[OnlineService] Updating joined room $cleanCode on Firebase...');
         await ref.update(updatedRoom.toJson());
+        debugPrint('[OnlineService] Joined room $cleanCode updated on Firebase.');
         _listenToRoom(cleanCode);
-      } catch (_) {
+      } catch (e, stack) {
+        debugPrint('[OnlineService] ERROR updating room $cleanCode on Firebase: $e\n$stack');
         _roomController.add(updatedRoom);
       }
     } else {
