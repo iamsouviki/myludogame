@@ -517,6 +517,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 borderRadius: BorderRadius.circular(16),
               ),
             ),
+          ),
+        ),
       ],
     );
   }
