@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../models/game_state.dart';
 import '../../services/game_service.dart';
 import '../../services/online_service.dart';
 import '../../utils/constants.dart';
@@ -29,9 +30,12 @@ class _LobbyScreenState extends State<LobbyScreen> {
       if (mounted) {
         setState(() => _room = room);
         if (room.status == RoomStatus.playing) {
-          final gameService = GameService(
+          final gameState = GameState(
             boardType: room.boardType,
             players: room.players,
+          );
+          final gameService = GameService(
+            state: gameState,
           );
           Navigator.pushReplacement(
             context,
