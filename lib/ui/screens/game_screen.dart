@@ -46,8 +46,16 @@ class _GameScreenState extends State<GameScreen>
     super.dispose();
   }
 
+  bool _dialogShown = false;
+
   void _onStateChange() {
-    if (mounted) setState(() {});
+    if (mounted) {
+      setState(() {});
+      if (state.isGameOver && !_dialogShown) {
+        _dialogShown = true;
+        Future.microtask(() => _showVictoryModal());
+      }
+    }
   }
 
   void _onDiceRoll() => widget.service.rollDice();
@@ -501,6 +509,159 @@ class _GameScreenState extends State<GameScreen>
             child: Text('Restart', style: TextStyle(color: AppTheme.warning)),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showVictoryModal() {
+    final winnerIndex = state.winner ?? 0;
+    final winnerPlayer = state.players[winnerIndex];
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: AppTheme.surface,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: AppTheme.accentLight.withValues(alpha: 0.5), width: 2),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFFFD700).withValues(alpha: 0.3),
+                blurRadius: 30,
+                spreadRadius: 5,
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Image.asset(
+                'assets/images/victory_crown.png',
+                height: 120,
+                fit: BoxFit.contain,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'CHAMPION!',
+                style: TextStyle(
+                  color: AppTheme.gold,
+                  fontSize: 26,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 3,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  PlayerAvatarWidget(
+                    avatarIndex: winnerPlayer.avatarIndex,
+                    color: winnerPlayer.color.color,
+                    size: 32,
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    winnerPlayer.name,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppTheme.bg1,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Column(
+                  children: List.generate(state.finishOrder.length, (rank) {
+                    final pIdx = state.finishOrder[rank];
+                    final player = state.players[pIdx];
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        children: [
+                          Text(
+                            '#${rank + 1}',
+                            style: TextStyle(
+                              color: rank == 0 ? AppTheme.gold : AppTheme.textSecondary,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          PlayerAvatarWidget(
+                            avatarIndex: player.avatarIndex,
+                            color: player.color.color,
+                            size: 22,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            player.name,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        Navigator.pop(context);
+                      },
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppTheme.textSecondary,
+                        side: const BorderSide(color: AppTheme.border),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: const Text('HOME'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        setState(() {
+                          _dialogShown = false;
+                        });
+                        state.reset();
+                        widget.service.start();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.accent,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: const Text('PLAY AGAIN'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
