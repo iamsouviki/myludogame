@@ -93,7 +93,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
     }
 
     setState(() => _isLoading = true);
-    final room = await _onlineService.joinRoom(
+    final result = await _onlineService.joinRoomResult(
       code: code,
       playerName: _nameController.text.trim().isEmpty
           ? 'Player'
@@ -103,9 +103,12 @@ class _LobbyScreenState extends State<LobbyScreen> {
     );
     setState(() => _isLoading = false);
 
-    if (room == null && mounted) {
+    if (!result.isSuccess && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Room not found or full')),
+        SnackBar(
+          content: Text(result.error ?? 'Unable to join room.'),
+          backgroundColor: Colors.redAccent,
+        ),
       );
     }
   }
@@ -282,6 +285,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                                   style: const TextStyle(color: Colors.white, fontSize: 13),
                                 ),
                                 isExpanded: true,
+                                menuMaxHeight: 260,
                                 dropdownColor: AppTheme.surface,
                                 icon: const Icon(Icons.arrow_drop_down_rounded, color: Colors.white70),
                                 items: PlayerColor.values.map((color) {
@@ -458,37 +462,37 @@ class _LobbyScreenState extends State<LobbyScreen> {
                       const SizedBox(height: 14),
                       SizedBox(
                         width: double.infinity,
-                        height: 58,
+                        height: 68,
                         child: ElevatedButton(
                           onPressed: _isLoading ? null : _createRoom,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.transparent,
                             shadowColor: Colors.transparent,
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
+                              borderRadius: BorderRadius.circular(16),
                             ),
                           ),
                           child: Ink(
                             decoration: BoxDecoration(
                               gradient: AppTheme.primaryGradient,
-                              borderRadius: BorderRadius.circular(14),
+                              borderRadius: BorderRadius.circular(16),
                             ),
                             child: Center(
                               child: _isLoading
                                   ? const SizedBox(
-                                      width: 20,
-                                      height: 20,
+                                      width: 24,
+                                      height: 24,
                                       child: CircularProgressIndicator(
-                                        strokeWidth: 2,
+                                        strokeWidth: 2.5,
                                         color: Colors.white,
                                       ),
                                     )
                                   : const Text(
                                       'CREATE ROOM',
                                       style: TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w800,
-                                        letterSpacing: 1.2,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w900,
+                                        letterSpacing: 2.0,
                                         color: Colors.white,
                                       ),
                                     ),
@@ -550,37 +554,37 @@ class _LobbyScreenState extends State<LobbyScreen> {
                       const SizedBox(height: 14),
                       SizedBox(
                         width: double.infinity,
-                        height: 58,
+                        height: 68,
                         child: ElevatedButton(
                           onPressed: _isLoading ? null : _joinRoom,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.transparent,
                             shadowColor: Colors.transparent,
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
+                              borderRadius: BorderRadius.circular(16),
                             ),
                           ),
                           child: Ink(
                             decoration: BoxDecoration(
                               gradient: AppTheme.primaryGradient,
-                              borderRadius: BorderRadius.circular(14),
+                              borderRadius: BorderRadius.circular(16),
                             ),
                             child: Center(
                               child: _isLoading
                                   ? const SizedBox(
-                                      width: 20,
-                                      height: 20,
+                                      width: 24,
+                                      height: 24,
                                       child: CircularProgressIndicator(
-                                        strokeWidth: 2,
+                                        strokeWidth: 2.5,
                                         color: Colors.white,
                                       ),
                                     )
                                   : const Text(
                                       'JOIN ROOM',
                                       style: TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w800,
-                                        letterSpacing: 1.2,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w900,
+                                        letterSpacing: 2.0,
                                         color: Colors.white,
                                       ),
                                     ),
@@ -763,10 +767,18 @@ class _LobbyScreenState extends State<LobbyScreen> {
               if (isHost && room.players.length >= 2) ...[
                 SizedBox(
                   width: double.infinity,
-                  height: 58,
+                  height: 68,
                   child: ElevatedButton(
                     onPressed: _startGame,
-                    child: const Text('START GAME'),
+                    style: ElevatedButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    child: const Text(
+                      'START GAME',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 2.0),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 12),

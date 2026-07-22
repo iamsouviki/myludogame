@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../services/game_service.dart';
 import '../../utils/constants.dart';
 import '../theme.dart';
+import '../widgets/player_avatar_widget.dart';
 import 'game_screen.dart';
 import 'lobby_screen.dart';
 
@@ -42,9 +43,20 @@ class _HomeScreenState extends State<HomeScreen> {
     PlayerColor.blue,
   ];
 
+  // Play Online modal state
+  final TextEditingController _onlineNameController = TextEditingController(text: 'Player 1');
+  final TextEditingController _onlineCodeController = TextEditingController();
+  PlayerColor _onlineColor = PlayerColor.red;
+  int _onlineAvatarIndex = 0;
+  int _onlineMatchSize = 4;
+  bool _onlineEnableTeamUp = false;
+  int _onlineActiveTab = 0;
+
   @override
   void dispose() {
     _vsCompNameController.dispose();
+    _onlineNameController.dispose();
+    _onlineCodeController.dispose();
     for (final c in _passPlayNameControllers) {
       c.dispose();
     }
@@ -228,7 +240,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       // Start Button
                       SizedBox(
                         width: double.infinity,
-                        height: 58,
+                        height: 68,
                         child: ElevatedButton(
                           onPressed: () {
                             Navigator.pop(ctx);
@@ -250,9 +262,9 @@ class _HomeScreenState extends State<HomeScreen> {
                               child: Text(
                                 'START MATCH',
                                 style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 1.5,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 2.0,
                                   color: Colors.white,
                                 ),
                               ),
@@ -538,7 +550,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       // Start Button
                       SizedBox(
                         width: double.infinity,
-                        height: 58,
+                        height: 68,
                         child: ElevatedButton(
                           onPressed: () {
                             Navigator.pop(ctx);
@@ -560,9 +572,9 @@ class _HomeScreenState extends State<HomeScreen> {
                               child: Text(
                                 'START MATCH',
                                 style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 1.5,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 2.0,
                                   color: Colors.white,
                                 ),
                               ),
@@ -578,6 +590,383 @@ class _HomeScreenState extends State<HomeScreen> {
           },
         );
       },
+    );
+  }
+
+  void _showPlayOnlineModal() {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Dialog(
+              backgroundColor: Colors.transparent,
+              insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+              child: Container(
+                constraints: const BoxConstraints(maxWidth: 420),
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: AppTheme.surface,
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.5), width: 1.5),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.6),
+                      blurRadius: 24,
+                      spreadRadius: 4,
+                    ),
+                  ],
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Header
+                      Row(
+                        children: [
+                          const Icon(Icons.public_rounded, color: Color(0xFF00E5FF), size: 22),
+                          const SizedBox(width: 10),
+                          Text(
+                            'Play Online Setup',
+                            style: TextStyle(
+                              color: AppTheme.textPrimary,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const Spacer(),
+                          IconButton(
+                            icon: const Icon(Icons.close_rounded, color: Colors.white60),
+                            onPressed: () => Navigator.pop(ctx),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Avatar Selector
+                      _buildModalAvatarPicker(
+                        selectedIndex: _onlineAvatarIndex,
+                        onSelected: (idx) => setModalState(() => _onlineAvatarIndex = idx),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Player Name & Color Dropdown
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: AppTheme.glassCard(),
+                        child: Row(
+                          children: [
+                            SizedBox(
+                              width: 130,
+                              height: 38,
+                              child: TextField(
+                                controller: _onlineNameController,
+                                style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                                decoration: InputDecoration(
+                                  hintText: 'Your Name',
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                  filled: true,
+                                  fillColor: AppTheme.bg3,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                    borderSide: BorderSide(color: AppTheme.border),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                    borderSide: BorderSide(color: AppTheme.border),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                    borderSide: const BorderSide(color: Color(0xFF00E5FF)),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: _buildColorDropdown(
+                                currentColor: _onlineColor,
+                                onChanged: (color) => setModalState(() => _onlineColor = color),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+
+                      // Tab Segment Switcher (CREATE ROOM | JOIN ROOM)
+                      Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: AppTheme.bg3,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: AppTheme.border),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () => setModalState(() => _onlineActiveTab = 0),
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 200),
+                                  padding: const EdgeInsets.symmetric(vertical: 10),
+                                  decoration: BoxDecoration(
+                                    gradient: _onlineActiveTab == 0 ? AppTheme.primaryGradient : null,
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Text(
+                                    'CREATE ROOM',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: _onlineActiveTab == 0 ? Colors.white : Colors.white70,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () => setModalState(() => _onlineActiveTab = 1),
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 200),
+                                  padding: const EdgeInsets.symmetric(vertical: 10),
+                                  decoration: BoxDecoration(
+                                    gradient: _onlineActiveTab == 1 ? AppTheme.primaryGradient : null,
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Text(
+                                    'JOIN ROOM',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: _onlineActiveTab == 1 ? Colors.white : Colors.white70,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+
+                      if (_onlineActiveTab == 0) ...[
+                        // CREATE ROOM TAB CONTENT
+                        _buildMatchSizeSelector(
+                          selectedSize: _onlineMatchSize,
+                          onSelected: (size) => setModalState(() => _onlineMatchSize = size),
+                        ),
+                        if (_onlineMatchSize == 4) ...[
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              const Icon(Icons.groups_rounded, size: 18, color: Color(0xFF00E5FF)),
+                              const SizedBox(width: 8),
+                              const Expanded(
+                                child: Text(
+                                  '2v2 Team Up Mode',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                              Switch(
+                                value: _onlineEnableTeamUp,
+                                activeThumbColor: const Color(0xFF00E5FF),
+                                onChanged: (val) => setModalState(() => _onlineEnableTeamUp = val),
+                              ),
+                            ],
+                          ),
+                        ],
+                        const SizedBox(height: 18),
+                        // Big 68px High Button
+                        SizedBox(
+                          width: double.infinity,
+                          height: 68,
+                          child: ElevatedButton(
+                            onPressed: () {
+                              Navigator.pop(ctx);
+                              Navigator.of(context).push(
+                                MaterialPageRoute(builder: (_) => const LobbyScreen()),
+                              );
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.transparent,
+                              shadowColor: Colors.transparent,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                            ),
+                            child: Ink(
+                              decoration: BoxDecoration(
+                                gradient: AppTheme.primaryGradient,
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: const Center(
+                                child: Text(
+                                  'CREATE & START',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 2.0,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ] else ...[
+                        // JOIN ROOM TAB CONTENT
+                        TextField(
+                          controller: _onlineCodeController,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            letterSpacing: 6,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                          ),
+                          textCapitalization: TextCapitalization.characters,
+                          textAlign: TextAlign.center,
+                          maxLength: 6,
+                          decoration: InputDecoration(
+                            hintText: 'ROOM CODE',
+                            hintStyle: TextStyle(
+                              color: AppTheme.textMuted,
+                              letterSpacing: 2,
+                              fontSize: 13,
+                            ),
+                            counterText: '',
+                            filled: true,
+                            fillColor: AppTheme.bg3,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: AppTheme.border),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: AppTheme.border),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Color(0xFF00E5FF)),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        // Big 68px High Button
+                        SizedBox(
+                          width: double.infinity,
+                          height: 68,
+                          child: ElevatedButton(
+                            onPressed: () {
+                              Navigator.pop(ctx);
+                              Navigator.of(context).push(
+                                MaterialPageRoute(builder: (_) => const LobbyScreen()),
+                              );
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.transparent,
+                              shadowColor: Colors.transparent,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                            ),
+                            child: Ink(
+                              decoration: BoxDecoration(
+                                gradient: AppTheme.primaryGradient,
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: const Center(
+                                child: Text(
+                                  'JOIN & START',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 2.0,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildModalAvatarPicker({
+    required int selectedIndex,
+    required ValueChanged<int> onSelected,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Select Avatar',
+          style: TextStyle(color: Color(0xFF8B949E), fontSize: 11, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 6),
+        SizedBox(
+          height: 46,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            itemCount: Avatars.list.length,
+            itemBuilder: (context, idx) {
+              final isSel = idx == selectedIndex;
+              final avatar = Avatars.list[idx];
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: GestureDetector(
+                  onTap: () => onSelected(idx),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: isSel ? const Color(0xFF00E5FF) : Colors.transparent,
+                        width: 2,
+                      ),
+                      boxShadow: isSel
+                          ? [
+                              BoxShadow(
+                                color: const Color(0xFF00E5FF).withValues(alpha: 0.5),
+                                blurRadius: 6,
+                                spreadRadius: 1,
+                              ),
+                            ]
+                          : null,
+                    ),
+                    child: PlayerAvatarWidget(
+                      avatarIndex: idx,
+                      size: 36,
+                      borderColor: isSel ? const Color(0xFF00E5FF) : avatar.bg,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -668,11 +1057,7 @@ class _HomeScreenState extends State<HomeScreen> {
           isOutline: true,
           borderColor: const Color(0xFF00E5FF),
           glowColor: const Color(0xFF00E5FF),
-          onTap: () {
-            Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const LobbyScreen()),
-            );
-          },
+          onTap: _showPlayOnlineModal,
         ),
       ],
     );
@@ -837,6 +1222,7 @@ class _HomeScreenState extends State<HomeScreen> {
         child: DropdownButton<PlayerColor>(
           value: currentColor,
           isExpanded: true,
+          menuMaxHeight: 260,
           dropdownColor: AppTheme.surface,
           icon: const Icon(Icons.arrow_drop_down_rounded, color: Colors.white70),
           items: PlayerColor.values.map((color) {

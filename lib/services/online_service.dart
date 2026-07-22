@@ -14,6 +14,14 @@ import '../utils/room_code_generator.dart';
 /// Room state for lobby
 enum RoomStatus { waiting, playing, finished }
 
+class JoinRoomResult {
+  final RoomData? room;
+  final String? error;
+
+  JoinRoomResult({this.room, this.error});
+  bool get isSuccess => room != null && error == null;
+}
+
 class RoomData {
   final String code;
   final String hostId;
@@ -253,7 +261,7 @@ class OnlineService {
   }
 
   /// Join an existing room
-  Future<RoomData?> joinRoom({
+  Future<JoinRoomResult> joinRoomResult({
     required String code,
     required String playerName,
     int avatarIndex = 0,
@@ -282,26 +290,33 @@ class OnlineService {
       debugPrint('[OnlineService] Firebase ref is null. Checking local memory for $cleanCode.');
     }
 
-    if (room == null || room.isFull || room.status != RoomStatus.waiting) {
-      debugPrint('[OnlineService] Cannot join room $cleanCode (room null: ${room == null}, isFull: ${room?.isFull}, status: ${room?.status})');
-      return null;
+    if (room == null) {
+      return JoinRoomResult(error: 'Room "$cleanCode" not found! Check the room code and try again.');
+    }
+    if (room.isFull) {
+      return JoinRoomResult(error: 'Room "$cleanCode" is already full!');
+    }
+    if (room.status != RoomStatus.waiting) {
+      return JoinRoomResult(error: 'Match in room "$cleanCode" has already started!');
     }
     final targetRoom = room;
 
     final usedColors = targetRoom.players.map((p) => p.color).toSet();
+    if (preferredColor != null && usedColors.contains(preferredColor)) {
+      return JoinRoomResult(
+        error: 'Color "${preferredColor.label}" is already selected by another player! Please choose a different color.',
+      );
+    }
+
     final allColors = targetRoom.boardType == BoardType.classic4
         ? [PlayerColor.red, PlayerColor.green, PlayerColor.yellow, PlayerColor.blue]
         : PlayerColor.values;
 
-    PlayerColor availableColor;
-    if (preferredColor != null && !usedColors.contains(preferredColor)) {
-      availableColor = preferredColor;
-    } else {
-      availableColor = allColors.firstWhere(
-        (c) => !usedColors.contains(c),
-        orElse: () => allColors[targetRoom.players.length % allColors.length],
-      );
-    }
+    final availableColor = preferredColor ??
+        allColors.firstWhere(
+          (c) => !usedColors.contains(c),
+          orElse: () => allColors[targetRoom.players.length % allColors.length],
+        );
 
     final playerIndex = targetRoom.players.length;
     final teamId = (targetRoom.isTeamUp && targetRoom.targetPlayerCount == 4)
@@ -345,7 +360,23 @@ class OnlineService {
       _roomController.add(updatedRoom);
     }
 
-    return updatedRoom;
+    return JoinRoomResult(room: updatedRoom);
+  }
+
+  /// Backwards-compatible join room helper
+  Future<RoomData?> joinRoom({
+    required String code,
+    required String playerName,
+    int avatarIndex = 0,
+    PlayerColor? preferredColor,
+  }) async {
+    final res = await joinRoomResult(
+      code: code,
+      playerName: playerName,
+      avatarIndex: avatarIndex,
+      preferredColor: preferredColor,
+    );
+    return res.room;
   }
 
   /// Start the game (host only)
