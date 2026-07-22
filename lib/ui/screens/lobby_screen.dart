@@ -20,6 +20,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
   final _nameController = TextEditingController(text: 'Player');
   final _codeController = TextEditingController();
   BoardType _boardType = BoardType.classic4;
+  PlayerColor _selectedColor = PlayerColor.red;
   RoomData? _room;
   bool _isLoading = false;
 
@@ -40,7 +41,10 @@ class _LobbyScreenState extends State<LobbyScreen> {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (_) => GameScreen(service: gameService),
+              builder: (_) => GameScreen(
+                service: gameService,
+                localPlayerId: _onlineService.localPlayerId,
+              ),
             ),
           );
         }
@@ -63,6 +67,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
           ? 'Player'
           : _nameController.text.trim(),
       boardType: _boardType,
+      preferredColor: _selectedColor,
     );
     setState(() => _isLoading = false);
   }
@@ -219,7 +224,49 @@ class _LobbyScreenState extends State<LobbyScreen> {
                         );
                       }).toList(),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 14),
+                    const Text(
+                      'Choose Your Color',
+                      style: TextStyle(color: Color(0xFF8B949E), fontSize: 13),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: PlayerColor.values.map((color) {
+                        final selected = _selectedColor == color;
+                        return GestureDetector(
+                          onTap: () => setState(() => _selectedColor = color),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            width: 38,
+                            height: 38,
+                            decoration: BoxDecoration(
+                              color: color.color,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: selected
+                                    ? Colors.white
+                                    : Colors.transparent,
+                                width: 3,
+                              ),
+                              boxShadow: selected
+                                  ? [
+                                      BoxShadow(
+                                        color: color.color.withValues(alpha: 0.6),
+                                        blurRadius: 10,
+                                        spreadRadius: 2,
+                                      )
+                                    ]
+                                  : [],
+                            ),
+                            child: selected
+                                ? const Icon(Icons.check, color: Colors.white, size: 20)
+                                : null,
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 16),
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(

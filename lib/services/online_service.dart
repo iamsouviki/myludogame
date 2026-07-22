@@ -102,14 +102,16 @@ class OnlineService {
   Future<RoomData> createRoom({
     required String playerName,
     required BoardType boardType,
+    PlayerColor? preferredColor,
   }) async {
     final code = RoomCodeGenerator.generate();
     final player = Player(
       id: localPlayerId!,
       name: playerName,
-      color: boardType == BoardType.classic4
-          ? PlayerColor.red
-          : PlayerColor.values[0],
+      color: preferredColor ??
+          (boardType == BoardType.classic4
+              ? PlayerColor.red
+              : PlayerColor.values[0]),
       type: PlayerType.human,
     );
 
@@ -175,15 +177,19 @@ class OnlineService {
       return null;
     }
 
-    final colorIndex = room.players.length;
-    final colors = room.boardType == BoardType.classic4
+    final usedColors = room.players.map((p) => p.color).toSet();
+    final allColors = room.boardType == BoardType.classic4
         ? [PlayerColor.red, PlayerColor.green, PlayerColor.yellow, PlayerColor.blue]
         : PlayerColor.values;
+    final availableColor = allColors.firstWhere(
+      (c) => !usedColors.contains(c),
+      orElse: () => allColors[room.players.length % allColors.length],
+    );
 
     final player = Player(
       id: localPlayerId!,
       name: playerName,
-      color: colors[colorIndex],
+      color: availableColor,
       type: PlayerType.human,
     );
 

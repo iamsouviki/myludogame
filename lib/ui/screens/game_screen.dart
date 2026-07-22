@@ -13,8 +13,9 @@ import '../widgets/token_widget.dart';
 
 class GameScreen extends StatefulWidget {
   final GameService service;
+  final String? localPlayerId;
 
-  const GameScreen({super.key, required this.service});
+  const GameScreen({super.key, required this.service, this.localPlayerId});
 
   @override
   State<GameScreen> createState() => _GameScreenState();
@@ -289,9 +290,13 @@ class _GameScreenState extends State<GameScreen>
   // ── Control panel ──
 
   Widget _buildControlPanel() {
+    final isMyTurn = widget.localPlayerId == null ||
+        state.currentPlayer.id == widget.localPlayerId;
+
     final canRoll = state.phase == GamePhase.rolling &&
         !state.isCurrentPlayerAI &&
-        !state.isGameOver;
+        !state.isGameOver &&
+        isMyTurn;
 
     final activePlayerColor = state.currentPlayer.color.color;
 
