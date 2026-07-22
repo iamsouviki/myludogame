@@ -1,11 +1,10 @@
-// ignore_for_file: deprecated_member_use
 import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-// ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html;
+import 'sound_service_stub.dart'
+    if (dart.library.html) 'sound_service_web.dart';
 
 class SoundService {
   static String? _stepWavUri;
@@ -15,7 +14,7 @@ class SoundService {
 
   /// Play rhythmic step tick sound ("pig, pig, pig...")
   static void playStepSound() {
-    _playAssetOrWav('assets/sounds/step.mp3', _getStepWavUri(), volume: 0.5);
+    _playAudio('assets/sounds/step.mp3', _getStepWavUri(), volume: 0.5);
     try {
       SystemSound.play(SystemSoundType.click);
       HapticFeedback.lightImpact();
@@ -24,7 +23,7 @@ class SoundService {
 
   /// Play distinct capture / cut WHOOSH sound
   static void playCaptureSound() {
-    _playAssetOrWav('assets/sounds/capture.mp3', _getCaptureWavUri(), volume: 0.8);
+    _playAudio('assets/sounds/capture.mp3', _getCaptureWavUri(), volume: 0.8);
     try {
       SystemSound.play(SystemSoundType.click);
       HapticFeedback.heavyImpact();
@@ -33,7 +32,7 @@ class SoundService {
 
   /// Play dice roll rattling sound
   static void playDiceRollSound() {
-    _playAssetOrWav('assets/sounds/dice_roll.mp3', _getDiceWavUri(), volume: 0.6);
+    _playAudio('assets/sounds/dice_roll.mp3', _getDiceWavUri(), volume: 0.6);
     try {
       SystemSound.play(SystemSoundType.click);
       HapticFeedback.mediumImpact();
@@ -42,26 +41,17 @@ class SoundService {
 
   /// Play victory sound
   static void playVictorySound() {
-    _playAssetOrWav('assets/sounds/victory.mp3', _getVictoryWavUri(), volume: 0.9);
+    _playAudio('assets/sounds/victory.mp3', _getVictoryWavUri(), volume: 0.9);
     try {
       SystemSound.play(SystemSoundType.click);
       HapticFeedback.vibrate();
     } catch (_) {}
   }
 
-  static void _playAssetOrWav(String assetPath, String fallbackDataUri, {double volume = 0.5}) {
-    if (!kIsWeb) return;
-    try {
-      final audio = html.AudioElement('assets/$assetPath');
-      audio.volume = volume;
-      audio.play().catchError((_) {
-        try {
-          final fallbackAudio = html.AudioElement(fallbackDataUri);
-          fallbackAudio.volume = volume;
-          fallbackAudio.play();
-        } catch (_) {}
-      });
-    } catch (_) {}
+  static void _playAudio(String assetPath, String fallbackDataUri, {double volume = 0.5}) {
+    if (kIsWeb) {
+      playWebAudio(assetPath, fallbackDataUri, volume);
+    }
   }
 
   static String _getStepWavUri() {

@@ -257,6 +257,7 @@ class OnlineService {
     required String code,
     required String playerName,
     int avatarIndex = 0,
+    PlayerColor? preferredColor,
   }) async {
     final cleanCode = code.toUpperCase();
     debugPrint('[OnlineService] Attempting to join room: $cleanCode');
@@ -291,10 +292,16 @@ class OnlineService {
     final allColors = targetRoom.boardType == BoardType.classic4
         ? [PlayerColor.red, PlayerColor.green, PlayerColor.yellow, PlayerColor.blue]
         : PlayerColor.values;
-    final availableColor = allColors.firstWhere(
-      (c) => !usedColors.contains(c),
-      orElse: () => allColors[targetRoom.players.length % allColors.length],
-    );
+
+    PlayerColor availableColor;
+    if (preferredColor != null && !usedColors.contains(preferredColor)) {
+      availableColor = preferredColor;
+    } else {
+      availableColor = allColors.firstWhere(
+        (c) => !usedColors.contains(c),
+        orElse: () => allColors[targetRoom.players.length % allColors.length],
+      );
+    }
 
     final playerIndex = targetRoom.players.length;
     final teamId = (targetRoom.isTeamUp && targetRoom.targetPlayerCount == 4)

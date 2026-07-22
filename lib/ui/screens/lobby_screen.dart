@@ -24,7 +24,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
   final _codeController = TextEditingController();
   final BoardType _boardType = BoardType.classic4;
   PlayerColor _selectedColor = PlayerColor.red;
-  final int _selectedAvatarIndex = 0;
+  int _selectedAvatarIndex = 0;
   int _onlineMatchSize = 4;
   bool _onlineEnableTeamUp = false;
   int _activeTab = 0; // 0 for Create Room, 1 for Join Room
@@ -99,6 +99,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
           ? 'Player'
           : _nameController.text.trim(),
       avatarIndex: _selectedAvatarIndex,
+      preferredColor: _selectedColor,
     );
     setState(() => _isLoading = false);
 
@@ -123,6 +124,71 @@ class _LobbyScreenState extends State<LobbyScreen> {
           child: _room == null ? _buildJoinCreate() : _buildLobby(),
         ),
       ),
+    );
+  }
+
+  Set<PlayerColor> get _takenColors {
+    if (_room == null) return {};
+    final localId = _onlineService.localPlayerId;
+    return _room!.players
+        .where((p) => p.id != localId)
+        .map((p) => p.color)
+        .toSet();
+  }
+
+  Widget _buildAvatarPicker() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Select Avatar',
+          style: TextStyle(color: Color(0xFF8B949E), fontSize: 11, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 6),
+        SizedBox(
+          height: 48,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            itemCount: Avatars.list.length,
+            itemBuilder: (context, idx) {
+              final isSel = idx == _selectedAvatarIndex;
+              final avatar = Avatars.list[idx];
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: GestureDetector(
+                  onTap: () => setState(() => _selectedAvatarIndex = idx),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: isSel ? const Color(0xFF00E5FF) : Colors.transparent,
+                        width: 2,
+                      ),
+                      boxShadow: isSel
+                          ? [
+                              BoxShadow(
+                                color: const Color(0xFF00E5FF).withValues(alpha: 0.5),
+                                blurRadius: 6,
+                                spreadRadius: 1,
+                              ),
+                            ]
+                          : null,
+                    ),
+                    child: PlayerAvatarWidget(
+                      avatarIndex: idx,
+                      size: 38,
+                      borderColor: isSel ? const Color(0xFF00E5FF) : avatar.bg,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -156,9 +222,9 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 ],
               ),
 
-              // Player Identity Card (Name & 20 Colors)
+              // Player Identity Card (Name, Avatar & 20 Colors)
               Container(
-                padding: const EdgeInsets.all(14),
+                padding: const EdgeInsets.all(12),
                 decoration: AppTheme.glassCard(),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -167,6 +233,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
                       'Your Player Profile',
                       style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
                     ),
+                    const SizedBox(height: 8),
+                    _buildAvatarPicker(),
                     const SizedBox(height: 8),
                     Row(
                       children: [
@@ -208,13 +276,19 @@ class _LobbyScreenState extends State<LobbyScreen> {
                             ),
                             child: DropdownButtonHideUnderline(
                               child: DropdownButton<PlayerColor>(
-                                value: _selectedColor,
+                                value: _takenColors.contains(_selectedColor) ? null : _selectedColor,
+                                hint: Text(
+                                  _selectedColor.label,
+                                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                                ),
                                 isExpanded: true,
                                 dropdownColor: AppTheme.surface,
                                 icon: const Icon(Icons.arrow_drop_down_rounded, color: Colors.white70),
                                 items: PlayerColor.values.map((color) {
+                                  final isTaken = _takenColors.contains(color);
                                   return DropdownMenuItem<PlayerColor>(
-                                    value: color,
+                                    value: isTaken ? null : color,
+                                    enabled: !isTaken,
                                     child: Row(
                                       children: [
                                         Container(
@@ -222,17 +296,17 @@ class _LobbyScreenState extends State<LobbyScreen> {
                                           height: 14,
                                           decoration: BoxDecoration(
                                             shape: BoxShape.circle,
-                                            color: color.color,
-                                            border: Border.all(color: Colors.white38),
+                                            color: isTaken ? Colors.grey : color.color,
+                                            border: Border.all(color: isTaken ? Colors.grey : Colors.white38),
                                           ),
                                         ),
                                         const SizedBox(width: 8),
                                         Text(
-                                          color.label,
-                                          style: const TextStyle(
-                                            color: Colors.white,
+                                          isTaken ? '${color.label} (Taken)' : color.label,
+                                          style: TextStyle(
+                                            color: isTaken ? Colors.white38 : Colors.white,
                                             fontSize: 13,
-                                            fontWeight: FontWeight.w600,
+                                            fontWeight: isTaken ? FontWeight.w400 : FontWeight.w600,
                                           ),
                                         ),
                                       ],
