@@ -39,6 +39,11 @@ class _GameScreenState extends State<GameScreen>
   StreamSubscription<RoomData>? _roomSubscription;
   StreamSubscription<List<ChatMessage>>? _chatSubscription;
   int _seenChatCount = 0;
+  int _unreadChatCount = 0;
+  String? _bannerText;
+  Timer? _bannerTimer;
+  List<String> _knownRoomPlayerIds = [];
+  bool _leaveHandled = false;
 
   /// Whether the local player is the one whose turn it is
   bool get _isLocalPlayerTurn {
@@ -64,11 +69,13 @@ class _GameScreenState extends State<GameScreen>
     state.addListener(_onStateChange);
     widget.service.onMoveComplete = _syncToFirebase;
     widget.service.start();
+    _knownRoomPlayerIds = state.players.map((p) => p.id).toList();
 
     // Online: listen for remote game state updates & room events
     if (_isOnline) {
       _roomSubscription = widget.onlineService!.roomStream.listen((room) {
         if (!mounted) return;
+        _handleRoomRosterChange(room);
         if (room.gameState != null) {
           try {
             _onRemoteStateUpdate(room.gameState!);
@@ -86,9 +93,11 @@ class _GameScreenState extends State<GameScreen>
           _seenChatCount = msgs.length;
           for (final msg in newMsgs) {
             if (msg.senderId != widget.localPlayerId) {
+              _unreadChatCount++;
               _showChatToast(msg);
             }
           }
+          setState(() {});
         }
       });
     }
@@ -100,6 +109,7 @@ class _GameScreenState extends State<GameScreen>
     state.removeListener(_onStateChange);
     _roomSubscription?.cancel();
     _chatSubscription?.cancel();
+    _bannerTimer?.cancel();
     widget.service.dispose();
     super.dispose();
   }
@@ -125,49 +135,45 @@ class _GameScreenState extends State<GameScreen>
     state.loadFromJson(remoteState);
   }
 
+  void _handleRoomRosterChange(RoomData room) {
+    final incomingIds = room.players.map((p) => p.id).toList();
+    final removedIds = _knownRoomPlayerIds.where((id) => !incomingIds.contains(id)).toList();
+    if (removedIds.isEmpty) {
+      _knownRoomPlayerIds = incomingIds;
+      return;
+    }
+
+    for (final removedId in removedIds) {
+      final removedPlayer = state.players.where((p) => p.id == removedId).toList();
+      if (removedPlayer.isNotEmpty) {
+        state.removePlayerById(removedId);
+        _showInlineBanner('${removedPlayer.first.name} left the room');
+      }
+    }
+
+    _knownRoomPlayerIds = incomingIds;
+
+    if (_isOnline && state.players.length <= 1 && !_leaveHandled) {
+      _leaveHandled = true;
+      _showInlineBanner('One player left. Match closed.');
+      Future.delayed(const Duration(seconds: 2), () {
+        if (!mounted) return;
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      });
+    }
+  }
+
+  void _showInlineBanner(String text) {
+    _bannerTimer?.cancel();
+    setState(() => _bannerText = text);
+    _bannerTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted) setState(() => _bannerText = null);
+    });
+  }
+
   /// Sync local state to Firebase after an action
-  // ponytail: brief overlay toast for incoming chat
   void _showChatToast(ChatMessage msg) {
-    ScaffoldMessenger.of(context).clearSnackBars();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(Icons.chat_bubble_rounded, color: Color(0xFF00E5FF), size: 16),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text.rich(
-                TextSpan(children: [
-                  TextSpan(
-                    text: '${msg.senderName}: ',
-                    style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF00E5FF)),
-                  ),
-                  TextSpan(text: msg.text),
-                ]),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
-        backgroundColor: const Color(0xFF1E1E2E),
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.only(bottom: 80, left: 16, right: 16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        duration: const Duration(seconds: 3),
-        action: SnackBarAction(
-          label: 'OPEN',
-          textColor: const Color(0xFFEC4899),
-          onPressed: () {
-            final myName = state.players
-                .firstWhere((p) => p.id == widget.localPlayerId,
-                    orElse: () => state.players.first)
-                .name;
-            OnlineChatWidget.showChatModal(context, widget.onlineService!, myName);
-          },
-        ),
-      ),
-    );
+    _showInlineBanner('${msg.senderName}: ${msg.text}');
   }
 
   void _syncToFirebase() {
@@ -191,18 +197,90 @@ class _GameScreenState extends State<GameScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: AppTheme.artisticBackground(),
-        child: SafeArea(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final isWide = constraints.maxWidth > 700;
-              return isWide
-                  ? _buildWideLayout(constraints)
-                  : _buildNarrowLayout(constraints);
-            },
+      body: Stack(
+        children: [
+          Container(
+            decoration: AppTheme.artisticBackground(),
+            child: SafeArea(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final isWide = constraints.maxWidth > 700;
+                  return isWide
+                      ? _buildWideLayout(constraints)
+                      : _buildNarrowLayout(constraints);
+                },
+              ),
+            ),
           ),
-        ),
+          IgnorePointer(
+            child: SafeArea(
+              child: AnimatedSlide(
+                offset: _bannerText == null ? const Offset(0, -0.2) : Offset.zero,
+                duration: const Duration(milliseconds: 240),
+                curve: Curves.easeOutCubic,
+                child: AnimatedOpacity(
+                  opacity: _bannerText == null ? 0 : 1,
+                  duration: const Duration(milliseconds: 240),
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 420),
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 16),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF111827), Color(0xFF1F2937)],
+                            ),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.45)),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.35),
+                                blurRadius: 18,
+                                offset: const Offset(0, 8),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 34,
+                                height: 34,
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: [Color(0xFF00E5FF), Color(0xFFEC4899)],
+                                  ),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Icon(Icons.notifications_active_rounded, color: Colors.white, size: 18),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  _bannerText ?? '',
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -301,18 +379,51 @@ class _GameScreenState extends State<GameScreen>
             ),
           const Spacer(),
           if (widget.onlineService != null)
-            _iconBtn(Icons.chat_bubble_outline_rounded, () {
-              final myName = state.players
-                  .firstWhere((p) => p.id == widget.localPlayerId,
-                      orElse: () => state.players.first)
-                  .name;
-              OnlineChatWidget.showChatModal(
-                  context, widget.onlineService!, myName);
-            })
+            _chatIconBtn()
           else
             _iconBtn(Icons.refresh_rounded, _showRestartDialog),
         ],
       ),
+    );
+  }
+
+  Widget _chatIconBtn() {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        _iconBtn(Icons.chat_bubble_outline_rounded, () {
+          _unreadChatCount = 0;
+          setState(() {});
+          final myName = state.players
+              .firstWhere((p) => p.id == widget.localPlayerId,
+                  orElse: () => state.players.first)
+              .name;
+          OnlineChatWidget.showChatModal(context, widget.onlineService!, myName);
+        }),
+        if (_unreadChatCount > 0)
+          Positioned(
+            right: -2,
+            top: -2,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(colors: [Color(0xFFEC4899), Color(0xFF7C3AED)]),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: Colors.white, width: 1),
+              ),
+              constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+              child: Text(
+                _unreadChatCount > 9 ? '9+' : '$_unreadChatCount',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 

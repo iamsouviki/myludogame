@@ -378,6 +378,60 @@ class GameState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Remove a player from the active match, keeping the game alive for the rest.
+  /// Returns true if a player was removed.
+  bool removePlayerById(String playerId) {
+    final removedIndex = players.indexWhere((p) => p.id == playerId);
+    if (removedIndex < 0) return false;
+
+    players.removeAt(removedIndex);
+    tokenPositions.removeAt(removedIndex);
+
+    if (players.isEmpty) {
+      phase = GamePhase.finished;
+      currentPlayerIndex = 0;
+      winner = null;
+      finishOrder = [];
+      validTokenMoves = [];
+      notifyListeners();
+      return true;
+    }
+
+    finishOrder = finishOrder
+        .where((idx) => idx != removedIndex)
+        .map((idx) => idx > removedIndex ? idx - 1 : idx)
+        .toList();
+
+    if (winner != null) {
+      if (winner == removedIndex) {
+        winner = finishOrder.isNotEmpty ? finishOrder.first : null;
+      } else if (winner! > removedIndex) {
+        winner = winner! - 1;
+      }
+    }
+
+    if (currentPlayerIndex == removedIndex) {
+      currentPlayerIndex = currentPlayerIndex % players.length;
+    } else if (currentPlayerIndex > removedIndex) {
+      currentPlayerIndex -= 1;
+    }
+
+    if (players.length == 1) {
+      phase = GamePhase.finished;
+      currentPlayerIndex = 0;
+      winner = 0;
+      validTokenMoves = [];
+    } else if (currentPlayerIndex >= players.length) {
+      currentPlayerIndex = 0;
+    }
+
+    validTokenMoves = [];
+    lastDiceRoll = null;
+    getsExtraRoll = false;
+    notifyListeners();
+    return true;
+  }
+
   /// Serialize for online sync
   Map<String, dynamic> toJson() => {
         'boardType': boardType.index,

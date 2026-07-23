@@ -52,6 +52,7 @@ class _OnlineChatWidgetState extends State<OnlineChatWidget> {
   @override
   void initState() {
     super.initState();
+    _messages = widget.onlineService.currentChatMessages();
     widget.onlineService.chatStream.listen((msgs) {
       if (mounted) {
         setState(() => _messages = msgs);

@@ -118,6 +118,12 @@ class OnlineService {
   Stream<RoomData> get roomStream => _roomController.stream;
   Stream<List<ChatMessage>> get chatStream => _chatController.stream;
 
+  List<ChatMessage> currentChatMessages([String? roomCode]) {
+    final code = roomCode ?? currentRoomCode;
+    if (code == null) return const [];
+    return List.unmodifiable(_localChats[code] ?? const <ChatMessage>[]);
+  }
+
   StreamSubscription<DatabaseEvent>? _firebaseSubscription;
   StreamSubscription<DatabaseEvent>? _chatSubscription;
   StreamSubscription<DatabaseEvent>? _chatChildSubscription;
@@ -195,6 +201,11 @@ class OnlineService {
           debugPrint('[OnlineService] Error parsing chat update: $e');
         }
       });
+
+      final cachedMessages = _localChats[code];
+      if (cachedMessages != null) {
+        _chatController.add(List<ChatMessage>.from(cachedMessages));
+      }
     }
   }
 

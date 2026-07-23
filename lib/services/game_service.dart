@@ -37,13 +37,39 @@ class GameService {
     required this.state,
     this.displayDelay = const Duration(milliseconds: 2000),
     this.runAI = true,
-  });
+  }) {
+    state.addListener(_onStateChanged);
+  }
 
   /// Start the game — if first player is AI, trigger their turn
   void start() {
     state.phase = GamePhase.rolling;
     state.notifyChange();
     _tryAITurn();
+  }
+
+  void _onStateChanged() {
+    if (!runAI || _disposed || _isMovingStep || state.isGameOver) return;
+    if (!state.isCurrentPlayerAI) return;
+
+    // If an AI turn is in progress but the delayed action was skipped or
+    // overwritten by a sync update, reschedule it from the latest state.
+    final timerActive = _turnTimer?.isActive ?? false;
+    if (timerActive) return;
+
+    if (state.phase == GamePhase.rolling) {
+      _tryAITurn();
+      return;
+    }
+
+    if (state.phase == GamePhase.moving && state.validTokenMoves.isNotEmpty) {
+      _turnTimer = Timer(const Duration(milliseconds: 500), () {
+        if (_disposed || state.isGameOver || !state.isCurrentPlayerAI) return;
+        if (state.phase != GamePhase.moving || state.validTokenMoves.isEmpty) return;
+        final token = _ai.chooseToken(state);
+        _animateStepByStepMove(token);
+      });
+    }
   }
 
   /// Human player rolls dice
@@ -247,6 +273,7 @@ class GameService {
   void dispose() {
     _disposed = true;
     _turnTimer?.cancel();
+    state.removeListener(_onStateChanged);
   }
 
   /// Create a standard local game
