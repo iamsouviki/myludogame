@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 
 import '../../services/game_service.dart';
 import '../../services/online_service.dart';
+import '../../models/app_notification.dart';
+import '../../services/notification_service.dart';
 import '../../utils/constants.dart';
 import '../theme.dart';
 import '../widgets/player_avatar_widget.dart';
 import 'game_screen.dart';
 import 'lobby_screen.dart';
+import 'notification_center_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -623,6 +626,46 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildHero(bool isCompact) {
     return Column(
       children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            StreamBuilder<List<AppNotification>>(
+              stream: NotificationService.instance.notificationsStream,
+              builder: (context, snapshot) {
+                final unread = NotificationService.instance.unreadCount;
+                return Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    IconButton(
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => const NotificationCenterScreen()),
+                        );
+                      },
+                      icon: const Icon(Icons.notifications_none_rounded, color: Colors.white70),
+                    ),
+                    if (unread > 0)
+                      Positioned(
+                        right: 6,
+                        top: 6,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(colors: [Color(0xFFEC4899), Color(0xFF7C3AED)]),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            unread > 9 ? '9+' : '$unread',
+                            style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800),
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
         Image.asset(
           'assets/images/ludo_banner_logo.png',
           height: isCompact ? 110 : 150,

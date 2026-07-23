@@ -235,7 +235,7 @@ class GameService {
     if (!state.isCurrentPlayerAI) return;
 
     _turnTimer?.cancel();
-    _turnTimer = Timer(const Duration(milliseconds: 800), _executeAITurn);
+    _turnTimer = Timer(const Duration(milliseconds: 1400), _executeAITurn);
   }
 
   void _executeAITurn() {
@@ -250,7 +250,7 @@ class GameService {
       if (state.phase == GamePhase.moving) {
         // Show AI dice roll result for 1s before AI steps token
         _turnTimer?.cancel();
-        _turnTimer = Timer(const Duration(milliseconds: 1000), () {
+        _turnTimer = Timer(const Duration(milliseconds: 1400), () {
           if (_disposed || state.isGameOver) return;
           final token = _ai.chooseToken(state);
           _animateStepByStepMove(token);

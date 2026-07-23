@@ -6,6 +6,8 @@ import 'package:flutter/services.dart';
 import '../../models/game_state.dart';
 import '../../services/game_service.dart';
 import '../../services/online_service.dart';
+import '../../services/notification_service.dart';
+import '../../models/app_notification.dart';
 import '../../utils/constants.dart';
 import '../theme.dart';
 import '../widgets/player_avatar_widget.dart';
@@ -40,6 +42,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
   RoomData? _room;
   bool _isLoading = false;
   bool _enteredGame = false;
+  String? _selectedTeammateId;
   StreamSubscription<List<ChatMessage>>? _chatSubscription;
   int _seenChatCount = 0;
   int _unreadChatCount = 0;
@@ -179,6 +182,16 @@ class _LobbyScreenState extends State<LobbyScreen> {
   }
 
   void _showBanner(String text) {
+    NotificationService.instance.push(
+      AppNotification(
+        id: 'lobby_${DateTime.now().microsecondsSinceEpoch}',
+        title: 'Live Lobby',
+        body: text,
+        category: 'social',
+        timestamp: DateTime.now().millisecondsSinceEpoch,
+      ),
+      showSystem: false,
+    );
     _bannerTimer?.cancel();
     if (mounted) {
       setState(() => _bannerText = text);
@@ -734,6 +747,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
   Widget _buildLobby() {
     final room = _room!;
     final isHost = room.hostId == _onlineService.localPlayerId;
+    final isTeamUp = room.isTeamUp && room.maxPlayers == 4;
 
     return Center(
       child: SingleChildScrollView(
@@ -816,45 +830,89 @@ class _LobbyScreenState extends State<LobbyScreen> {
                     const SizedBox(height: 12),
                     ...room.players.map((player) => Padding(
                           padding: const EdgeInsets.only(bottom: 10),
-                          child: Row(
-                            children: [
-                              PlayerAvatarWidget(
-                                avatarIndex: player.avatarIndex,
-                                size: 36,
-                                borderColor: player.color.color,
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  player.name,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                          child: GestureDetector(
+                            onTap: isHost && isTeamUp && player.id != room.hostId
+                                ? () async {
+                                    setState(() => _selectedTeammateId = player.id);
+                                    await _onlineService.setTeamUpPair(teammateId: player.id);
+                                  }
+                                : null,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: _selectedTeammateId == player.id
+                                    ? const Color(0xFF00E5FF).withValues(alpha: 0.10)
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: _selectedTeammateId == player.id
+                                      ? const Color(0xFF00E5FF).withValues(alpha: 0.55)
+                                      : Colors.transparent,
                                 ),
                               ),
-                              if (player.id == room.hostId)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 2,
+                              child: Row(
+                                children: [
+                                  PlayerAvatarWidget(
+                                    avatarIndex: player.avatarIndex,
+                                    size: 36,
+                                    borderColor: player.color.color,
                                   ),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFFFD700)
-                                        .withValues(alpha: 0.2),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: const Text(
-                                    'HOST',
-                                    style: TextStyle(
-                                      color: Color(0xFFFFD700),
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w700,
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          player.name,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        if (isTeamUp)
+                                          Text(
+                                            player.teamId == 0
+                                                ? 'Team A'
+                                                : player.teamId == 1
+                                                    ? 'Team B'
+                                                    : 'Tap host to assign team',
+                                            style: TextStyle(
+                                              color: player.teamId == 0
+                                                  ? const Color(0xFF00E5FF)
+                                                  : player.teamId == 1
+                                                      ? const Color(0xFFFFD700)
+                                                      : AppTheme.textMuted,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                      ],
                                     ),
                                   ),
-                                ),
-                            ],
+                                  if (player.id == room.hostId)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFFFD700)
+                                            .withValues(alpha: 0.2),
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: const Text(
+                                        'HOST',
+                                        style: TextStyle(
+                                          color: Color(0xFFFFD700),
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
                           ),
                         )),
                     // Waiting slots
@@ -890,6 +948,30 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 ),
               ),
               const SizedBox(height: 24),
+              if (isTeamUp) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: AppTheme.glassCard(glowColor: const Color(0xFF00E5FF)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Team Up Setup',
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        isHost
+                            ? 'Tap one joined player to make them your teammate. The remaining two players will form the other team.'
+                            : 'Teams are assigned by the host before the match starts.',
+                        style: TextStyle(color: AppTheme.textSecondary, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
 
               // Start / Chat / Leave buttons
               if (isHost && room.players.length >= 2) ...[

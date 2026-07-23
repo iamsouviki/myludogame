@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:confetti/confetti.dart';
 
 import '../../game/board_config.dart';
 import '../../models/game_state.dart';
@@ -14,6 +15,8 @@ import '../widgets/player_avatar_widget.dart';
 import '../widgets/token_widget.dart';
 
 import '../../services/online_service.dart';
+import '../../services/notification_service.dart';
+import '../../models/app_notification.dart';
 import '../widgets/online_chat_widget.dart';
 
 class GameScreen extends StatefulWidget {
@@ -43,6 +46,7 @@ class _GameScreenState extends State<GameScreen>
   String? _bannerText;
   Timer? _bannerTimer;
   Timer? _emojiTimer;
+  late final ConfettiController _emojiConfetti;
   List<String> _knownRoomPlayerIds = [];
   bool _leaveHandled = false;
   static const List<String> _turnEmojis = ['🎲', '⚡', '🔥', '👊', '🏆'];
@@ -65,6 +69,7 @@ class _GameScreenState extends State<GameScreen>
   @override
   void initState() {
     super.initState();
+    _emojiConfetti = ConfettiController(duration: const Duration(seconds: 2));
     _turnGlow = AnimationController(
       duration: const Duration(seconds: 2),
       vsync: this,
@@ -109,6 +114,7 @@ class _GameScreenState extends State<GameScreen>
   @override
   void dispose() {
     _turnGlow.dispose();
+    _emojiConfetti.dispose();
     state.removeListener(_onStateChange);
     _roomSubscription?.cancel();
     _chatSubscription?.cancel();
@@ -178,6 +184,16 @@ class _GameScreenState extends State<GameScreen>
 
   /// Sync local state to Firebase after an action
   void _showChatToast(ChatMessage msg) {
+    NotificationService.instance.push(
+      AppNotification(
+        id: 'chat_${msg.timestamp}_${msg.senderId}',
+        title: msg.senderName,
+        body: msg.text,
+        category: 'social',
+        timestamp: msg.timestamp,
+      ),
+      showSystem: false,
+    );
     _showInlineBanner('${msg.senderName}: ${msg.text}');
   }
 
@@ -194,6 +210,7 @@ class _GameScreenState extends State<GameScreen>
 
     _lastEmojiSeenAt = state.activeEmojiAt;
     _emojiTimer?.cancel();
+    _emojiConfetti.play();
     _emojiTimer = Timer(const Duration(seconds: 2), () {
       if (!mounted || state.activeEmoji == null) return;
       if (widget.localPlayerId != null && state.currentPlayer.id != widget.localPlayerId) {
@@ -218,6 +235,7 @@ class _GameScreenState extends State<GameScreen>
     if (widget.localPlayerId != null && state.currentPlayer.id != widget.localPlayerId) return;
     if (state.activeEmoji != null) return;
     if (state.setTurnEmoji(emoji)) {
+      _emojiConfetti.play();
       _syncToFirebase();
       _showInlineBanner('${state.currentPlayer.name} sent $emoji');
     }
@@ -828,87 +846,95 @@ class _GameScreenState extends State<GameScreen>
 
     return IgnorePointer(
       child: Positioned.fill(
-        child: AnimatedOpacity(
-          opacity: 1,
-          duration: const Duration(milliseconds: 180),
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  const Color(0xFF0B1020).withValues(alpha: 0.18),
-                  const Color(0xFF7C3AED).withValues(alpha: 0.14),
-                  const Color(0xFFEC4899).withValues(alpha: 0.18),
-                ],
-              ),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                const Color(0xFF0B1020).withValues(alpha: 0.22),
+                const Color(0xFF7C3AED).withValues(alpha: 0.16),
+                const Color(0xFFEC4899).withValues(alpha: 0.20),
+              ],
             ),
-            child: Stack(
-              children: [
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  top: 0,
-                  bottom: 0,
-                  child: Center(
-                    child: TweenAnimationBuilder<double>(
-                      tween: Tween(begin: 0.85, end: 1.0),
-                      duration: const Duration(milliseconds: 220),
-                      curve: Curves.easeOutBack,
-                      builder: (context, scale, child) {
-                        return Transform.scale(scale: scale, child: child);
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF111827), Color(0xFF1F2937)],
-                          ),
-                          borderRadius: BorderRadius.circular(28),
-                          border: Border.all(
-                            color: const Color(0xFF00E5FF).withValues(alpha: 0.45),
-                            width: 1.2,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.35),
-                              blurRadius: 28,
-                              spreadRadius: 4,
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              emoji,
-                              style: const TextStyle(fontSize: 84),
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              '$name selected an emoji',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              'Waiting for the next turn reaction...',
-                              style: TextStyle(
-                                color: AppTheme.textSecondary,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
+          ),
+          child: Stack(
+            children: [
+              Align(
+                alignment: Alignment.topCenter,
+                child: ConfettiWidget(
+                  confettiController: _emojiConfetti,
+                  blastDirectionality: BlastDirectionality.explosive,
+                  emissionFrequency: 0.08,
+                  numberOfParticles: 24,
+                  gravity: 0.16,
+                  maxBlastForce: 24,
+                  minBlastForce: 12,
+                  colors: const [
+                    Color(0xFF00E5FF),
+                    Color(0xFFEC4899),
+                    Color(0xFFFFD700),
+                    Color(0xFF7C3AED),
+                    Color(0xFF10B981),
+                    Colors.white,
+                  ],
+                ),
+              ),
+              Center(
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0.78, end: 1.0),
+                  duration: const Duration(milliseconds: 240),
+                  curve: Curves.easeOutBack,
+                  builder: (context, scale, child) {
+                    return Transform.scale(scale: scale, child: child);
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 22),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF111827), Color(0xFF1F2937)],
                       ),
+                      borderRadius: BorderRadius.circular(30),
+                      border: Border.all(
+                        color: const Color(0xFF00E5FF).withValues(alpha: 0.45),
+                        width: 1.2,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.35),
+                          blurRadius: 28,
+                          spreadRadius: 4,
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(emoji, style: const TextStyle(fontSize: 92)),
+                        const SizedBox(height: 12),
+                        Text(
+                          '$name selected an emoji',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'emoji moment',
+                          style: TextStyle(
+                            color: AppTheme.textSecondary,
+                            fontSize: 12,
+                            letterSpacing: 1.2,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

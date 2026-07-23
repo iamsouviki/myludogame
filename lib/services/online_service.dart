@@ -487,6 +487,47 @@ class OnlineService {
     return true;
   }
 
+  Future<bool> setTeamUpPair({required String teammateId}) async {
+    if (currentRoomCode == null) return false;
+    final room = _localRooms[currentRoomCode!];
+    if (room == null || room.hostId != localPlayerId || !room.isTeamUp || room.players.length != 4) {
+      return false;
+    }
+
+    final hostIndex = room.players.indexWhere((p) => p.id == localPlayerId);
+    final teammateIndex = room.players.indexWhere((p) => p.id == teammateId);
+    if (hostIndex < 0 || teammateIndex < 0 || teammateId == localPlayerId) {
+      return false;
+    }
+
+    final updatedPlayers = <Player>[];
+    for (var i = 0; i < room.players.length; i++) {
+      final player = room.players[i];
+      final teamId = (player.id == localPlayerId || player.id == teammateId) ? 0 : 1;
+      updatedPlayers.add(player.copyWith(teamId: teamId));
+    }
+
+    final updated = RoomData(
+      code: room.code,
+      hostId: room.hostId,
+      boardType: room.boardType,
+      players: updatedPlayers,
+      status: room.status,
+      gameState: room.gameState,
+      isTeamUp: room.isTeamUp,
+      targetPlayerCount: room.targetPlayerCount,
+    );
+    _localRooms[room.code] = updated;
+
+    final ref = _roomRef(room.code);
+    if (ref != null) {
+      await ref.child('players').set(updatedPlayers.map((p) => p.toJson()).toList());
+    } else {
+      _roomController.add(updated);
+    }
+    return true;
+  }
+
   Future<void> startGame() async {
     if (currentRoomCode == null) return;
     final room = _localRooms[currentRoomCode!];
