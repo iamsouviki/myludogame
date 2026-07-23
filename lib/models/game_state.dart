@@ -25,6 +25,9 @@ class GameState extends ChangeNotifier {
   List<int> validTokenMoves = []; // indices of tokens that can move
   int? winner; // player index of winner, null if game ongoing
   List<int> finishOrder = []; // player indices in order of finishing
+  String? activeEmoji;
+  int? activeEmojiPlayerIndex;
+  int? activeEmojiAt;
 
   GameState({
     required this.boardType,
@@ -375,6 +378,9 @@ class GameState extends ChangeNotifier {
     validTokenMoves = [];
     winner = null;
     finishOrder = [];
+    activeEmoji = null;
+    activeEmojiPlayerIndex = null;
+    activeEmojiAt = null;
     notifyListeners();
   }
 
@@ -426,8 +432,20 @@ class GameState extends ChangeNotifier {
     }
 
     validTokenMoves = [];
+    activeEmoji = null;
+    activeEmojiPlayerIndex = null;
+    activeEmojiAt = null;
     lastDiceRoll = null;
     getsExtraRoll = false;
+    notifyListeners();
+    return true;
+  }
+
+  bool setTurnEmoji(String emoji) {
+    if (activeEmoji != null) return false;
+    activeEmoji = emoji;
+    activeEmojiPlayerIndex = currentPlayerIndex;
+    activeEmojiAt = DateTime.now().millisecondsSinceEpoch;
     notifyListeners();
     return true;
   }
@@ -446,6 +464,9 @@ class GameState extends ChangeNotifier {
         'validTokenMoves': validTokenMoves,
         'winner': winner,
         'finishOrder': finishOrder,
+        'activeEmoji': activeEmoji,
+        'activeEmojiPlayerIndex': activeEmojiPlayerIndex,
+        'activeEmojiAt': activeEmojiAt,
       };
 
   /// Restore from online sync (mutates in place)
@@ -470,6 +491,9 @@ class GameState extends ChangeNotifier {
     finishOrder = (json['finishOrder'] is List)
         ? List<int>.from(json['finishOrder'] as List)
         : <int>[];
+    activeEmoji = json['activeEmoji'] as String?;
+    activeEmojiPlayerIndex = (json['activeEmojiPlayerIndex'] as num?)?.toInt();
+    activeEmojiAt = (json['activeEmojiAt'] as num?)?.toInt();
     notifyListeners();
   }
   /// Allow external callers (GameService) to trigger a repaint

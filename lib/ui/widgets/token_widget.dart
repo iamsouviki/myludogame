@@ -58,6 +58,7 @@ class _TokenWidgetState extends State<TokenWidget>
   Widget build(BuildContext context) {
     final color = widget.playerColor.color;
     final size = widget.size;
+    final highlightGlow = Color.lerp(color, Colors.white, 0.2)!;
 
     return GestureDetector(
       onTap: widget.onTap,
@@ -75,25 +76,30 @@ class _TokenWidgetState extends State<TokenWidget>
           height: size,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: color,
+            gradient: RadialGradient(
+              center: const Alignment(-0.35, -0.35),
+              radius: 0.9,
+              colors: [
+                Colors.white,
+                Color.lerp(color, Colors.white, 0.35)!,
+                color,
+                Color.lerp(color, Colors.black, 0.45)!,
+              ],
+              stops: const [0.0, 0.22, 0.7, 1.0],
+            ),
             boxShadow: [
-              // Deep drop shadow onto white cells matching reference picture
+              // Deep drop shadow onto board cells
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.6),
-                blurRadius: 6,
+                blurRadius: 8,
                 spreadRadius: 1,
-                offset: const Offset(0, 4),
+                offset: const Offset(0, 5),
               ),
               if (widget.isHighlighted) ...[
                 BoxShadow(
-                  color: color.withValues(alpha: 0.9),
-                  blurRadius: 18 + (_pulseController.value * 8),
+                  color: highlightGlow.withValues(alpha: 0.95),
+                  blurRadius: 20 + (_pulseController.value * 10),
                   spreadRadius: 4 + (_pulseController.value * 4),
-                ),
-                BoxShadow(
-                  color: Colors.white,
-                  blurRadius: 8,
-                  spreadRadius: 1,
                 ),
               ],
             ],
@@ -104,15 +110,9 @@ class _TokenWidgetState extends State<TokenWidget>
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
-                  center: const Alignment(-0.3, -0.3),
+                  center: const Alignment(-0.35, -0.35),
                   radius: 0.85,
-                  colors: [
-                    Colors.white,
-                    Color.lerp(color, Colors.white, 0.45)!,
-                    color,
-                    Color.lerp(color, Colors.black, 0.5)!,
-                  ],
-                  stops: const [0.0, 0.25, 0.65, 1.0],
+                  colors: [Colors.white, Color.lerp(color, Colors.white, 0.25)!, color],
                 ),
                 border: Border.all(
                   color: widget.isHighlighted ? Colors.white : Colors.black87,

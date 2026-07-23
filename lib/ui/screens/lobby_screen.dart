@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -38,6 +40,11 @@ class _LobbyScreenState extends State<LobbyScreen> {
   RoomData? _room;
   bool _isLoading = false;
   bool _enteredGame = false;
+  StreamSubscription<List<ChatMessage>>? _chatSubscription;
+  int _seenChatCount = 0;
+  int _unreadChatCount = 0;
+  String? _bannerText;
+  Timer? _bannerTimer;
 
   @override
   void initState() {
@@ -71,11 +78,27 @@ class _LobbyScreenState extends State<LobbyScreen> {
         }
       }
     });
+    _chatSubscription = _onlineService.chatStream.listen((msgs) {
+      if (!mounted) return;
+      if (msgs.length > _seenChatCount) {
+        final newMsgs = msgs.sublist(_seenChatCount);
+        _seenChatCount = msgs.length;
+        for (final msg in newMsgs) {
+          if (msg.senderId != _onlineService.localPlayerId) {
+            _unreadChatCount++;
+            _showBanner('${msg.senderName}: ${msg.text}');
+          }
+        }
+        setState(() {});
+      }
+    });
   }
 
   @override
   void dispose() {
     // GameScreen owns this service after lobby navigation.
+    _chatSubscription?.cancel();
+    _bannerTimer?.cancel();
     _nameController.dispose();
     _codeController.dispose();
     super.dispose();
@@ -141,10 +164,95 @@ class _LobbyScreenState extends State<LobbyScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: AppTheme.artisticBackground(),
-        child: SafeArea(
-          child: _room == null ? _buildJoinCreate() : _buildLobby(),
+      body: Stack(
+        children: [
+          Container(
+            decoration: AppTheme.artisticBackground(),
+            child: SafeArea(
+              child: _room == null ? _buildJoinCreate() : _buildLobby(),
+            ),
+          ),
+          _buildBannerOverlay(),
+        ],
+      ),
+    );
+  }
+
+  void _showBanner(String text) {
+    _bannerTimer?.cancel();
+    if (mounted) {
+      setState(() => _bannerText = text);
+    }
+    _bannerTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted) setState(() => _bannerText = null);
+    });
+  }
+
+  Widget _buildBannerOverlay() {
+    return IgnorePointer(
+      child: SafeArea(
+        child: AnimatedSlide(
+          offset: _bannerText == null ? const Offset(0, -0.2) : Offset.zero,
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          child: AnimatedOpacity(
+            opacity: _bannerText == null ? 0 : 1,
+            duration: const Duration(milliseconds: 220),
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 420),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF111827), Color(0xFF1F2937)],
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.4)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.32),
+                          blurRadius: 16,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 30,
+                          height: 30,
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF00E5FF), Color(0xFFEC4899)],
+                            ),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(Icons.notifications_active_rounded, color: Colors.white, size: 16),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            _bannerText ?? '',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -830,23 +938,51 @@ class _LobbyScreenState extends State<LobbyScreen> {
               SizedBox(
                 width: double.infinity,
                 height: 44,
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    OnlineChatWidget.showChatModal(
-                      context,
-                      _onlineService,
-                      _nameController.text.trim().isEmpty ? 'Player' : _nameController.text.trim(),
-                    );
-                  },
-                  icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18, color: Color(0xFF00E5FF)),
-                  label: const Text(
-                    'LIVE LOBBY CHAT',
-                    style: TextStyle(color: Color(0xFF00E5FF), fontWeight: FontWeight.w700),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Color(0xFF00E5FF)),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        _unreadChatCount = 0;
+                        setState(() {});
+                        OnlineChatWidget.showChatModal(
+                          context,
+                          _onlineService,
+                          _nameController.text.trim().isEmpty ? 'Player' : _nameController.text.trim(),
+                        );
+                      },
+                      icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18, color: Color(0xFF00E5FF)),
+                      label: const Text(
+                        'LIVE LOBBY CHAT',
+                        style: TextStyle(color: Color(0xFF00E5FF), fontWeight: FontWeight.w700),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Color(0xFF00E5FF)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                    if (_unreadChatCount > 0)
+                      Positioned(
+                        right: 6,
+                        top: -6,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(colors: [Color(0xFFEC4899), Color(0xFF7C3AED)]),
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(color: Colors.white, width: 1),
+                          ),
+                          child: Text(
+                            _unreadChatCount > 9 ? '9+' : '$_unreadChatCount',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
               const SizedBox(height: 12),

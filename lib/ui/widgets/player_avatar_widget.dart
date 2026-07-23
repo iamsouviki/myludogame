@@ -49,28 +49,35 @@ class PlayerAvatarWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final avatar = Avatars.get(avatarIndex);
+    final c = borderColor ?? avatar.bg;
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: avatar.bg.withValues(alpha: 0.25),
+        gradient: RadialGradient(
+          center: const Alignment(-0.35, -0.35),
+          radius: 0.95,
+          colors: [
+            Colors.white.withValues(alpha: 0.14),
+            avatar.bg.withValues(alpha: 0.22),
+            avatar.bg.withValues(alpha: 0.42),
+          ],
+        ),
         shape: BoxShape.circle,
         border: Border.all(
-          color: borderColor ?? avatar.bg,
-          width: size > 40 ? 2.5 : 1.8,
+          color: c,
+          width: size > 40 ? 2.6 : 1.9,
         ),
         boxShadow: [
-          BoxShadow(
-            color: (borderColor ?? avatar.bg).withValues(alpha: 0.3),
-            blurRadius: 8,
-          ),
+          BoxShadow(color: c.withValues(alpha: 0.32), blurRadius: 10, spreadRadius: 1),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.28), blurRadius: 10, offset: const Offset(0, 4)),
         ],
       ),
       child: Center(
         child: Icon(
           avatar.icon,
-          size: size * 0.55,
-          color: borderColor ?? avatar.bg,
+          size: size * 0.58,
+          color: c,
         ),
       ),
     );

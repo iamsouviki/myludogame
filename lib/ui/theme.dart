@@ -5,31 +5,38 @@ import 'package:flutter/material.dart';
 class AppTheme {
   static const _fontFamily = 'Inter';
 
-  // Eye-catching deep midnight slate & vibrant neon accents
-  static const Color bg1 = Color(0xFF0B0F19);
-  static const Color bg2 = Color(0xFF14192B);
-  static const Color bg3 = Color(0xFF1F263E);
-  static const Color surface = Color(0xFF161B2E);
-  static const Color surfaceLight = Color(0xFF222942);
-  static const Color border = Color(0xFF2C3555);
-  static const Color borderLight = Color(0xFF3F4C77);
+  // Premium deep midnight palette with M3-friendly surfaces
+  static const Color bg1 = Color(0xFF08111F);
+  static const Color bg2 = Color(0xFF0E1A2D);
+  static const Color bg3 = Color(0xFF16233A);
+  static const Color surface = Color(0xFF121C2F);
+  static const Color surfaceLight = Color(0xFF1B2740);
+  static const Color border = Color(0xFF273553);
+  static const Color borderLight = Color(0xFF3B4D73);
   static const Color textPrimary = Color(0xFFF8FAFC);
   static const Color textSecondary = Color(0xFFA0AEC0);
   static const Color textMuted = Color(0xFF64748B);
-  static const Color accent = Color(0xFFD946EF); // Vibrant Neon Fuchsia/Magenta
-  static const Color accentLight = Color(0xFFF0ABFC);
+  static const Color accent = Color(0xFFEC4899);
+  static const Color accentLight = Color(0xFFF5A7D8);
   static const Color success = Color(0xFF10B981);
   static const Color successLight = Color(0xFF34D399);
   static const Color warning = Color(0xFFF59E0B);
   static const Color danger = Color(0xFFEF4444);
   static const Color gold = Color(0xFFFFD700);
+  static const Color royalBlue = Color(0xFF3B82F6);
+  static const Color emerald = Color(0xFF22C55E);
+  static const Color crimson = Color(0xFFDC2626);
+  static const Color violet = Color(0xFF8B5CF6);
 
   static const LinearGradient primaryGradient = LinearGradient(
-    colors: [Color(0xFFEC4899), Color(0xFF8B5CF6)],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [Color(0xFF7C3AED), Color(0xFFEC4899)],
   );
 
   static ThemeData get darkTheme => ThemeData(
         brightness: Brightness.dark,
+        useMaterial3: true,
         fontFamily: _fontFamily,
         scaffoldBackgroundColor: bg1,
         colorScheme: const ColorScheme.dark(
@@ -37,6 +44,7 @@ class AppTheme {
           secondary: success,
           surface: surface,
           error: danger,
+          tertiary: royalBlue,
         ),
         appBarTheme: const AppBarTheme(
           backgroundColor: Colors.transparent,
@@ -55,7 +63,7 @@ class AppTheme {
             foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(18),
             ),
             elevation: 0,
             textStyle: const TextStyle(
@@ -70,7 +78,7 @@ class AppTheme {
           color: surface,
           elevation: 0,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(20),
             side: const BorderSide(color: border),
           ),
         ),
@@ -102,10 +110,32 @@ class AppTheme {
         ),
       );
 
+  static ThemeData get lightTheme => ThemeData(
+        brightness: Brightness.light,
+        useMaterial3: true,
+        fontFamily: _fontFamily,
+        scaffoldBackgroundColor: const Color(0xFFF7FAFC),
+        colorScheme: const ColorScheme.light(
+          primary: accent,
+          secondary: emerald,
+          surface: Colors.white,
+          error: danger,
+          tertiary: royalBlue,
+        ),
+        cardTheme: CardThemeData(
+          color: Colors.white,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: const BorderSide(color: Color(0xFFE2E8F0)),
+          ),
+        ),
+      );
+
   // Premium eye-catching glass card decoration
   static BoxDecoration glassCard({Color? glowColor}) => BoxDecoration(
         color: surface.withValues(alpha: 0.92),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(22),
         border: Border.all(
           color: (glowColor ?? borderLight).withValues(alpha: 0.45),
           width: 1.2,
@@ -142,7 +172,7 @@ class AppTheme {
         image: DecorationImage(
           image: AssetImage('assets/images/artistic_bg.png'),
           fit: BoxFit.cover,
-          opacity: 0.35,
+          opacity: 0.28,
         ),
       );
 

@@ -42,8 +42,11 @@ class _GameScreenState extends State<GameScreen>
   int _unreadChatCount = 0;
   String? _bannerText;
   Timer? _bannerTimer;
+  Timer? _emojiTimer;
   List<String> _knownRoomPlayerIds = [];
   bool _leaveHandled = false;
+  static const List<String> _turnEmojis = ['🎲', '⚡', '🔥', '👊', '🏆'];
+  int? _lastEmojiSeenAt;
 
   /// Whether the local player is the one whose turn it is
   bool get _isLocalPlayerTurn {
@@ -110,6 +113,7 @@ class _GameScreenState extends State<GameScreen>
     _roomSubscription?.cancel();
     _chatSubscription?.cancel();
     _bannerTimer?.cancel();
+    _emojiTimer?.cancel();
     widget.service.dispose();
     super.dispose();
   }
@@ -118,6 +122,7 @@ class _GameScreenState extends State<GameScreen>
 
   void _onStateChange() {
     if (mounted) {
+      _syncEmojiLifecycle();
       setState(() {});
       if (state.isGameOver && !_dialogShown) {
         _dialogShown = true;
@@ -176,9 +181,45 @@ class _GameScreenState extends State<GameScreen>
     _showInlineBanner('${msg.senderName}: ${msg.text}');
   }
 
+  void _syncEmojiLifecycle() {
+    if (state.activeEmoji == null) {
+      _emojiTimer?.cancel();
+      _lastEmojiSeenAt = null;
+      return;
+    }
+
+    if (_lastEmojiSeenAt == state.activeEmojiAt && (_emojiTimer?.isActive ?? false)) {
+      return;
+    }
+
+    _lastEmojiSeenAt = state.activeEmojiAt;
+    _emojiTimer?.cancel();
+    _emojiTimer = Timer(const Duration(seconds: 2), () {
+      if (!mounted || state.activeEmoji == null) return;
+      if (widget.localPlayerId != null && state.currentPlayer.id != widget.localPlayerId) {
+        return;
+      }
+      state.activeEmoji = null;
+      state.activeEmojiPlayerIndex = null;
+      state.activeEmojiAt = null;
+      state.notifyChange();
+      _syncToFirebase();
+    });
+  }
+
   void _syncToFirebase() {
     if (_isOnline) {
       widget.onlineService!.syncGameState(state);
+    }
+  }
+
+  void _chooseEmoji(String emoji) {
+    if (!mounted || state.isGameOver) return;
+    if (widget.localPlayerId != null && state.currentPlayer.id != widget.localPlayerId) return;
+    if (state.activeEmoji != null) return;
+    if (state.setTurnEmoji(emoji)) {
+      _syncToFirebase();
+      _showInlineBanner('${state.currentPlayer.name} sent $emoji');
     }
   }
 
@@ -201,8 +242,8 @@ class _GameScreenState extends State<GameScreen>
         children: [
           Container(
             decoration: AppTheme.artisticBackground(),
-            child: SafeArea(
-              child: LayoutBuilder(
+          child: SafeArea(
+            child: LayoutBuilder(
                 builder: (context, constraints) {
                   final isWide = constraints.maxWidth > 700;
                   return isWide
@@ -212,6 +253,7 @@ class _GameScreenState extends State<GameScreen>
               ),
             ),
           ),
+          if (state.activeEmoji != null) _buildEmojiOverlay(),
           IgnorePointer(
             child: SafeArea(
               child: AnimatedSlide(
@@ -622,6 +664,8 @@ class _GameScreenState extends State<GameScreen>
               color: activePlayerColor,
               onRoll: _onDiceRoll,
             ),
+            const SizedBox(height: 10),
+            _buildEmojiStrip(canRoll),
             // Hint text positioned strictly BELOW the dice container
             const SizedBox(height: 8),
             if (canRoll && state.lastDiceRoll == null)
@@ -694,23 +738,200 @@ class _GameScreenState extends State<GameScreen>
     );
   }
 
+  Widget _buildEmojiStrip(bool canUseNow) {
+    final active = state.activeEmoji;
+    final canPickEmoji = _isOnline
+        ? canUseNow && active == null && (widget.localPlayerId == null || state.currentPlayer.id == widget.localPlayerId)
+        : canUseNow && active == null;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.emoji_emotions_outlined, size: 16, color: AppTheme.accentLight),
+            const SizedBox(width: 6),
+            Text(
+              'Turn emoji',
+              style: TextStyle(
+                color: AppTheme.textSecondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.3,
+              ),
+            ),
+            const Spacer(),
+            if (active != null)
+              Text(active, style: const TextStyle(fontSize: 18)),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: _turnEmojis.map((emoji) {
+            final isSelected = active == emoji;
+            return GestureDetector(
+              onTap: canPickEmoji ? () => _chooseEmoji(emoji) : null,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 220),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  gradient: isSelected
+                      ? const LinearGradient(colors: [Color(0xFF7C3AED), Color(0xFFEC4899)])
+                      : null,
+                  color: isSelected ? null : AppTheme.bg3,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: isSelected
+                        ? const Color(0xFF00E5FF)
+                        : AppTheme.border,
+                  ),
+                  boxShadow: isSelected
+                      ? [
+                          BoxShadow(
+                            color: const Color(0xFFEC4899).withValues(alpha: 0.3),
+                            blurRadius: 14,
+                            spreadRadius: 1,
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(emoji, style: const TextStyle(fontSize: 18)),
+                    const SizedBox(width: 6),
+                    Text(
+                      canPickEmoji ? 'Tap' : 'Locked',
+                      style: TextStyle(
+                        color: canPickEmoji ? Colors.white : AppTheme.textMuted,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEmojiOverlay() {
+    final emoji = state.activeEmoji ?? '🎉';
+    final name = state.activeEmojiPlayerIndex != null && state.activeEmojiPlayerIndex! < state.players.length
+        ? state.players[state.activeEmojiPlayerIndex!].name
+        : state.currentPlayer.name;
+
+    return IgnorePointer(
+      child: Positioned.fill(
+        child: AnimatedOpacity(
+          opacity: 1,
+          duration: const Duration(milliseconds: 180),
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  const Color(0xFF0B1020).withValues(alpha: 0.18),
+                  const Color(0xFF7C3AED).withValues(alpha: 0.14),
+                  const Color(0xFFEC4899).withValues(alpha: 0.18),
+                ],
+              ),
+            ),
+            child: Stack(
+              children: [
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  top: 0,
+                  bottom: 0,
+                  child: Center(
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 0.85, end: 1.0),
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOutBack,
+                      builder: (context, scale, child) {
+                        return Transform.scale(scale: scale, child: child);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF111827), Color(0xFF1F2937)],
+                          ),
+                          borderRadius: BorderRadius.circular(28),
+                          border: Border.all(
+                            color: const Color(0xFF00E5FF).withValues(alpha: 0.45),
+                            width: 1.2,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.35),
+                              blurRadius: 28,
+                              spreadRadius: 4,
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              emoji,
+                              style: const TextStyle(fontSize: 84),
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              '$name selected an emoji',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Waiting for the next turn reaction...',
+                              style: TextStyle(
+                                color: AppTheme.textSecondary,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   String _statusText() {
     if (state.isGameOver) {
       return '${state.players[state.winner!].name} wins the game!';
     }
     final name = state.currentPlayer.name;
-    if (state.isCurrentPlayerAI) return '$name (AI) is thinking...';
+    if (state.isCurrentPlayerAI) return '$name (AI) is thinking... ${state.activeEmoji ?? '🤖'}';
 
     switch (state.phase) {
       case GamePhase.rolling:
         if (state.consecutiveSixes > 0) {
-          return '$name rolled ${state.consecutiveSixes}× sixes! Roll again!';
+          return '$name rolled ${state.consecutiveSixes}× sixes! Roll again! ${state.activeEmoji ?? '🎲'}';
         }
-        return '$name\'s turn';
+        return '$name\'s turn ${state.activeEmoji ?? '🎯'}';
       case GamePhase.moving:
-        return '$name rolled ${state.lastDiceRoll}';
+        return '$name rolled ${state.lastDiceRoll} ${state.activeEmoji ?? '🎲'}';
       default:
-        return '$name\'s turn';
+        return '$name\'s turn ${state.activeEmoji ?? '🎯'}';
     }
   }
 

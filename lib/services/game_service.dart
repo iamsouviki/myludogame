@@ -80,6 +80,7 @@ class GameService {
     SoundService.playDiceRollSound();
     final value = state.rollDice();
     onDiceRoll?.call(value);
+    onMoveComplete?.call();
 
     if (state.validTokenMoves.isEmpty) {
       // No valid moves — check if player gets another roll (rolled 6) or pass
@@ -92,6 +93,8 @@ class GameService {
           state.phase = GamePhase.rolling;
           state.lastDiceRoll = null;
           state.validTokenMoves = [];
+          state.activeEmoji = null;
+          state.activeEmojiPlayerIndex = null;
           state.notifyChange();
         } else {
           state.advanceTurn();
@@ -208,6 +211,8 @@ class GameService {
         state.phase = GamePhase.rolling;
         state.lastDiceRoll = null;
         state.validTokenMoves = [];
+        state.activeEmoji = null;
+        state.activeEmojiPlayerIndex = null;
         state.notifyChange();
       } else {
         state.advanceTurn();
@@ -240,6 +245,7 @@ class GameService {
     if (state.phase == GamePhase.rolling) {
       final value = state.rollDice();
       onDiceRoll?.call(value);
+      onMoveComplete?.call();
 
       if (state.phase == GamePhase.moving) {
         // Show AI dice roll result for 1s before AI steps token
@@ -259,6 +265,8 @@ class GameService {
             state.phase = GamePhase.rolling;
             state.lastDiceRoll = null;
             state.validTokenMoves = [];
+            state.activeEmoji = null;
+            state.activeEmojiPlayerIndex = null;
             state.notifyChange();
             _tryAITurn();
           } else {
