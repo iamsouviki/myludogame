@@ -37,6 +37,8 @@ class _GameScreenState extends State<GameScreen>
   GameState get state => widget.service.state;
   late AnimationController _turnGlow;
   StreamSubscription<RoomData>? _roomSubscription;
+  StreamSubscription<List<ChatMessage>>? _chatSubscription;
+  int _seenChatCount = 0;
 
   /// Whether the local player is the one whose turn it is
   bool get _isLocalPlayerTurn {
@@ -74,6 +76,20 @@ class _GameScreenState extends State<GameScreen>
           );
         }
       });
+
+      // ponytail: show toast for new chat messages from others
+      _chatSubscription = widget.onlineService!.chatStream.listen((msgs) {
+        if (!mounted) return;
+        if (msgs.length > _seenChatCount) {
+          final newMsgs = msgs.sublist(_seenChatCount);
+          _seenChatCount = msgs.length;
+          for (final msg in newMsgs) {
+            if (msg.senderId != widget.localPlayerId) {
+              _showChatToast(msg);
+            }
+          }
+        }
+      });
     }
   }
 
@@ -82,6 +98,7 @@ class _GameScreenState extends State<GameScreen>
     _turnGlow.dispose();
     state.removeListener(_onStateChange);
     _roomSubscription?.cancel();
+    _chatSubscription?.cancel();
     widget.service.dispose();
     super.dispose();
   }
@@ -109,6 +126,50 @@ class _GameScreenState extends State<GameScreen>
   }
 
   /// Sync local state to Firebase after an action
+  // ponytail: brief overlay toast for incoming chat
+  void _showChatToast(ChatMessage msg) {
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.chat_bubble_rounded, color: Color(0xFF00E5FF), size: 16),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text.rich(
+                TextSpan(children: [
+                  TextSpan(
+                    text: '${msg.senderName}: ',
+                    style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF00E5FF)),
+                  ),
+                  TextSpan(text: msg.text),
+                ]),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: const Color(0xFF1E1E2E),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.only(bottom: 80, left: 16, right: 16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        duration: const Duration(seconds: 3),
+        action: SnackBarAction(
+          label: 'OPEN',
+          textColor: const Color(0xFFEC4899),
+          onPressed: () {
+            final myName = state.players
+                .firstWhere((p) => p.id == widget.localPlayerId,
+                    orElse: () => state.players.first)
+                .name;
+            OnlineChatWidget.showChatModal(context, widget.onlineService!, myName);
+          },
+        ),
+      ),
+    );
+  }
+
   void _syncToFirebase() {
     if (_isOnline) {
       widget.onlineService!.syncGameState(state);

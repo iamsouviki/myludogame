@@ -687,6 +687,7 @@ class _HomeScreenState extends State<HomeScreen> {
         PlayerColor selectedColor = PlayerColor.red;
         int matchSize = 4;
         bool enableTeamUp = false;
+        bool isSubmitting = false;
         final nameController = TextEditingController(text: 'Player 1');
         final codeController = TextEditingController();
 
@@ -730,7 +731,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           const Spacer(),
                           IconButton(
                             icon: const Icon(Icons.close_rounded, color: Colors.white60),
-                            onPressed: () => Navigator.pop(ctx),
+                            onPressed: isSubmitting ? null : () => Navigator.pop(ctx),
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(),
                           ),
@@ -741,7 +742,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       // Avatar Selector
                       _buildModalAvatarPicker(
                         selectedIndex: avatarIndex,
-                        onSelected: (idx) => setModalState(() => avatarIndex = idx),
+                        onSelected: isSubmitting ? (_) {} : (idx) => setModalState(() => avatarIndex = idx),
                       ),
                       const SizedBox(height: 12),
 
@@ -756,6 +757,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               height: 38,
                               child: TextField(
                                 controller: nameController,
+                                enabled: !isSubmitting,
                                 style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
                                 decoration: InputDecoration(
                                   hintText: 'Your Name',
@@ -781,7 +783,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             Expanded(
                               child: _buildColorDropdown(
                                 currentColor: selectedColor,
-                                onChanged: (color) => setModalState(() => selectedColor = color),
+                                onChanged: isSubmitting ? (_) {} : (color) => setModalState(() => selectedColor = color),
                               ),
                             ),
                           ],
@@ -801,7 +803,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           children: [
                             Expanded(
                               child: GestureDetector(
-                                onTap: () => setModalState(() => activeTab = 0),
+                                onTap: isSubmitting ? null : () => setModalState(() => activeTab = 0),
                                 child: AnimatedContainer(
                                   duration: const Duration(milliseconds: 200),
                                   padding: const EdgeInsets.symmetric(vertical: 10),
@@ -823,7 +825,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                             Expanded(
                               child: GestureDetector(
-                                onTap: () => setModalState(() => activeTab = 1),
+                                onTap: isSubmitting ? null : () => setModalState(() => activeTab = 1),
                                 child: AnimatedContainer(
                                   duration: const Duration(milliseconds: 200),
                                   padding: const EdgeInsets.symmetric(vertical: 10),
@@ -852,7 +854,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         // CREATE ROOM TAB CONTENT
                         _buildMatchSizeSelector(
                           selectedSize: matchSize,
-                          onSelected: (size) => setModalState(() => matchSize = size),
+                          onSelected: isSubmitting ? (_) {} : (size) => setModalState(() => matchSize = size),
                         ),
                         if (matchSize == 4) ...[
                           const SizedBox(height: 10),
@@ -873,7 +875,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               Switch(
                                 value: enableTeamUp,
                                 activeThumbColor: const Color(0xFF00E5FF),
-                                onChanged: (val) => setModalState(() => enableTeamUp = val),
+                                onChanged: isSubmitting ? null : (val) => setModalState(() => enableTeamUp = val),
                               ),
                             ],
                           ),
@@ -883,28 +885,37 @@ class _HomeScreenState extends State<HomeScreen> {
                           width: double.infinity,
                           height: 68,
                           child: ElevatedButton(
-                            onPressed: () async {
-                              final name = nameController.text.trim().isEmpty ? 'Player 1' : nameController.text.trim();
-                              final room = await onlineService.createRoom(
-                                playerName: name,
-                                boardType: _boardType,
-                                preferredColor: selectedColor,
-                                avatarIndex: avatarIndex,
-                                targetPlayerCount: matchSize,
-                                isTeamUp: matchSize == 4 && enableTeamUp,
-                              );
-                              if (context.mounted) {
-                                Navigator.pop(ctx);
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (_) => LobbyScreen(
-                                      initialRoom: room,
-                                      onlineService: onlineService,
-                                    ),
-                                  ),
-                                );
-                              }
-                            },
+                            onPressed: isSubmitting
+                                ? null
+                                : () async {
+                                    setModalState(() => isSubmitting = true);
+                                    final name = nameController.text.trim().isEmpty ? 'Player 1' : nameController.text.trim();
+                                    try {
+                                      final room = await onlineService.createRoom(
+                                        playerName: name,
+                                        boardType: _boardType,
+                                        preferredColor: selectedColor,
+                                        avatarIndex: avatarIndex,
+                                        targetPlayerCount: matchSize,
+                                        isTeamUp: matchSize == 4 && enableTeamUp,
+                                      );
+                                      if (context.mounted) {
+                                        Navigator.pop(ctx);
+                                        Navigator.of(context).push(
+                                          MaterialPageRoute(
+                                            builder: (_) => LobbyScreen(
+                                              initialRoom: room,
+                                              onlineService: onlineService,
+                                            ),
+                                          ),
+                                        );
+                                      }
+                                    } catch (e) {
+                                      if (context.mounted) {
+                                        setModalState(() => isSubmitting = false);
+                                      }
+                                    }
+                                  },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.transparent,
                               shadowColor: Colors.transparent,
@@ -917,16 +928,25 @@ class _HomeScreenState extends State<HomeScreen> {
                                 gradient: AppTheme.primaryGradient,
                                 borderRadius: BorderRadius.circular(16),
                               ),
-                              child: const Center(
-                                child: Text(
-                                  'CREATE & START',
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: 2.0,
-                                    color: Colors.white,
-                                  ),
-                                ),
+                              child: Center(
+                                child: isSubmitting
+                                    ? const SizedBox(
+                                        width: 24,
+                                        height: 24,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2.5,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                    : const Text(
+                                        'CREATE & START',
+                                        style: TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w900,
+                                          letterSpacing: 2.0,
+                                          color: Colors.white,
+                                        ),
+                                      ),
                               ),
                             ),
                           ),
@@ -935,6 +955,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         // JOIN ROOM TAB CONTENT
                         TextField(
                           controller: codeController,
+                          enabled: !isSubmitting,
                           style: const TextStyle(
                             color: Colors.white,
                             letterSpacing: 6,
@@ -973,40 +994,50 @@ class _HomeScreenState extends State<HomeScreen> {
                           width: double.infinity,
                           height: 68,
                           child: ElevatedButton(
-                            onPressed: () async {
-                              final name = nameController.text.trim().isEmpty ? 'Player 1' : nameController.text.trim();
-                              final code = codeController.text.trim().toUpperCase();
-                              if (code.length != 6) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Enter a 6-character room code')),
-                                );
-                                return;
-                              }
-                              final res = await onlineService.joinRoomResult(
-                                code: code,
-                                playerName: name,
-                                avatarIndex: avatarIndex,
-                                preferredColor: selectedColor,
-                              );
-                              if (res.isSuccess && res.room != null && context.mounted) {
-                                Navigator.pop(ctx);
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (_) => LobbyScreen(
-                                      initialRoom: res.room,
-                                      onlineService: onlineService,
-                                    ),
-                                  ),
-                                );
-                              } else if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(res.error ?? 'Unable to join room.'),
-                                    backgroundColor: Colors.redAccent,
-                                  ),
-                                );
-                              }
-                            },
+                            onPressed: isSubmitting
+                                ? null
+                                : () async {
+                                    final name = nameController.text.trim().isEmpty ? 'Player 1' : nameController.text.trim();
+                                    final code = codeController.text.trim().toUpperCase();
+                                    if (code.length != 6) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(content: Text('Enter a 6-character room code')),
+                                      );
+                                      return;
+                                    }
+                                    setModalState(() => isSubmitting = true);
+                                    try {
+                                      final res = await onlineService.joinRoomResult(
+                                        code: code,
+                                        playerName: name,
+                                        avatarIndex: avatarIndex,
+                                        preferredColor: selectedColor,
+                                      );
+                                      if (res.isSuccess && res.room != null && context.mounted) {
+                                        Navigator.pop(ctx);
+                                        Navigator.of(context).push(
+                                          MaterialPageRoute(
+                                            builder: (_) => LobbyScreen(
+                                              initialRoom: res.room,
+                                              onlineService: onlineService,
+                                            ),
+                                          ),
+                                        );
+                                      } else if (context.mounted) {
+                                        setModalState(() => isSubmitting = false);
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text(res.error ?? 'Unable to join room.'),
+                                            backgroundColor: Colors.redAccent,
+                                          ),
+                                        );
+                                      }
+                                    } catch (e) {
+                                      if (context.mounted) {
+                                        setModalState(() => isSubmitting = false);
+                                      }
+                                    }
+                                  },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.transparent,
                               shadowColor: Colors.transparent,
@@ -1019,16 +1050,25 @@ class _HomeScreenState extends State<HomeScreen> {
                                 gradient: AppTheme.primaryGradient,
                                 borderRadius: BorderRadius.circular(16),
                               ),
-                              child: const Center(
-                                child: Text(
-                                  'JOIN & START',
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: 2.0,
-                                    color: Colors.white,
-                                  ),
-                                ),
+                              child: Center(
+                                child: isSubmitting
+                                    ? const SizedBox(
+                                        width: 24,
+                                        height: 24,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2.5,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                    : const Text(
+                                        'JOIN ROOM',
+                                        style: TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w900,
+                                          letterSpacing: 2.0,
+                                          color: Colors.white,
+                                        ),
+                                      ),
                               ),
                             ),
                           ),

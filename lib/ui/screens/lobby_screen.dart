@@ -122,9 +122,16 @@ class _LobbyScreenState extends State<LobbyScreen> {
     }
   }
 
+  bool _isStarting = false;
+
   Future<void> _startGame() async {
-    await _onlineService.startGame();
-    // TODO: Navigate to GameScreen with online service
+    if (_isStarting) return;
+    setState(() => _isStarting = true);
+    try {
+      await _onlineService.startGame();
+    } catch (_) {
+      if (mounted) setState(() => _isStarting = false);
+    }
   }
 
   @override
@@ -778,16 +785,22 @@ class _LobbyScreenState extends State<LobbyScreen> {
                   width: double.infinity,
                   height: 68,
                   child: ElevatedButton(
-                    onPressed: _startGame,
+                    onPressed: _isStarting ? null : _startGame,
                     style: ElevatedButton.styleFrom(
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),
                     ),
-                    child: const Text(
-                      'START GAME',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 2.0),
-                    ),
+                    child: _isStarting
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+                          )
+                        : const Text(
+                            'START GAME',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 2.0),
+                          ),
                   ),
                 ),
                 const SizedBox(height: 12),

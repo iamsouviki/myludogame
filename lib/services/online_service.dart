@@ -46,16 +46,20 @@ class RoomData {
   int get maxPlayers => targetPlayerCount;
   bool get isFull => players.length >= maxPlayers;
 
-  Map<String, dynamic> toJson() => {
-        'code': code,
-        'hostId': hostId,
-        'boardType': boardType.index,
-        'players': players.map((p) => p.toJson()).toList(),
-        'status': status.index,
-        'gameState': gameState,
-        'isTeamUp': isTeamUp,
-        'targetPlayerCount': targetPlayerCount,
-      };
+  Map<String, dynamic> toJson() {
+    final json = <String, dynamic>{
+      'code': code,
+      'hostId': hostId,
+      'boardType': boardType.index,
+      'players': players.map((p) => p.toJson()).toList(),
+      'status': status.index,
+      'isTeamUp': isTeamUp,
+      'targetPlayerCount': targetPlayerCount,
+    };
+    // ponytail: omit null gameState — Firebase update() treats null as DELETE
+    if (gameState != null) json['gameState'] = gameState;
+    return json;
+  }
 
   factory RoomData.fromJson(Map<String, dynamic> json) => RoomData(
         code: json['code'] as String,
@@ -135,6 +139,21 @@ class OnlineService {
     }
   }
 
+  // ponytail: Firebase returns Map<Object?, Object?> and nums as dynamic.
+  // Shallow Map.from() leaves nested values unconverted, causing silent cast
+  // failures that kill the onValue listener.
+  static dynamic _deepConvert(dynamic value) {
+    if (value is Map) {
+      return Map<String, dynamic>.fromEntries(
+        value.entries.map((e) => MapEntry(e.key.toString(), _deepConvert(e.value))),
+      );
+    }
+    if (value is List) {
+      return value.map(_deepConvert).toList();
+    }
+    return value;
+  }
+
   void _listenToRoom(String code) {
     _firebaseSubscription?.cancel();
     _chatSubscription?.cancel();
@@ -143,33 +162,43 @@ class OnlineService {
     if (ref != null) {
       _firebaseSubscription = ref.onValue.listen((event) {
         if (event.snapshot.value != null) {
-          final data = Map<String, dynamic>.from(event.snapshot.value as Map);
-          final room = RoomData.fromJson(data);
-          _localRooms[code] = room;
-          _roomController.add(room);
+          try {
+            final data = _deepConvert(event.snapshot.value) as Map<String, dynamic>;
+            // ponytail: strip chat node — it's handled by its own listener
+            data.remove('chat');
+            final room = RoomData.fromJson(data);
+            _localRooms[code] = room;
+            _roomController.add(room);
+          } catch (e) {
+            debugPrint('[OnlineService] Error parsing room update: $e');
+          }
         }
       });
 
       _chatSubscription = ref.child('chat').onValue.listen((event) {
         if (event.snapshot.value != null) {
-          final raw = event.snapshot.value;
-          final messages = <ChatMessage>[];
-          if (raw is List) {
-            for (final item in raw) {
-              if (item != null) {
-                messages.add(ChatMessage.fromJson(Map<String, dynamic>.from(item as Map)));
+          try {
+            final raw = _deepConvert(event.snapshot.value);
+            final messages = <ChatMessage>[];
+            if (raw is List) {
+              for (final item in raw) {
+                if (item != null) {
+                  messages.add(ChatMessage.fromJson(item as Map<String, dynamic>));
+                }
               }
+            } else if (raw is Map) {
+              raw.forEach((_, val) {
+                if (val != null) {
+                  messages.add(ChatMessage.fromJson(val as Map<String, dynamic>));
+                }
+              });
             }
-          } else if (raw is Map) {
-            raw.forEach((_, val) {
-              if (val != null) {
-                messages.add(ChatMessage.fromJson(Map<String, dynamic>.from(val as Map)));
-              }
-            });
+            messages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+            _localChats[code] = messages;
+            _chatController.add(messages);
+          } catch (e) {
+            debugPrint('[OnlineService] Error parsing chat update: $e');
           }
-          messages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
-          _localChats[code] = messages;
-          _chatController.add(messages);
         }
       });
     }
@@ -280,8 +309,8 @@ class OnlineService {
         debugPrint('[OnlineService] Fetching room $cleanCode from Firebase Realtime DB...');
         final snapshot = await ref.get();
         if (snapshot.exists && snapshot.value != null) {
-          debugPrint('[OnlineService] Room $cleanCode found on Firebase: ${snapshot.value}');
-          final data = Map<String, dynamic>.from(snapshot.value as Map);
+          final data = _deepConvert(snapshot.value) as Map<String, dynamic>;
+          data.remove('chat');
           room = RoomData.fromJson(data);
         } else {
           debugPrint('[OnlineService] Snapshot for room $cleanCode does not exist on Firebase.');
@@ -335,11 +364,12 @@ class OnlineService {
       teamId: teamId,
     );
 
+    final updatedPlayers = [...room.players, player];
     final updatedRoom = RoomData(
       code: room.code,
       hostId: room.hostId,
       boardType: room.boardType,
-      players: [...room.players, player],
+      players: updatedPlayers,
       status: room.status,
       gameState: room.gameState,
       isTeamUp: room.isTeamUp,
@@ -351,14 +381,16 @@ class OnlineService {
 
     if (ref != null) {
       try {
-        debugPrint('[OnlineService] Updating joined room $cleanCode on Firebase...');
-        await ref.update(updatedRoom.toJson());
-        debugPrint('[OnlineService] Joined room $cleanCode updated on Firebase.');
-        _listenToRoom(cleanCode);
+        // ponytail: write ONLY the players list — avoids overwriting room config
+        // or accidentally deleting keys via null values in update()
+        debugPrint('[OnlineService] Writing players list for room $cleanCode on Firebase...');
+        await ref.child('players').set(updatedPlayers.map((p) => p.toJson()).toList());
+        debugPrint('[OnlineService] Joined room $cleanCode — players updated on Firebase.');
       } catch (e, stack) {
         debugPrint('[OnlineService] ERROR updating room $cleanCode on Firebase: $e\n$stack');
-        _roomController.add(updatedRoom);
       }
+      // ponytail: always listen regardless of write success — we need remote updates
+      _listenToRoom(cleanCode);
     } else {
       _roomController.add(updatedRoom);
     }
@@ -395,6 +427,8 @@ class OnlineService {
       players: room.players,
       status: RoomStatus.playing,
       gameState: room.gameState,
+      isTeamUp: room.isTeamUp,
+      targetPlayerCount: room.targetPlayerCount,
     );
 
     _localRooms[currentRoomCode!] = updatedRoom;
@@ -501,7 +535,9 @@ class OnlineService {
 
   void dispose() {
     _firebaseSubscription?.cancel();
+    _chatSubscription?.cancel();
     _roomController.close();
+    _chatController.close();
   }
 }
 

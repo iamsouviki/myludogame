@@ -67,8 +67,10 @@ class GameService {
           state.notifyChange();
         } else {
           state.advanceTurn();
-          _tryAITurn();
         }
+        // ponytail: sync after turn state change so remote player gets the update
+        onMoveComplete?.call();
+        _tryAITurn();
       });
     } else if (state.validTokenMoves.length == 1) {
       // Single valid token available — display dice result clearly for 1.2s before auto-moving
@@ -104,7 +106,7 @@ class GameService {
     } else {
       // Step-by-step tile traversal with sound ("pig, pig, pig...")
       var stepCount = 0;
-      Timer.periodic(const Duration(milliseconds: 160), (timer) {
+      Timer.periodic(const Duration(milliseconds: 240), (timer) {
         if (_disposed || state.isGameOver) {
           timer.cancel();
           _isMovingStep = false;
@@ -127,10 +129,10 @@ class GameService {
     final capturedOpponents = state.findCapturedOpponents(playerIndex, tokenIndex);
 
     if (capturedOpponents.isNotEmpty) {
-      // Fast reverse animation for captured tokens back to base with cut sound
+      // Realistic reverse animation for captured tokens back to base with cut sound
       SoundService.playCaptureSound();
 
-      Timer.periodic(const Duration(milliseconds: 40), (revTimer) {
+      Timer.periodic(const Duration(milliseconds: 70), (revTimer) {
         if (_disposed) {
           revTimer.cancel();
           _isMovingStep = false;
@@ -170,7 +172,6 @@ class GameService {
     if (state.isGameOver) {
       SoundService.playVictorySound();
     }
-    onMoveComplete?.call();
 
     if (!state.isGameOver) {
       // Ludo King: extra turn if rolled 6 OR captured (boolean, no stacking)
@@ -180,11 +181,16 @@ class GameService {
         state.lastDiceRoll = null;
         state.validTokenMoves = [];
         state.notifyChange();
-        _tryAITurn();
       } else {
         state.advanceTurn();
-        _tryAITurn();
       }
+    }
+
+    // ponytail: sync AFTER turn state is fully updated so remote gets the new currentPlayerIndex
+    onMoveComplete?.call();
+
+    if (!state.isGameOver) {
+      _tryAITurn();
     }
   }
 

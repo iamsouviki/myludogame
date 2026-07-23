@@ -56,10 +56,11 @@ class GameState extends ChangeNotifier {
   /// Safe spots on the board (star cells)
   Set<int> get safeSpots {
     final spots = <int>{};
-    for (var i = 0; i < players.length; i++) {
-      spots.add(startPosition(i)); // start cells are safe
-      // Cell 8 positions after start is also safe (traditional)
-      spots.add((startPosition(i) + 8) % boardType.trackLength);
+    // Standard 4 start positions and 4 star positions on the track
+    for (var i = 0; i < boardType.maxPlayers; i++) {
+      final start = i * boardType.cellsPerArm;
+      spots.add(start); // all starting cells on board are safe
+      spots.add((start + 8) % boardType.trackLength); // star cells 8 steps after start
     }
     return spots;
   }
@@ -193,6 +194,7 @@ class GameState extends ChangeNotifier {
       final stepsIntoHome = (pos - boardType.trackLength) + 1;
       if (stepsIntoHome >= boardType.homeStretchLength) {
         tokenPositions[playerIndex][tokenIndex] = posHome;
+        getsExtraRoll = true; // Reached home cell — extra turn
         if (hasPlayerFinished(playerIndex) && !finishOrder.contains(playerIndex)) {
           finishOrder.add(playerIndex);
           winner ??= playerIndex;
@@ -204,11 +206,7 @@ class GameState extends ChangeNotifier {
               if (!finishOrder.contains(i)) finishOrder.add(i);
             }
             phase = GamePhase.finished;
-          } else {
-            getsExtraRoll = true; // Finished but game continues — extra turn
           }
-        } else {
-          getsExtraRoll = true; // Token reached home — extra turn
         }
       } else {
         tokenPositions[playerIndex][tokenIndex] =
