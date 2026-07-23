@@ -15,6 +15,7 @@ class GameService {
   final GameState state;
   final AIPlayer _ai = AIPlayer();
   final Duration displayDelay;
+  final bool runAI;
 
   Timer? _turnTimer;
   bool _disposed = false;
@@ -35,6 +36,7 @@ class GameService {
   GameService({
     required this.state,
     this.displayDelay = const Duration(milliseconds: 2000),
+    this.runAI = true,
   });
 
   /// Start the game — if first player is AI, trigger their turn
@@ -196,6 +198,7 @@ class GameService {
 
   /// Check if current player is AI and handle their turn
   void _tryAITurn() {
+    if (!runAI) return;
     if (_disposed || _isMovingStep) return;
     if (state.isGameOver) return;
     if (!state.isCurrentPlayerAI) return;

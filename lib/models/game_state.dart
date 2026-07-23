@@ -153,7 +153,8 @@ class GameState extends ChangeNotifier {
       return diceValue == diceToEnter; // need 6 to enter
     }
 
-    // Ludo King: simple path check — no Jodi/Star blockades
+    // Ludo King: a two-token stack is a blockade. A move may not pass through
+    // one, land on an opponent blockade, or land on a friendly stack of two.
     var currPos = pos;
     for (var s = 1; s <= diceValue; s++) {
       if (currPos == posHome) return false;
@@ -177,9 +178,28 @@ class GameState extends ChangeNotifier {
       }
 
       currPos = nextPos;
+      if (currPos >= 0 && currPos < boardType.trackLength &&
+          _isBlockedForMove(playerIndex, currPos, isFinal: s == diceValue)) {
+        return false;
+      }
     }
 
     return true;
+  }
+
+  bool _isBlockedForMove(int playerIndex, int position, {required bool isFinal}) {
+    final sameTeam = players[playerIndex].teamId;
+    final occupants = <int>[];
+    for (var p = 0; p < players.length; p++) {
+      for (var t = 0; t < tokensPerPlayer; t++) {
+        if (tokenPositions[p][t] == position) occupants.add(p);
+      }
+    }
+    if (occupants.isEmpty) return false;
+    final opponentStack = occupants.any((p) =>
+        players[p].teamId != sameTeam && p != playerIndex);
+    if (opponentStack) return occupants.length >= 2;
+    return isFinal && occupants.where((p) => p != playerIndex).length >= 2;
   }
 
   bool moveTokenStep(int playerIndex, int tokenIndex) {
@@ -376,17 +396,26 @@ class GameState extends ChangeNotifier {
 
   /// Restore from online sync (mutates in place)
   void loadFromJson(Map<String, dynamic> json) {
-    tokenPositions = (json['tokenPositions'] as List)
-        .map((t) => List<int>.from(t as List))
+    final rawTokens = json['tokenPositions'];
+    if (rawTokens is! List || rawTokens.length != players.length) return;
+    tokenPositions = rawTokens
+        .map((t) => t is List ? List<int>.from(t) : List.filled(tokensPerPlayer, posInBase))
         .toList();
-    currentPlayerIndex = json['currentPlayerIndex'] as int;
-    lastDiceRoll = json['lastDiceRoll'] as int?;
-    consecutiveSixes = json['consecutiveSixes'] as int;
+    currentPlayerIndex = (json['currentPlayerIndex'] as num?)?.toInt() ?? 0;
+    lastDiceRoll = (json['lastDiceRoll'] as num?)?.toInt();
+    consecutiveSixes = (json['consecutiveSixes'] as num?)?.toInt() ?? 0;
     getsExtraRoll = (json['getsExtraRoll'] as bool?) ?? false;
-    phase = GamePhase.values[json['phase'] as int];
-    validTokenMoves = List<int>.from(json['validTokenMoves'] as List);
-    winner = json['winner'] as int?;
-    finishOrder = List<int>.from(json['finishOrder'] as List);
+    final phaseIndex = (json['phase'] as num?)?.toInt() ?? GamePhase.rolling.index;
+    if (phaseIndex >= 0 && phaseIndex < GamePhase.values.length) {
+      phase = GamePhase.values[phaseIndex];
+    }
+    validTokenMoves = (json['validTokenMoves'] is List)
+        ? List<int>.from(json['validTokenMoves'] as List)
+        : <int>[];
+    winner = (json['winner'] as num?)?.toInt();
+    finishOrder = (json['finishOrder'] is List)
+        ? List<int>.from(json['finishOrder'] as List)
+        : <int>[];
     notifyListeners();
   }
   /// Allow external callers (GameService) to trigger a repaint

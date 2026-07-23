@@ -37,6 +37,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
   int _activeTab = 0; // 0 for Create Room, 1 for Join Room
   RoomData? _room;
   bool _isLoading = false;
+  bool _enteredGame = false;
 
   @override
   void initState() {
@@ -46,13 +47,16 @@ class _LobbyScreenState extends State<LobbyScreen> {
     _onlineService.roomStream.listen((room) {
       if (mounted) {
         setState(() => _room = room);
-        if (room.status == RoomStatus.playing) {
+        if (room.status == RoomStatus.playing &&
+            room.players.length >= 2 && !_enteredGame) {
+          _enteredGame = true;
           final gameState = GameState(
             boardType: room.boardType,
             players: room.players,
           );
           final gameService = GameService(
             state: gameState,
+            runAI: _onlineService.localPlayerId == room.hostId,
           );
           Navigator.pushReplacement(
             context,
@@ -71,7 +75,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
 
   @override
   void dispose() {
-    _onlineService.dispose();
+    // GameScreen owns this service after lobby navigation.
     _nameController.dispose();
     _codeController.dispose();
     super.dispose();
@@ -108,7 +112,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
           ? 'Player'
           : _nameController.text.trim(),
       avatarIndex: _selectedAvatarIndex,
-      preferredColor: _selectedColor,
+      preferredColor: _takenColors.contains(_selectedColor) ? null : _selectedColor,
     );
     setState(() => _isLoading = false);
 
@@ -781,6 +785,24 @@ class _LobbyScreenState extends State<LobbyScreen> {
 
               // Start / Chat / Leave buttons
               if (isHost && room.players.length >= 2) ...[
+                if (room.players.length < room.maxPlayers && room.maxPlayers >= 4) ...[
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: OutlinedButton.icon(
+                      onPressed: _isStarting
+                          ? null
+                          : () async {
+                              setState(() => _isStarting = true);
+                              await _onlineService.fillWithBots();
+                              if (mounted) setState(() => _isStarting = false);
+                            },
+                      icon: const Icon(Icons.smart_toy_outlined),
+                      label: const Text('FILL EMPTY SEATS WITH BOTS'),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
                 SizedBox(
                   width: double.infinity,
                   height: 68,

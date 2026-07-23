@@ -628,6 +628,10 @@ class _HomeScreenState extends State<HomeScreen> {
           height: isCompact ? 110 : 150,
           fit: BoxFit.contain,
         ),
+        const Text(
+          'MY LUDO',
+          style: TextStyle(fontSize: 1, color: Colors.transparent),
+        ),
       ],
     );
   }

@@ -48,6 +48,12 @@ class _GameScreenState extends State<GameScreen>
 
   bool get _isOnline => widget.onlineService != null;
 
+  double get _boardRotation {
+    if (widget.localPlayerId == null) return 0;
+    final index = state.players.indexWhere((p) => p.id == widget.localPlayerId);
+    return index < 0 ? 0 : -index * pi / 2;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -64,16 +70,11 @@ class _GameScreenState extends State<GameScreen>
       _roomSubscription = widget.onlineService!.roomStream.listen((room) {
         if (!mounted) return;
         if (room.gameState != null) {
-          _onRemoteStateUpdate(room.gameState!);
-        }
-      }, onDone: () {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('A player disconnected or room was closed.'),
-              backgroundColor: Colors.orangeAccent,
-            ),
-          );
+          try {
+            _onRemoteStateUpdate(room.gameState!);
+          } catch (e) {
+            debugPrint('[GameScreen] Ignoring invalid remote state: $e');
+          }
         }
       });
 
@@ -120,8 +121,7 @@ class _GameScreenState extends State<GameScreen>
 
   /// Apply remote state from Firebase (for the non-active player's device)
   void _onRemoteStateUpdate(Map<String, dynamic> remoteState) {
-    // Only apply if it's NOT our turn (the active player drives their own state)
-    if (_isLocalPlayerTurn) return;
+    // Firebase is authoritative. Applying every update keeps both devices in sync.
     state.loadFromJson(remoteState);
   }
 
@@ -341,14 +341,18 @@ class _GameScreenState extends State<GameScreen>
     return SizedBox(
       width: size.width,
       height: size.height,
-      child: Stack(
-        children: [
-          CustomPaint(
-            size: size,
-            painter: BoardPainter(state: state, config: config),
-          ),
-          ..._buildTokens(config),
-        ],
+      child: Transform.rotate(
+        angle: _boardRotation,
+        alignment: Alignment.center,
+        child: Stack(
+          children: [
+            CustomPaint(
+              size: size,
+              painter: BoardPainter(state: state, config: config),
+            ),
+            ..._buildTokens(config),
+          ],
+        ),
       ),
     );
   }

@@ -120,6 +120,7 @@ class OnlineService {
 
   StreamSubscription<DatabaseEvent>? _firebaseSubscription;
   StreamSubscription<DatabaseEvent>? _chatSubscription;
+  StreamSubscription<DatabaseEvent>? _chatChildSubscription;
 
   String? currentRoomCode;
   String? localPlayerId;
@@ -157,6 +158,7 @@ class OnlineService {
   void _listenToRoom(String code) {
     _firebaseSubscription?.cancel();
     _chatSubscription?.cancel();
+    _chatChildSubscription?.cancel();
 
     final ref = _roomRef(code);
     if (ref != null) {
@@ -176,29 +178,21 @@ class OnlineService {
       });
 
       _chatSubscription = ref.child('chat').onValue.listen((event) {
-        if (event.snapshot.value != null) {
-          try {
-            final raw = _deepConvert(event.snapshot.value);
-            final messages = <ChatMessage>[];
-            if (raw is List) {
-              for (final item in raw) {
-                if (item != null) {
-                  messages.add(ChatMessage.fromJson(item as Map<String, dynamic>));
-                }
+        try {
+          final raw = _deepConvert(event.snapshot.value);
+          final messages = <ChatMessage>[];
+          if (raw is Map) {
+            for (final value in raw.values) {
+              if (value is Map) {
+                messages.add(ChatMessage.fromJson(Map<String, dynamic>.from(value)));
               }
-            } else if (raw is Map) {
-              raw.forEach((_, val) {
-                if (val != null) {
-                  messages.add(ChatMessage.fromJson(val as Map<String, dynamic>));
-                }
-              });
             }
-            messages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
-            _localChats[code] = messages;
-            _chatController.add(messages);
-          } catch (e) {
-            debugPrint('[OnlineService] Error parsing chat update: $e');
           }
+          messages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+          _localChats[code] = messages;
+          _chatController.add(messages);
+        } catch (e) {
+          debugPrint('[OnlineService] Error parsing chat update: $e');
         }
       });
     }
@@ -227,15 +221,21 @@ class OnlineService {
     );
 
     final list = _localChats[code] ?? [];
-    list.add(msg);
-    _localChats[code] = list;
-    _chatController.add(list);
+    // Firebase onValue echoes this to every client, including the sender.
 
     final ref = _roomRef(code);
     if (ref != null) {
       try {
         await ref.child('chat').push().set(msg.toJson());
-      } catch (_) {}
+      } catch (_) {
+        list.add(msg);
+        _localChats[code] = list;
+        _chatController.add(list);
+      }
+    } else {
+      list.add(msg);
+      _localChats[code] = list;
+      _chatController.add(list);
     }
   }
 
@@ -381,10 +381,25 @@ class OnlineService {
 
     if (ref != null) {
       try {
-        // ponytail: write ONLY the players list — avoids overwriting room config
-        // or accidentally deleting keys via null values in update()
-        debugPrint('[OnlineService] Writing players list for room $cleanCode on Firebase...');
-        await ref.child('players').set(updatedPlayers.map((p) => p.toJson()).toList());
+        // Atomic transaction prevents two simultaneous joins from losing a player.
+        final transaction = await ref.child('players').runTransaction((data) {
+          final current = data == null
+              ? <dynamic>[]
+              : _deepConvert(data) as List;
+          if (current.any((item) => item is Map && item['id'] == localPlayerId)) {
+            return Transaction.success(current);
+          }
+          if (current.any((item) => item is Map && item['color'] == player.color.index)) {
+            return Transaction.abort();
+          }
+          if (current.length >= targetRoom.maxPlayers) {
+            return Transaction.abort();
+          }
+          return Transaction.success([...current, player.toJson()]);
+        });
+        if (!transaction.committed) {
+          return JoinRoomResult(error: 'That color was just selected by another player. Choose a different color.');
+        }
         debugPrint('[OnlineService] Joined room $cleanCode — players updated on Firebase.');
       } catch (e, stack) {
         debugPrint('[OnlineService] ERROR updating room $cleanCode on Firebase: $e\n$stack');
@@ -415,10 +430,60 @@ class OnlineService {
   }
 
   /// Start the game (host only)
+  Future<bool> fillWithBots() async {
+    if (currentRoomCode == null) return false;
+    final room = _localRooms[currentRoomCode!];
+    if (room == null || room.hostId != localPlayerId || room.targetPlayerCount < 4) {
+      return false;
+    }
+    final colors = room.boardType == BoardType.classic4
+        ? [PlayerColor.red, PlayerColor.green, PlayerColor.yellow, PlayerColor.blue]
+        : PlayerColor.values;
+    final used = room.players.map((p) => p.color).toSet();
+    final players = [...room.players];
+    var botNumber = 1;
+    while (players.length < room.maxPlayers) {
+      final color = colors.firstWhere((c) => !used.contains(c));
+      used.add(color);
+      final index = players.length;
+      players.add(Player(
+        id: 'bot_${room.code}_$botNumber',
+        name: 'Bot $botNumber',
+        color: color,
+        type: PlayerType.ai,
+        difficulty: AIDifficulty.medium,
+        teamId: room.isTeamUp ? index % 2 : null,
+      ));
+      botNumber++;
+    }
+    final updated = RoomData(
+      code: room.code,
+      hostId: room.hostId,
+      boardType: room.boardType,
+      players: players,
+      status: room.status,
+      gameState: room.gameState,
+      isTeamUp: room.isTeamUp,
+      targetPlayerCount: room.targetPlayerCount,
+    );
+    _localRooms[room.code] = updated;
+    final ref = _roomRef(room.code);
+    if (ref != null) {
+      await ref.child('players').set(players.map((p) => p.toJson()).toList());
+    } else {
+      _roomController.add(updated);
+    }
+    return true;
+  }
+
   Future<void> startGame() async {
     if (currentRoomCode == null) return;
     final room = _localRooms[currentRoomCode!];
-    if (room == null || room.hostId != localPlayerId || room.players.length < 2) return;
+    if (room == null || room.hostId != localPlayerId ||
+        room.players.length < 2 ||
+        (room.isTeamUp && room.players.length != 4)) {
+      return;
+    }
 
     final updatedRoom = RoomData(
       code: room.code,
@@ -436,6 +501,9 @@ class OnlineService {
     final ref = _roomRef(currentRoomCode!);
     if (ref != null) {
       try {
+        // Publish the complete player roster before clients enter the game.
+        await ref.child('players').set(
+            room.players.map((p) => p.toJson()).toList());
         await ref.child('status').set(RoomStatus.playing.index);
       } catch (_) {
         _roomController.add(updatedRoom);
@@ -512,6 +580,7 @@ class OnlineService {
     final code = currentRoomCode!;
     _firebaseSubscription?.cancel();
     _chatSubscription?.cancel();
+    _chatChildSubscription?.cancel();
 
     final room = _localRooms[code];
     final ref = _roomRef(code);
@@ -540,4 +609,3 @@ class OnlineService {
     _chatController.close();
   }
 }
-

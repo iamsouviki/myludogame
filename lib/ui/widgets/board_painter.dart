@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 
 import '../../game/board_config.dart';
 import '../../models/game_state.dart';
-import '../../models/player.dart';
 import '../../utils/constants.dart';
 
 class BoardPainter extends CustomPainter {
@@ -51,10 +50,10 @@ class BoardPainter extends CustomPainter {
     final p3Color = state.players.length > 3 ? state.players[3].color : PlayerColor.blue;
 
     // 2. Draw 4 Corner Base Blocks with custom player colors
-    _drawClassicBase(canvas, boardOrigin, cellSize, 0, 0, p1Color); // Top Left
-    _drawClassicBase(canvas, boardOrigin, cellSize, 9, 0, p2Color); // Top Right
-    _drawClassicBase(canvas, boardOrigin, cellSize, 0, 9, p0Color); // Bottom Left
-    _drawClassicBase(canvas, boardOrigin, cellSize, 9, 9, p3Color); // Bottom Right
+    _drawClassicBase(canvas, boardOrigin, cellSize, 0, 0, p1Color, 1); // Top Left
+    _drawClassicBase(canvas, boardOrigin, cellSize, 9, 0, p2Color, 2); // Top Right
+    _drawClassicBase(canvas, boardOrigin, cellSize, 0, 9, p0Color, 0); // Bottom Left
+    _drawClassicBase(canvas, boardOrigin, cellSize, 9, 9, p3Color, 3); // Bottom Right
 
     // 3. Colored Start Cells & Entry Arrows
     _drawEntryArrowsAndColoredStarts(canvas, boardOrigin, cellSize, p0Color, p1Color, p2Color, p3Color);
@@ -161,7 +160,7 @@ class BoardPainter extends CustomPainter {
   }
 
   void _drawClassicBase(Canvas canvas, Offset origin, double cellSize,
-      int gridX, int gridY, PlayerColor playerColor) {
+      int gridX, int gridY, PlayerColor playerColor, int playerIndex) {
     final rect = Rect.fromLTWH(
       origin.dx + gridX * cellSize,
       origin.dy + gridY * cellSize,
@@ -193,13 +192,9 @@ class BoardPainter extends CustomPainter {
     );
 
     // Draw Player Name Banner at the top of the base box
-    Player? matchingPlayer;
-    for (final p in state.players) {
-      if (p.color == playerColor) {
-        matchingPlayer = p;
-        break;
-      }
-    }
+    final matchingPlayer = playerIndex < state.players.length
+        ? state.players[playerIndex]
+        : null;
     if (matchingPlayer != null) {
       final textPainter = TextPainter(
         text: TextSpan(
