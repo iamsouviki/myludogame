@@ -604,13 +604,18 @@ class OnlineService {
       return;
     }
 
+    final initialState = GameState(
+      boardType: room.boardType,
+      players: room.players,
+    );
+
     final updatedRoom = RoomData(
       code: room.code,
       hostId: room.hostId,
       boardType: room.boardType,
       players: room.players,
       status: RoomStatus.playing,
-      gameState: room.gameState,
+      gameState: initialState.toJson(),
       isTeamUp: room.isTeamUp,
       targetPlayerCount: room.targetPlayerCount,
     );
@@ -620,9 +625,10 @@ class OnlineService {
     final ref = _roomRef(currentRoomCode!);
     if (ref != null) {
       try {
-        // Publish the complete player roster before clients enter the game.
+        // Publish the complete player roster & initial state before clients enter the game.
         await ref.child('players').set(
             room.players.map((p) => p.toJson()).toList());
+        await ref.child('gameState').set(initialState.toJson());
         await ref.child('status').set(RoomStatus.playing.index);
         await _registerPresence(currentRoomCode!);
       } catch (_) {

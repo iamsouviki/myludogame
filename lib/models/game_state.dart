@@ -471,12 +471,37 @@ class GameState extends ChangeNotifier {
 
   /// Restore from online sync (mutates in place)
   void loadFromJson(Map<String, dynamic> json) {
+    if (json['players'] is List) {
+      final rawPlayers = json['players'] as List;
+      final parsedPlayers = rawPlayers
+          .map((p) => p is Map ? Player.fromJson(Map<String, dynamic>.from(p)) : null)
+          .whereType<Player>()
+          .toList();
+      if (parsedPlayers.isNotEmpty) {
+        players.clear();
+        players.addAll(parsedPlayers);
+      }
+    }
+
     final rawTokens = json['tokenPositions'];
-    if (rawTokens is! List || rawTokens.length != players.length) return;
-    tokenPositions = rawTokens
-        .map((t) => t is List ? List<int>.from(t) : List.filled(tokensPerPlayer, posInBase))
-        .toList();
+    if (rawTokens is List) {
+      tokenPositions = rawTokens
+          .map((t) => t is List ? List<int>.from(t.cast<int>()) : List.filled(tokensPerPlayer, posInBase))
+          .toList();
+    }
+
+    while (tokenPositions.length < players.length) {
+      tokenPositions.add(List.filled(tokensPerPlayer, posInBase));
+    }
+    if (tokenPositions.length > players.length) {
+      tokenPositions = tokenPositions.sublist(0, players.length);
+    }
+
     currentPlayerIndex = (json['currentPlayerIndex'] as num?)?.toInt() ?? 0;
+    if (currentPlayerIndex >= players.length) {
+      currentPlayerIndex = 0;
+    }
+
     lastDiceRoll = (json['lastDiceRoll'] as num?)?.toInt();
     consecutiveSixes = (json['consecutiveSixes'] as num?)?.toInt() ?? 0;
     getsExtraRoll = (json['getsExtraRoll'] as bool?) ?? false;

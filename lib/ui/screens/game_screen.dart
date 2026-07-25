@@ -39,6 +39,7 @@ class _GameScreenState extends State<GameScreen>
     with TickerProviderStateMixin {
   GameState get state => widget.service.state;
   late AnimationController _turnGlow;
+  late final ConfettiController _emojiConfetti;
   StreamSubscription<RoomData>? _roomSubscription;
   StreamSubscription<List<ChatMessage>>? _chatSubscription;
   int _seenChatCount = 0;
@@ -46,7 +47,6 @@ class _GameScreenState extends State<GameScreen>
   String? _bannerText;
   Timer? _bannerTimer;
   Timer? _emojiTimer;
-  late final ConfettiController _emojiConfetti;
   List<String> _knownRoomPlayerIds = [];
   bool _leaveHandled = false;
   static const List<String> _turnEmojis = ['🎲', '⚡', '🔥', '👊', '🏆'];
@@ -157,8 +157,20 @@ class _GameScreenState extends State<GameScreen>
     for (final removedId in removedIds) {
       final removedPlayer = state.players.where((p) => p.id == removedId).toList();
       if (removedPlayer.isNotEmpty) {
+        final name = removedPlayer.first.name;
         state.removePlayerById(removedId);
-        _showInlineBanner('${removedPlayer.first.name} left the room');
+        _showInlineBanner('$name left the game');
+        NotificationService.instance.push(
+          AppNotification(
+            id: 'leave_${DateTime.now().millisecondsSinceEpoch}_$removedId',
+            title: 'Player Left',
+            body: '$name left the game',
+            category: 'game',
+            timestamp: DateTime.now().millisecondsSinceEpoch,
+          ),
+          showSystem: false,
+        );
+        _syncToFirebase();
       }
     }
 
@@ -166,7 +178,7 @@ class _GameScreenState extends State<GameScreen>
 
     if (_isOnline && state.players.length <= 1 && !_leaveHandled) {
       _leaveHandled = true;
-      _showInlineBanner('One player left. Match closed.');
+      _showInlineBanner('Players left. Match closed.');
       Future.delayed(const Duration(seconds: 2), () {
         if (!mounted) return;
         Navigator.of(context).popUntil((route) => route.isFirst);
@@ -211,6 +223,7 @@ class _GameScreenState extends State<GameScreen>
     _lastEmojiSeenAt = state.activeEmojiAt;
     _emojiTimer?.cancel();
     _emojiConfetti.play();
+
     _emojiTimer = Timer(const Duration(seconds: 2), () {
       if (!mounted || state.activeEmoji == null) return;
       if (widget.localPlayerId != null && state.currentPlayer.id != widget.localPlayerId) {
@@ -346,19 +359,22 @@ class _GameScreenState extends State<GameScreen>
   }
 
   Widget _buildNarrowLayout(BoxConstraints constraints) {
+    // ponytail: height-aware layout for small phones
+    final isCompact = constraints.maxHeight < 700;
+    final controlPanelHeight = isCompact ? 160.0 : 220.0;
     final maxAvailableWidth = constraints.maxWidth - 24;
-    final maxAvailableHeight = constraints.maxHeight - 220;
-    final boardSize = min(maxAvailableWidth, maxAvailableHeight).clamp(240.0, 600.0);
+    final maxAvailableHeight = constraints.maxHeight - controlPanelHeight - 60;
+    final boardSize = min(maxAvailableWidth, maxAvailableHeight).clamp(200.0, 600.0);
 
     return Column(
       children: [
         _buildTopBar(),
-        const SizedBox(height: 8),
+        if (!isCompact) const SizedBox(height: 8),
         Expanded(
           child: Center(child: _buildBoard(boardSize)),
         ),
-        _buildControlPanel(),
-        const SizedBox(height: 8),
+        _buildControlPanel(isCompact: isCompact),
+        SizedBox(height: isCompact ? 4 : 8),
       ],
     );
   }
@@ -624,7 +640,7 @@ class _GameScreenState extends State<GameScreen>
 
   // ── Control panel ──
 
-  Widget _buildControlPanel() {
+  Widget _buildControlPanel({bool isCompact = false}) {
     final isMyTurn = widget.localPlayerId == null ||
         state.currentPlayer.id == widget.localPlayerId;
 
@@ -634,133 +650,274 @@ class _GameScreenState extends State<GameScreen>
         isMyTurn;
 
     final activePlayerColor = state.currentPlayer.color.color;
+    // ponytail: compact sizing for small phones
+    final diceSize = isCompact ? 48.0 : 64.0;
+    final panelPadding = isCompact ? 8.0 : 14.0;
+    final avatarSize = isCompact ? 24.0 : 32.0;
+    final statusFontSize = isCompact ? 12.0 : 14.0;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: Container(
-        padding: const EdgeInsets.all(14),
+        padding: EdgeInsets.all(panelPadding),
         decoration: AppTheme.glassCard(
           glowColor: canRoll ? activePlayerColor : null,
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Active player avatar & Status header
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                PlayerAvatarWidget(
-                  avatarIndex: state.currentPlayer.avatarIndex,
-                  size: 32,
-                  borderColor: activePlayerColor,
-                ),
-                const SizedBox(width: 8),
-                Flexible(
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 300),
-                    child: Text(
-                      _statusText(),
-                      key: ValueKey(_statusText()),
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: state.isGameOver
-                            ? AppTheme.gold
-                            : AppTheme.textPrimary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
+        child: isCompact
+            // ponytail: compact two-row layout for small phones
+            ? Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      PlayerAvatarWidget(
+                        avatarIndex: state.currentPlayer.avatarIndex,
+                        size: avatarSize,
+                        borderColor: activePlayerColor,
                       ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            // Dice Container
-            DiceWidget(
-              value: state.lastDiceRoll,
-              canRoll: canRoll,
-              color: activePlayerColor,
-              onRoll: _onDiceRoll,
-            ),
-            const SizedBox(height: 10),
-            _buildEmojiStrip(canRoll),
-            // Hint text positioned strictly BELOW the dice container
-            const SizedBox(height: 8),
-            if (canRoll && state.lastDiceRoll == null)
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                decoration: BoxDecoration(
-                  color: activePlayerColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: activePlayerColor.withValues(alpha: 0.3),
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.touch_app_rounded, size: 14, color: activePlayerColor),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Tap to roll',
-                      style: TextStyle(
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 300),
+                              child: Text(
+                                _statusText(),
+                                key: ValueKey(_statusText()),
+                                style: TextStyle(
+                                  color: state.isGameOver
+                                      ? AppTheme.gold
+                                      : AppTheme.textPrimary,
+                                  fontSize: statusFontSize,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            _buildCompactHint(canRoll, activePlayerColor),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      DiceWidget(
+                        value: state.lastDiceRoll,
+                        canRoll: canRoll,
                         color: activePlayerColor,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 12,
+                        onRoll: _onDiceRoll,
+                        size: diceSize,
+                      ),
+                      if (state.isGameOver) ...[
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          height: 36,
+                          child: ElevatedButton(
+                            onPressed: () {
+                              state.reset();
+                              widget.service.start();
+                            },
+                            child: const Text('REPLAY', style: TextStyle(fontSize: 11)),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  _buildCompactEmojiStrip(canRoll),
+                ],
+              )
+            : Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Active player avatar & Status header
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      PlayerAvatarWidget(
+                        avatarIndex: state.currentPlayer.avatarIndex,
+                        size: avatarSize,
+                        borderColor: activePlayerColor,
+                      ),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 300),
+                          child: Text(
+                            _statusText(),
+                            key: ValueKey(_statusText()),
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: state.isGameOver
+                                  ? AppTheme.gold
+                                  : AppTheme.textPrimary,
+                              fontSize: statusFontSize,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  // Dice Container
+                  DiceWidget(
+                    value: state.lastDiceRoll,
+                    canRoll: canRoll,
+                    color: activePlayerColor,
+                    onRoll: _onDiceRoll,
+                    size: diceSize,
+                  ),
+                  const SizedBox(height: 10),
+                  _buildEmojiStrip(canRoll),
+                  // Hint text positioned strictly BELOW the dice container
+                  const SizedBox(height: 8),
+                  if (canRoll && state.lastDiceRoll == null)
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: activePlayerColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: activePlayerColor.withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.touch_app_rounded, size: 14, color: activePlayerColor),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Tap to roll',
+                            style: TextStyle(
+                              color: activePlayerColor,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else if (state.phase == GamePhase.moving && !state.isCurrentPlayerAI)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: activePlayerColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: activePlayerColor.withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Text(
+                        'Select a token to move',
+                        style: TextStyle(
+                          color: activePlayerColor,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12,
+                        ),
+                      ),
+                    )
+                  else
+                    const SizedBox(height: 24), // Reserve empty space while rolling or showing dice result
+
+                  if (state.isGameOver) ...[
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 44,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          state.reset();
+                          widget.service.start();
+                        },
+                        icon: const Icon(Icons.replay_rounded, size: 18),
+                        label: const Text('PLAY AGAIN'),
                       ),
                     ),
                   ],
-                ),
-              )
-            else if (state.phase == GamePhase.moving && !state.isCurrentPlayerAI)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                decoration: BoxDecoration(
-                  color: activePlayerColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: activePlayerColor.withValues(alpha: 0.3),
-                  ),
-                ),
-                child: Text(
-                  'Select a token to move',
-                  style: TextStyle(
-                    color: activePlayerColor,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 12,
-                  ),
-                ),
-              )
-            else
-              const SizedBox(height: 24), // Reserve empty space while rolling or showing dice result
-
-            if (state.isGameOver) ...[
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                height: 44,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    state.reset();
-                    widget.service.start();
-                  },
-                  icon: const Icon(Icons.replay_rounded, size: 18),
-                  label: const Text('PLAY AGAIN'),
-                ),
+                ],
               ),
-            ],
-          ],
-        ),
+      ),
+    );
+  }
+
+  // ponytail: compact hint for small phone layout
+  Widget _buildCompactHint(bool canRoll, Color activePlayerColor) {
+    if (canRoll && state.lastDiceRoll == null) {
+      return Text(
+        'Tap dice to roll',
+        style: TextStyle(color: activePlayerColor, fontSize: 10, fontWeight: FontWeight.w600),
+      );
+    } else if (state.phase == GamePhase.moving && !state.isCurrentPlayerAI) {
+      return Text(
+        'Select a token',
+        style: TextStyle(color: activePlayerColor, fontSize: 10, fontWeight: FontWeight.w600),
+      );
+    }
+    return const SizedBox.shrink();
+  }
+
+  // ponytail: compact emoji row for small phones — high visibility buttons with distinct touch targets
+  Widget _buildCompactEmojiStrip(bool canRollNow) {
+    final active = state.activeEmoji;
+    final canPick = !state.isGameOver &&
+        active == null &&
+        (_isOnline
+            ? (widget.localPlayerId == null || state.currentPlayer.id == widget.localPlayerId)
+            : !state.isCurrentPlayerAI);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: _turnEmojis.map((emoji) {
+          final isSelected = active == emoji;
+          return GestureDetector(
+            onTap: canPick ? () => _chooseEmoji(emoji) : null,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              margin: const EdgeInsets.symmetric(horizontal: 4),
+              width: 38,
+              height: 38,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                gradient: isSelected
+                    ? const LinearGradient(colors: [Color(0xFF7C3AED), Color(0xFFEC4899)])
+                    : LinearGradient(colors: [AppTheme.bg3, AppTheme.surface]),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isSelected
+                      ? const Color(0xFF00E5FF)
+                      : (canPick ? AppTheme.accentLight.withValues(alpha: 0.5) : AppTheme.border),
+                  width: isSelected ? 2 : 1,
+                ),
+                boxShadow: canPick
+                    ? [
+                        BoxShadow(
+                          color: const Color(0xFF7C3AED).withValues(alpha: 0.25),
+                          blurRadius: 6,
+                        ),
+                      ]
+                    : null,
+              ),
+              child: Text(emoji, style: const TextStyle(fontSize: 20)),
+            ),
+          );
+        }).toList(),
       ),
     );
   }
 
   Widget _buildEmojiStrip(bool canUseNow) {
     final active = state.activeEmoji;
-    final canPickEmoji = _isOnline
-        ? canUseNow && active == null && (widget.localPlayerId == null || state.currentPlayer.id == widget.localPlayerId)
-        : canUseNow && active == null;
+    final canPickEmoji = !state.isGameOver &&
+        active == null &&
+        (_isOnline
+            ? (widget.localPlayerId == null || state.currentPlayer.id == widget.localPlayerId)
+            : !state.isCurrentPlayerAI);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -866,9 +1023,9 @@ class _GameScreenState extends State<GameScreen>
                   confettiController: _emojiConfetti,
                   blastDirectionality: BlastDirectionality.explosive,
                   emissionFrequency: 0.08,
-                  numberOfParticles: 24,
-                  gravity: 0.16,
-                  maxBlastForce: 24,
+                  numberOfParticles: 35,
+                  gravity: 0.18,
+                  maxBlastForce: 28,
                   minBlastForce: 12,
                   colors: const [
                     Color(0xFF00E5FF),
@@ -981,9 +1138,14 @@ class _GameScreenState extends State<GameScreen>
             child: Text('Stay', style: TextStyle(color: AppTheme.accentLight)),
           ),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(ctx);
-              Navigator.of(context).popUntil((route) => route.isFirst);
+              if (_isOnline) {
+                await widget.onlineService?.leaveRoom();
+              }
+              if (mounted) {
+                Navigator.of(context).popUntil((route) => route.isFirst);
+              }
             },
             child: Text('Leave', style: TextStyle(color: AppTheme.danger)),
           ),

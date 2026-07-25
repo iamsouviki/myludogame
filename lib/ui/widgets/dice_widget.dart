@@ -5,6 +5,7 @@ class DiceWidget extends StatefulWidget {
   final bool canRoll;
   final VoidCallback? onRoll;
   final Color color;
+  final double size; // ponytail: configurable size for compact layouts
 
   const DiceWidget({
     super.key,
@@ -12,6 +13,7 @@ class DiceWidget extends StatefulWidget {
     this.canRoll = false,
     this.onRoll,
     this.color = const Color(0xFF10B981),
+    this.size = 64,
   });
 
   @override
@@ -112,15 +114,15 @@ class _DiceWidgetState extends State<DiceWidget>
         },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 300),
-          width: 64,
-          height: 64,
+          width: widget.size,
+          height: widget.size,
           decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [playerColor, darkShade],
             ),
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(widget.size * 0.28),
             border: Border.all(
               color: lightBorder,
               width: 2.5,

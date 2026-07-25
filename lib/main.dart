@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -5,7 +7,7 @@ import 'firebase_options.dart';
 
 import 'services/notification_service.dart';
 import 'ui/widgets/app_notification_banner.dart';
-import 'ui/screens/home_screen.dart';
+import 'ui/screens/splash_screen.dart';
 import 'ui/theme.dart';
 
 void main() async {
@@ -18,7 +20,9 @@ void main() async {
     debugPrint('Firebase init fallback: $e');
   }
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-  await NotificationBootstrap.init();
+  unawaited(NotificationBootstrap.init().catchError((e) {
+    debugPrint('NotificationBootstrap error: $e');
+  }));
   runApp(const MyLudoApp());
 }
 
@@ -37,7 +41,7 @@ class _MyLudoAppState extends State<MyLudoApp> {
       debugShowCheckedModeBanner: false,
       navigatorKey: AppNavigation.navigatorKey,
       theme: AppTheme.darkTheme,
-      home: const HomeScreen(),
+      home: const SplashScreen(),
       builder: (context, child) => AppNotificationBannerHost(
         child: child ?? const SizedBox.shrink(),
       ),

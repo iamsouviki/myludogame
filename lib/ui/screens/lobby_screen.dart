@@ -64,6 +64,11 @@ class _LobbyScreenState extends State<LobbyScreen> {
             boardType: room.boardType,
             players: room.players,
           );
+          if (room.gameState != null) {
+            try {
+              gameState.loadFromJson(room.gameState!);
+            } catch (_) {}
+          }
           final gameService = GameService(
             state: gameState,
             runAI: _onlineService.localPlayerId == room.hostId,
