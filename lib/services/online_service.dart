@@ -127,6 +127,7 @@ class OnlineService {
   StreamSubscription<DatabaseEvent>? _firebaseSubscription;
   StreamSubscription<DatabaseEvent>? _chatSubscription;
   StreamSubscription<DatabaseEvent>? _chatChildSubscription;
+  StreamSubscription<DatabaseEvent>? _presenceSubscription;
 
   String? currentRoomCode;
   String? localPlayerId;
@@ -141,6 +142,14 @@ class OnlineService {
   DatabaseReference? _roomRef(String code) {
     try {
       return FirebaseDatabase.instance.ref('rooms/$code');
+    } catch (_) {
+      return null;
+    }
+  }
+
+  DatabaseReference? _presenceRef(String code) {
+    try {
+      return FirebaseDatabase.instance.ref('rooms/$code/presence');
     } catch (_) {
       return null;
     }
@@ -165,6 +174,7 @@ class OnlineService {
     _firebaseSubscription?.cancel();
     _chatSubscription?.cancel();
     _chatChildSubscription?.cancel();
+    _presenceSubscription?.cancel();
 
     final ref = _roomRef(code);
     if (ref != null) {
@@ -206,7 +216,61 @@ class OnlineService {
       if (cachedMessages != null) {
         _chatController.add(List<ChatMessage>.from(cachedMessages));
       }
+
+      _presenceSubscription = ref.child('presence').onValue.listen((event) {
+        try {
+          final raw = _deepConvert(event.snapshot.value);
+          if (raw is! Map) return;
+          final room = _localRooms[code];
+          if (room == null) return;
+          final offlineIds = <String>[];
+          for (final entry in raw.entries) {
+            final value = entry.value;
+            final isOnline = value is Map
+                ? (value['online'] as bool?) ?? false
+                : value == true;
+            if (!isOnline) offlineIds.add(entry.key.toString());
+          }
+          if (offlineIds.isEmpty) return;
+          final currentPlayers = room.players;
+          final removedNames = <String>[];
+          var updated = false;
+          for (final id in offlineIds) {
+            final removedPlayer = currentPlayers.where((p) => p.id == id).toList();
+            if (removedPlayer.isEmpty) continue;
+            removedNames.add(removedPlayer.first.name);
+            updated = true;
+          }
+          if (!updated) return;
+          final remainingPlayers = currentPlayers.where((p) => !offlineIds.contains(p.id)).toList();
+          final updatedRoom = RoomData(
+            code: room.code,
+            hostId: room.hostId,
+            boardType: room.boardType,
+            players: remainingPlayers,
+            status: room.status,
+            gameState: room.gameState,
+            isTeamUp: room.isTeamUp,
+            targetPlayerCount: room.targetPlayerCount,
+          );
+          _localRooms[code] = updatedRoom;
+          _roomController.add(updatedRoom);
+          if (removedNames.isNotEmpty) {
+            _chatController.add(_localChats[code] ?? const <ChatMessage>[]);
+          }
+        } catch (e) {
+          debugPrint('[OnlineService] Error parsing presence update: $e');
+        }
+      });
     }
+  }
+
+  Future<void> _registerPresence(String code) async {
+    final ref = _presenceRef(code);
+    if (ref == null || localPlayerId == null) return;
+    final node = ref.child(localPlayerId!);
+    await node.onDisconnect().set({'online': false, 'updatedAt': ServerValue.timestamp});
+    await node.set({'online': true, 'updatedAt': ServerValue.timestamp});
   }
 
   Future<void> sendChatMessage(String text, {String? senderName}) async {
@@ -289,6 +353,7 @@ class OnlineService {
       try {
         debugPrint('[OnlineService] Creating room $code on Firebase...');
         await ref.set(room.toJson());
+        await _registerPresence(code);
         debugPrint('[OnlineService] Room $code created successfully on Firebase.');
         _listenToRoom(code);
       } catch (e, stack) {
@@ -417,6 +482,7 @@ class OnlineService {
       }
       // ponytail: always listen regardless of write success — we need remote updates
       _listenToRoom(cleanCode);
+      await _registerPresence(cleanCode);
     } else {
       _roomController.add(updatedRoom);
     }
@@ -522,6 +588,7 @@ class OnlineService {
     final ref = _roomRef(room.code);
     if (ref != null) {
       await ref.child('players').set(updatedPlayers.map((p) => p.toJson()).toList());
+      await _registerPresence(room.code);
     } else {
       _roomController.add(updated);
     }
@@ -557,6 +624,7 @@ class OnlineService {
         await ref.child('players').set(
             room.players.map((p) => p.toJson()).toList());
         await ref.child('status').set(RoomStatus.playing.index);
+        await _registerPresence(currentRoomCode!);
       } catch (_) {
         _roomController.add(updatedRoom);
       }
@@ -646,6 +714,10 @@ class OnlineService {
           // Non-host leaves -> remove self from player list & update DB
           final remainingPlayers = room.players.where((p) => p.id != localPlayerId).toList();
           await ref.child('players').set(remainingPlayers.map((p) => p.toJson()).toList());
+          final presence = _presenceRef(code);
+          if (presence != null) {
+            await presence.child(localPlayerId!).remove();
+          }
         }
       } catch (_) {}
     }

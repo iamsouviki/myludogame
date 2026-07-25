@@ -53,7 +53,7 @@ class NotificationService {
             defaultTargetPlatform == TargetPlatform.macOS);
     if (supportedMobile) {
       await FirebaseMessaging.instance.requestPermission(alert: true, badge: true, sound: true);
-      _token = await FirebaseMessaging.instance.getToken();
+      await _refreshFcmToken();
       FirebaseMessaging.instance.onTokenRefresh.listen((token) => _token = token);
       FirebaseMessaging.onMessage.listen((message) => handleRemoteMessage(message));
       FirebaseMessaging.onMessageOpenedApp.listen((message) => _handleDeepLink(message.data['deepLink'] as String?));
@@ -61,6 +61,18 @@ class NotificationService {
       if (initial != null) {
         _handleDeepLink(initial.data['deepLink'] as String?);
       }
+    }
+  }
+
+  Future<void> _refreshFcmToken() async {
+    try {
+      if (defaultTargetPlatform == TargetPlatform.iOS || defaultTargetPlatform == TargetPlatform.macOS) {
+        final apnsToken = await FirebaseMessaging.instance.getAPNSToken();
+        if (apnsToken == null) return;
+      }
+      _token = await FirebaseMessaging.instance.getToken();
+    } catch (_) {
+      // iOS simulator / cold start can hit this before APNS is ready.
     }
   }
 
