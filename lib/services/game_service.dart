@@ -15,7 +15,7 @@ class GameService {
   final GameState state;
   final AIPlayer _ai = AIPlayer();
   final Duration displayDelay;
-  final bool runAI;
+  bool runAI;
 
   Timer? _turnTimer;
   bool _disposed = false;

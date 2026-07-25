@@ -713,19 +713,46 @@ class OnlineService {
 
     if (ref != null && room != null) {
       try {
-        if (room.hostId == localPlayerId || room.players.length <= 1) {
-          // Host leaves or last player -> remove room
+        final remainingPlayers = room.players.where((p) => p.id != localPlayerId).toList();
+        if (remainingPlayers.isEmpty) {
+          // All players left -> remove room node
           await ref.remove();
         } else {
-          // Non-host leaves -> remove self from player list & update DB
-          final remainingPlayers = room.players.where((p) => p.id != localPlayerId).toList();
-          await ref.child('players').set(remainingPlayers.map((p) => p.toJson()).toList());
+          // Host or player leaves -> migrate host role to next player and remove leaving player from gameState
+          final newHostId = (room.hostId == localPlayerId)
+              ? remainingPlayers.first.id
+              : room.hostId;
+
+          Map<String, dynamic>? updatedStateJson;
+          if (room.gameState != null) {
+            try {
+              final tempState = GameState(boardType: room.boardType, players: room.players);
+              tempState.loadFromJson(room.gameState!);
+              tempState.removePlayerById(localPlayerId!);
+              updatedStateJson = tempState.toJson();
+            } catch (e) {
+              debugPrint('[OnlineService] Error updating gameState on leave: $e');
+            }
+          }
+
+          final updates = <String, dynamic>{
+            'hostId': newHostId,
+            'players': remainingPlayers.map((p) => p.toJson()).toList(),
+          };
+          if (updatedStateJson != null) {
+            updates['gameState'] = updatedStateJson;
+          }
+
+          await ref.update(updates);
+
           final presence = _presenceRef(code);
           if (presence != null) {
             await presence.child(localPlayerId!).remove();
           }
         }
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('[OnlineService] Error leaving room: $e');
+      }
     }
 
     _localRooms.remove(code);

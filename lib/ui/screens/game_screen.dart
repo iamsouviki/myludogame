@@ -147,6 +147,10 @@ class _GameScreenState extends State<GameScreen>
   }
 
   void _handleRoomRosterChange(RoomData room) {
+    if (_isOnline) {
+      widget.service.runAI = (widget.onlineService!.localPlayerId == room.hostId);
+    }
+
     final incomingIds = room.players.map((p) => p.id).toList();
     final removedIds = _knownRoomPlayerIds.where((id) => !incomingIds.contains(id)).toList();
     if (removedIds.isEmpty) {
