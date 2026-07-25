@@ -44,10 +44,10 @@ class BoardPainter extends CustomPainter {
     // 1. Board Background (Clean Crisp White)
     canvas.drawRect(boardRect, Paint()..color = Colors.white);
 
-    final p0Color = state.players.isNotEmpty ? state.players[0].color : PlayerColor.red;
-    final p1Color = state.players.length > 1 ? state.players[1].color : PlayerColor.green;
-    final p2Color = state.players.length > 2 ? state.players[2].color : PlayerColor.yellow;
-    final p3Color = state.players.length > 3 ? state.players[3].color : PlayerColor.blue;
+    const p0Color = PlayerColor.red;
+    const p1Color = PlayerColor.green;
+    const p2Color = PlayerColor.yellow;
+    const p3Color = PlayerColor.blue;
 
     // 2. Draw 4 Corner Base Blocks with custom player colors
     _drawClassicBase(canvas, boardOrigin, cellSize, 0, 0, p1Color, 1); // Top Left

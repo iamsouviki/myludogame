@@ -63,7 +63,16 @@ class _GameScreenState extends State<GameScreen>
   double get _boardRotation {
     if (widget.localPlayerId == null) return 0;
     final index = state.players.indexWhere((p) => p.id == widget.localPlayerId);
-    return index < 0 ? 0 : -index * pi / 2;
+    if (index < 0) return 0;
+    final color = state.players[index].color;
+    final colorIdx = switch (color) {
+      PlayerColor.red => 0,
+      PlayerColor.green => 1,
+      PlayerColor.yellow => 2,
+      PlayerColor.blue => 3,
+      _ => 0,
+    };
+    return -colorIdx * pi / 2;
   }
 
   @override
@@ -302,9 +311,11 @@ class _GameScreenState extends State<GameScreen>
                     alignment: Alignment.topCenter,
                     child: Padding(
                       padding: const EdgeInsets.only(top: 8),
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 420),
-                        child: Container(
+                      child: Material(
+                        color: Colors.transparent,
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 420),
+                          child: Container(
                           margin: const EdgeInsets.symmetric(horizontal: 16),
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                           decoration: BoxDecoration(
@@ -351,6 +362,7 @@ class _GameScreenState extends State<GameScreen>
                           ),
                         ),
                       ),
+                    ),
                     ),
                   ),
                 ),
@@ -553,6 +565,7 @@ class _GameScreenState extends State<GameScreen>
     final defaultTokenSize = config.cellSize * 0.7;
 
     for (var p = 0; p < state.players.length; p++) {
+      final colorIdx = config.colorPositionIndex(state.players[p].color);
       for (var t = 0; t < tokensPerPlayer; t++) {
         final pos = state.tokenPositions[p][t];
         Offset pixelPos;
@@ -560,7 +573,7 @@ class _GameScreenState extends State<GameScreen>
         double tokenSize = defaultTokenSize;
 
         if (pos == posHome) {
-          final homeCenter = config.homeStretchPosition(p, 5);
+          final homeCenter = config.homeStretchPosition(colorIdx, 5);
           final row = t ~/ 2;
           final col = t % 2;
           pixelPos = homeCenter + Offset(
@@ -569,11 +582,11 @@ class _GameScreenState extends State<GameScreen>
           );
           tokenSize = config.cellSize * 0.48;
         } else if (pos == posInBase) {
-          pixelPos = config.basePosition(p, t);
+          pixelPos = config.basePosition(colorIdx, t);
           isInBase = true;
         } else if (pos >= state.boardType.trackLength) {
           final stepsIntoHome = pos - state.boardType.trackLength;
-          pixelPos = config.homeStretchPosition(p, stepsIntoHome);
+          pixelPos = config.homeStretchPosition(colorIdx, stepsIntoHome);
         } else {
           pixelPos = config.trackCellPosition(pos);
 
@@ -1005,8 +1018,8 @@ class _GameScreenState extends State<GameScreen>
         ? state.players[state.activeEmojiPlayerIndex!].name
         : state.currentPlayer.name;
 
-    return IgnorePointer(
-      child: Positioned.fill(
+    return Positioned.fill(
+      child: IgnorePointer(
         child: Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(

@@ -62,18 +62,25 @@ class RoomData {
   }
 
   factory RoomData.fromJson(Map<String, dynamic> json) => RoomData(
-        code: json['code'] as String,
-        hostId: json['hostId'] as String,
-        boardType: BoardType.values[json['boardType'] as int],
-        players: (json['players'] as List)
-            .map((p) => Player.fromJson(Map<String, dynamic>.from(p as Map)))
-            .toList(),
-        status: RoomStatus.values[json['status'] as int],
+        code: (json['code'] as String?) ?? '',
+        hostId: (json['hostId'] as String?) ?? '',
+        boardType: json['boardType'] != null
+            ? BoardType.values[(json['boardType'] as num).toInt()]
+            : BoardType.classic4,
+        players: (json['players'] is List)
+            ? (json['players'] as List)
+                .map((p) => p is Map ? Player.fromJson(Map<String, dynamic>.from(p)) : null)
+                .whereType<Player>()
+                .toList()
+            : <Player>[],
+        status: json['status'] != null
+            ? RoomStatus.values[(json['status'] as num).toInt()]
+            : RoomStatus.waiting,
         gameState: json['gameState'] != null
             ? Map<String, dynamic>.from(json['gameState'] as Map)
             : null,
         isTeamUp: (json['isTeamUp'] as bool?) ?? false,
-        targetPlayerCount: (json['targetPlayerCount'] as int?) ?? 4,
+        targetPlayerCount: (json['targetPlayerCount'] as num?)?.toInt() ?? 4,
       );
 }
 

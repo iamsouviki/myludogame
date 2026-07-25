@@ -52,14 +52,18 @@ class Player {
       };
 
   factory Player.fromJson(Map<String, dynamic> json) => Player(
-        id: json['id'] as String,
-        name: json['name'] as String,
-        color: PlayerColor.values[json['color'] as int],
-        type: PlayerType.values[json['type'] as int],
+        id: (json['id'] as String?) ?? 'player',
+        name: (json['name'] as String?) ?? 'Player',
+        color: json['color'] != null
+            ? PlayerColor.values[(json['color'] as num).toInt()]
+            : PlayerColor.red,
+        type: json['type'] != null
+            ? PlayerType.values[(json['type'] as num).toInt()]
+            : PlayerType.human,
         difficulty: json['difficulty'] != null
-            ? AIDifficulty.values[json['difficulty'] as int]
+            ? AIDifficulty.values[(json['difficulty'] as num).toInt()]
             : null,
-        avatarIndex: (json['avatarIndex'] as int?) ?? 0,
-        teamId: json['teamId'] as int?,
+        avatarIndex: (json['avatarIndex'] as num?)?.toInt() ?? 0,
+        teamId: (json['teamId'] as num?)?.toInt(),
       );
 }

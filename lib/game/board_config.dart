@@ -63,6 +63,25 @@ class BoardConfig {
     }
   }
 
+  /// Map a player's color to its classic board quadrant position index (0=Red, 1=Green, 2=Yellow, 3=Blue)
+  int colorPositionIndex(PlayerColor color) {
+    if (boardType == BoardType.classic4) {
+      switch (color) {
+        case PlayerColor.red:
+          return 0;
+        case PlayerColor.green:
+          return 1;
+        case PlayerColor.yellow:
+          return 2;
+        case PlayerColor.blue:
+          return 3;
+        default:
+          return 0;
+      }
+    }
+    return color.index % 6;
+  }
+
   Offset _gridToPixel(double gridX, double gridY) {
     final boardOrigin = Offset(
       center.dx - 7.5 * cellSize,

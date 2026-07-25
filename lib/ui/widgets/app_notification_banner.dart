@@ -82,9 +82,11 @@ class _NotificationBannerCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final accent = notification.accentColor.color;
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 460),
-      child: Container(
+    return Material(
+      color: Colors.transparent,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 460),
+        child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -146,6 +148,7 @@ class _NotificationBannerCard extends StatelessWidget {
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 }
