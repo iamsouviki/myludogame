@@ -254,6 +254,9 @@ class _HomeScreenState extends State<HomeScreen> {
                             child: const Center(
                               child: Text(
                                 'START MATCH',
+                                maxLines: 1,
+                                softWrap: false,
+                                overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                   fontSize: 18,
                                   fontWeight: FontWeight.w900,
@@ -564,6 +567,9 @@ class _HomeScreenState extends State<HomeScreen> {
                             child: const Center(
                               child: Text(
                                 'START MATCH',
+                                maxLines: 1,
+                                softWrap: false,
+                                overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                   fontSize: 18,
                                   fontWeight: FontWeight.w900,
@@ -1242,6 +1248,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     children: [
                       Text(
                         title,
+                        maxLines: 1,
+                        softWrap: false,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: isOutline ? borderColor : Colors.white,
                           fontSize: isCompact ? 15 : 16,
@@ -1252,6 +1261,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       const SizedBox(height: 2),
                       Text(
                         subtitle,
+                        maxLines: 1,
+                        softWrap: false,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: isOutline ? Colors.white70 : Colors.white.withValues(alpha: 0.85),
                           fontSize: 11,

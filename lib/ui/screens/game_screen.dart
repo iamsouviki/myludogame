@@ -766,6 +766,9 @@ class _GameScreenState extends State<GameScreen>
                             _statusText(),
                             key: ValueKey(_statusText()),
                             textAlign: TextAlign.center,
+                            maxLines: 1,
+                            softWrap: false,
+                            overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               color: state.isGameOver
                                   ? AppTheme.gold

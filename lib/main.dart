@@ -10,6 +10,8 @@ import 'ui/widgets/app_notification_banner.dart';
 import 'ui/screens/splash_screen.dart';
 import 'ui/theme.dart';
 
+import 'ui/widgets/responsive_wrapper.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
@@ -43,7 +45,9 @@ class _MyLudoAppState extends State<MyLudoApp> {
       theme: AppTheme.darkTheme,
       home: const SplashScreen(),
       builder: (context, child) => AppNotificationBannerHost(
-        child: child ?? const SizedBox.shrink(),
+        child: ResponsiveWrapper(
+          child: child ?? const SizedBox.shrink(),
+        ),
       ),
     );
   }

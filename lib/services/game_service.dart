@@ -268,9 +268,11 @@ class GameService {
             state.activeEmoji = null;
             state.activeEmojiPlayerIndex = null;
             state.notifyChange();
+            onMoveComplete?.call();
             _tryAITurn();
           } else {
             state.advanceTurn();
+            onMoveComplete?.call();
             _tryAITurn();
           }
         });

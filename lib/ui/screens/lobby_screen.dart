@@ -635,6 +635,9 @@ class _LobbyScreenState extends State<LobbyScreen> {
                                     )
                                   : const Text(
                                       'CREATE ROOM',
+                                      maxLines: 1,
+                                      softWrap: false,
+                                      overflow: TextOverflow.ellipsis,
                                       style: TextStyle(
                                         fontSize: 18,
                                         fontWeight: FontWeight.w900,
@@ -727,6 +730,9 @@ class _LobbyScreenState extends State<LobbyScreen> {
                                     )
                                   : const Text(
                                       'JOIN ROOM',
+                                      maxLines: 1,
+                                      softWrap: false,
+                                      overflow: TextOverflow.ellipsis,
                                       style: TextStyle(
                                         fontSize: 18,
                                         fontWeight: FontWeight.w900,
@@ -993,7 +999,12 @@ class _LobbyScreenState extends State<LobbyScreen> {
                               if (mounted) setState(() => _isStarting = false);
                             },
                       icon: const Icon(Icons.smart_toy_outlined),
-                      label: const Text('FILL EMPTY SEATS WITH BOTS'),
+                      label: const Text(
+                        'FILL EMPTY SEATS WITH BOTS',
+                        maxLines: 1,
+                        softWrap: false,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -1016,6 +1027,9 @@ class _LobbyScreenState extends State<LobbyScreen> {
                           )
                         : const Text(
                             'START GAME',
+                            maxLines: 1,
+                            softWrap: false,
+                            overflow: TextOverflow.ellipsis,
                             style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 2.0),
                           ),
                   ),

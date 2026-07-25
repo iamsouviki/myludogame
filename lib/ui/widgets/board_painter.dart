@@ -192,9 +192,7 @@ class BoardPainter extends CustomPainter {
     );
 
     // Draw Player Name Banner at the top of the base box
-    final matchingPlayer = playerIndex < state.players.length
-        ? state.players[playerIndex]
-        : null;
+    final matchingPlayer = state.players.where((p) => p.color == playerColor).firstOrNull;
     if (matchingPlayer != null) {
       final textPainter = TextPainter(
         text: TextSpan(
@@ -506,10 +504,11 @@ class BoardPainter extends CustomPainter {
     }
 
     for (var p = 0; p < state.players.length; p++) {
+      final colorIdx = config.colorPositionIndex(state.players[p].color);
       final color = state.players[p].color.color;
 
       for (var s = 0; s < state.boardType.homeStretchLength; s++) {
-        final pos = config.homeStretchPosition(p, s);
+        final pos = config.homeStretchPosition(colorIdx, s);
         final r = config.cellSize * 0.38;
         canvas.drawCircle(pos, r, Paint()..color = color);
         canvas.drawCircle(pos, r, trackBorder);
