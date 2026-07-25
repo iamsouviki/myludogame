@@ -110,11 +110,13 @@ class GameState extends ChangeNotifier {
     if (rolled == diceMax) {
       consecutiveSixes++;
       if (consecutiveSixes >= maxConsecutiveSixes) {
-        // Triple-6: lose turn entirely
+        // Triple-6: lose turn entirely (Ludo King rule)
         consecutiveSixes = 0;
         getsExtraRoll = false;
-        phase = GamePhase.rolling;
+        validTokenMoves = [];
+        lastDiceRoll = null;
         _nextTurn();
+        phase = GamePhase.rolling;
         notifyListeners();
         return rolled;
       }
