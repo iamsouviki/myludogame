@@ -36,4 +36,4 @@ jobs:
           repoToken: '${{ secrets.GITHUB_TOKEN }}'
           firebaseServiceAccount: '${{ secrets.GCP_SA_KEY }}'
           channelId: live
-          projectId: my-ludo-73080
+          projectId: ludobyiamsouviki
