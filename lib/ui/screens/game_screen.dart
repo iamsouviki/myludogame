@@ -565,7 +565,7 @@ class _GameScreenState extends State<GameScreen>
     final defaultTokenSize = config.cellSize * 0.7;
 
     for (var p = 0; p < state.players.length; p++) {
-      final colorIdx = config.colorPositionIndex(state.players[p].color);
+      // ponytail: use playerIndex directly — basePosition/homeStretchPosition are index-based
       for (var t = 0; t < tokensPerPlayer; t++) {
         final pos = state.tokenPositions[p][t];
         Offset pixelPos;
@@ -573,7 +573,7 @@ class _GameScreenState extends State<GameScreen>
         double tokenSize = defaultTokenSize;
 
         if (pos == posHome) {
-          final homeCenter = config.homeStretchPosition(colorIdx, 5);
+          final homeCenter = config.homeStretchPosition(p, 5);
           final row = t ~/ 2;
           final col = t % 2;
           pixelPos = homeCenter + Offset(
@@ -582,11 +582,11 @@ class _GameScreenState extends State<GameScreen>
           );
           tokenSize = config.cellSize * 0.48;
         } else if (pos == posInBase) {
-          pixelPos = config.basePosition(colorIdx, t);
+          pixelPos = config.basePosition(p, t);
           isInBase = true;
         } else if (pos >= state.boardType.trackLength) {
           final stepsIntoHome = pos - state.boardType.trackLength;
-          pixelPos = config.homeStretchPosition(colorIdx, stepsIntoHome);
+          pixelPos = config.homeStretchPosition(p, stepsIntoHome);
         } else {
           pixelPos = config.trackCellPosition(pos);
 

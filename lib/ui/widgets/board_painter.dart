@@ -504,11 +504,11 @@ class BoardPainter extends CustomPainter {
     }
 
     for (var p = 0; p < state.players.length; p++) {
-      final colorIdx = config.colorPositionIndex(state.players[p].color);
+      // ponytail: use p directly — homeStretchPosition is index-based
       final color = state.players[p].color.color;
 
       for (var s = 0; s < state.boardType.homeStretchLength; s++) {
-        final pos = config.homeStretchPosition(colorIdx, s);
+        final pos = config.homeStretchPosition(p, s);
         final r = config.cellSize * 0.38;
         canvas.drawCircle(pos, r, Paint()..color = color);
         canvas.drawCircle(pos, r, trackBorder);
