@@ -41,51 +41,52 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyC0xp_kdfLfzk-z1fo5BUokn6btaZAbrfA',
-    appId: '1:94304183673:web:6f616796a3fd09a1afbba8',
-    messagingSenderId: '94304183673',
-    projectId: 'my-ludo-73080',
-    authDomain: 'my-ludo-73080.firebaseapp.com',
-    databaseURL: 'https://my-ludo-73080-default-rtdb.asia-southeast1.firebasedatabase.app',
-    storageBucket: 'my-ludo-73080.firebasestorage.app',
-    measurementId: 'G-7R48PJJ77G',
+    apiKey: 'AIzaSyAzYPJhvui1N1toAoCendU471ZRgbmsPKY',
+    appId: '1:97042661428:web:097f70f82ce217272dca61',
+    messagingSenderId: '97042661428',
+    projectId: 'ludobyiamsouviki',
+    authDomain: 'ludobyiamsouviki.firebaseapp.com',
+    databaseURL: 'https://ludobyiamsouviki-default-rtdb.asia-southeast1.firebasedatabase.app',
+    storageBucket: 'ludobyiamsouviki.firebasestorage.app',
+    measurementId: 'G-JTB9S56SD5',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyCQ39qxmLb_JOikf_RzAoFgrG-Tgx2soLs',
-    appId: '1:94304183673:android:9ff71b362fbb0d30afbba8',
-    messagingSenderId: '94304183673',
-    projectId: 'my-ludo-73080',
-    databaseURL: 'https://my-ludo-73080-default-rtdb.asia-southeast1.firebasedatabase.app',
-    storageBucket: 'my-ludo-73080.firebasestorage.app',
+    apiKey: 'AIzaSyC0MXaHTkxO6_m44_DoCACTvqgQZ2vQSDk',
+    appId: '1:97042661428:android:da2b492c6370379b2dca61',
+    messagingSenderId: '97042661428',
+    projectId: 'ludobyiamsouviki',
+    databaseURL: 'https://ludobyiamsouviki-default-rtdb.asia-southeast1.firebasedatabase.app',
+    storageBucket: 'ludobyiamsouviki.firebasestorage.app',
   );
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyCdUI3318Zo3s9BimvxSEDuzjCxILm7w5s',
-    appId: '1:94304183673:ios:8c3cc69f2b75547cafbba8',
-    messagingSenderId: '94304183673',
-    projectId: 'my-ludo-73080',
-    databaseURL: 'https://my-ludo-73080-default-rtdb.asia-southeast1.firebasedatabase.app',
-    storageBucket: 'my-ludo-73080.firebasestorage.app',
+    apiKey: 'AIzaSyAa0DJZb9vMgWlf6K-xUuAKnnrSgRX6XpE',
+    appId: '1:97042661428:ios:ca6c68fb5eba36bc2dca61',
+    messagingSenderId: '97042661428',
+    projectId: 'ludobyiamsouviki',
+    databaseURL: 'https://ludobyiamsouviki-default-rtdb.asia-southeast1.firebasedatabase.app',
+    storageBucket: 'ludobyiamsouviki.firebasestorage.app',
     iosBundleId: 'com.myludo.myLudo',
   );
+
   static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyCdUI3318Zo3s9BimvxSEDuzjCxILm7w5s',
-    appId: '1:94304183673:ios:8c3cc69f2b75547cafbba8',
-    messagingSenderId: '94304183673',
-    projectId: 'my-ludo-73080',
-    databaseURL: 'https://my-ludo-73080-default-rtdb.asia-southeast1.firebasedatabase.app',
-    storageBucket: 'my-ludo-73080.firebasestorage.app',
+    apiKey: 'AIzaSyAa0DJZb9vMgWlf6K-xUuAKnnrSgRX6XpE',
+    appId: '1:97042661428:ios:ca6c68fb5eba36bc2dca61',
+    messagingSenderId: '97042661428',
+    projectId: 'ludobyiamsouviki',
+    databaseURL: 'https://ludobyiamsouviki-default-rtdb.asia-southeast1.firebasedatabase.app',
+    storageBucket: 'ludobyiamsouviki.firebasestorage.app',
     iosBundleId: 'com.myludo.myLudo',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyC0xp_kdfLfzk-z1fo5BUokn6btaZAbrfA',
-    appId: '1:94304183673:web:b8c2a4c1704ce9deafbba8',
-    messagingSenderId: '94304183673',
-    projectId: 'my-ludo-73080',
-    authDomain: 'my-ludo-73080.firebaseapp.com',
-    databaseURL: 'https://my-ludo-73080-default-rtdb.asia-southeast1.firebasedatabase.app',
-    storageBucket: 'my-ludo-73080.firebasestorage.app',
-    measurementId: 'G-C8CX63V7B2',
+    apiKey: 'AIzaSyAzYPJhvui1N1toAoCendU471ZRgbmsPKY',
+    appId: '1:97042661428:web:3d12a41405873ab52dca61',
+    messagingSenderId: '97042661428',
+    projectId: 'ludobyiamsouviki',
+    authDomain: 'ludobyiamsouviki.firebaseapp.com',
+    databaseURL: 'https://ludobyiamsouviki-default-rtdb.asia-southeast1.firebasedatabase.app',
+    storageBucket: 'ludobyiamsouviki.firebasestorage.app',
+    measurementId: 'G-18GB9KE1EN',
   );
 }

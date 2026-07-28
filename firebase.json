@@ -1,16 +1,1 @@
-{
-  "hosting": {
-    "public": "build/web",
-    "ignore": [
-      "firebase.json",
-      "**/.*",
-      "**/node_modules/**"
-    ],
-    "rewrites": [
-      {
-        "source": "**",
-        "destination": "/index.html"
-      }
-    ]
-  }
-}
+{"hosting":{"public":"build/web","ignore":["firebase.json","**/.*","**/node_modules/**"],"rewrites":[{"source":"**","destination":"/index.html"}]},"flutter":{"platforms":{"android":{"default":{"projectId":"ludobyiamsouviki","appId":"1:97042661428:android:da2b492c6370379b2dca61","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"ludobyiamsouviki","configurations":{"android":"1:97042661428:android:da2b492c6370379b2dca61","web":"1:97042661428:web:097f70f82ce217272dca61","windows":"1:97042661428:web:3d12a41405873ab52dca61"}}}}}}
