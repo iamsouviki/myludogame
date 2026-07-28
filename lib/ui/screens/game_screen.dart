@@ -64,15 +64,8 @@ class _GameScreenState extends State<GameScreen>
     if (widget.localPlayerId == null) return 0;
     final index = state.players.indexWhere((p) => p.id == widget.localPlayerId);
     if (index < 0) return 0;
-    final color = state.players[index].color;
-    final colorIdx = switch (color) {
-      PlayerColor.red => 0,
-      PlayerColor.green => 1,
-      PlayerColor.yellow => 2,
-      PlayerColor.blue => 3,
-      _ => 0,
-    };
-    return -colorIdx * pi / 2;
+    // ponytail: rotation is index-based so player's base is always facing them at bottom-left
+    return -index * pi / 2;
   }
 
   @override
