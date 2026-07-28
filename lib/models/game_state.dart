@@ -46,18 +46,12 @@ class GameState extends ChangeNotifier {
   bool get isCurrentPlayerAI => currentPlayer.isAI;
   bool get isGameOver => phase == GamePhase.finished;
 
-  /// Absolute board position for a player's start cell based on their color
+  /// Absolute board position for a player's start cell based on their index.
+  /// Color is cosmetic only — position is always index-based so any color choice
+  /// is valid without colliding with another player's start.
   int startPosition(int playerIndex) {
     if (playerIndex < 0 || playerIndex >= players.length) return 0;
-    final color = players[playerIndex].color;
-    final posIdx = switch (color) {
-      PlayerColor.red => 0,
-      PlayerColor.green => 1,
-      PlayerColor.yellow => 2,
-      PlayerColor.blue => 3,
-      _ => playerIndex,
-    };
-    return posIdx * boardType.cellsPerArm;
+    return playerIndex * boardType.cellsPerArm; // ponytail: color is cosmetic
   }
 
   /// Absolute board position for a player's entry into home stretch (Tile 50 for Red)

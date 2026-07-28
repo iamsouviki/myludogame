@@ -44,12 +44,13 @@ class BoardPainter extends CustomPainter {
     // 1. Board Background (Clean Crisp White)
     canvas.drawRect(boardRect, Paint()..color = Colors.white);
 
-    const p0Color = PlayerColor.red;
-    const p1Color = PlayerColor.green;
-    const p2Color = PlayerColor.yellow;
-    const p3Color = PlayerColor.blue;
+    // Use actual player colors by index (color is cosmetic, position is index-based)
+    final p0Color = state.players.isNotEmpty ? state.players[0].color : PlayerColor.red;
+    final p1Color = state.players.length > 1 ? state.players[1].color : PlayerColor.green;
+    final p2Color = state.players.length > 2 ? state.players[2].color : PlayerColor.yellow;
+    final p3Color = state.players.length > 3 ? state.players[3].color : PlayerColor.blue;
 
-    // 2. Draw 4 Corner Base Blocks with custom player colors
+    // 2. Draw 4 Corner Base Blocks with actual player colors
     _drawClassicBase(canvas, boardOrigin, cellSize, 0, 0, p1Color, 1); // Top Left
     _drawClassicBase(canvas, boardOrigin, cellSize, 9, 0, p2Color, 2); // Top Right
     _drawClassicBase(canvas, boardOrigin, cellSize, 0, 9, p0Color, 0); // Bottom Left
@@ -97,9 +98,9 @@ class BoardPainter extends CustomPainter {
     _drawTrackGridLines(canvas, boardOrigin, cellSize, gridLinePaint);
 
     // 6. Center Triangle Home Box
-    _drawCenterHome(canvas, boardOrigin, cellSize);
+    _drawCenterHome(canvas, boardOrigin, cellSize, p0Color, p1Color, p2Color, p3Color);
 
-    // 7. Safe Spot Outline Stars
+    // 7. Safe Spot Outline Stars (use actual player colors)
     _drawStarAtCell(canvas, boardOrigin, cellSize, 1, 6, p1Color.color);  // P1 safe spot
     _drawStarAtCell(canvas, boardOrigin, cellSize, 2, 8, Colors.black87);
     _drawStarAtCell(canvas, boardOrigin, cellSize, 8, 1, p2Color.color);  // P2 safe spot
@@ -168,8 +169,9 @@ class BoardPainter extends CustomPainter {
       6 * cellSize,
     );
 
-    // Active Player Base Box Glow (Glows the ENTIRE 6x6 base box without white border)
-    final isCurrentTurn = state.currentPlayer.color == playerColor && !state.isGameOver;
+    // Active Player Base Box Glow — match by playerIndex, not color
+    final isCurrentTurn = state.players.length > playerIndex &&
+        state.currentPlayerIndex == playerIndex && !state.isGameOver;
     if (isCurrentTurn) {
       canvas.drawRRect(
         RRect.fromRectAndRadius(rect.inflate(6), Radius.circular(cellSize * 0.5)),
@@ -191,8 +193,10 @@ class BoardPainter extends CustomPainter {
         ..strokeWidth = 1.5,
     );
 
-    // Draw Player Name Banner at the top of the base box
-    final matchingPlayer = state.players.where((p) => p.color == playerColor).firstOrNull;
+    // Draw Player Name Banner — match by playerIndex
+    final matchingPlayer = state.players.length > playerIndex
+        ? state.players[playerIndex]
+        : null;
     if (matchingPlayer != null) {
       final textPainter = TextPainter(
         text: TextSpan(
@@ -354,7 +358,8 @@ class BoardPainter extends CustomPainter {
     canvas.restore();
   }
 
-  void _drawCenterHome(Canvas canvas, Offset origin, double cellSize) {
+  void _drawCenterHome(Canvas canvas, Offset origin, double cellSize,
+      PlayerColor p0Color, PlayerColor p1Color, PlayerColor p2Color, PlayerColor p3Color) {
     final center = Offset(origin.dx + 7.5 * cellSize, origin.dy + 7.5 * cellSize);
     final boxRect = Rect.fromLTWH(
       origin.dx + 6 * cellSize,
@@ -363,27 +368,27 @@ class BoardPainter extends CustomPainter {
       3 * cellSize,
     );
 
-    // Exact match to image: Green Left, Yellow Top, Blue Right, Red Bottom
+    // Triangles use actual player colors: Left=P1, Top=P2, Right=P3, Bottom=P0
     final triangles = [
-      // Left (Green)
+      // Left (P1)
       Path()
         ..moveTo(center.dx, center.dy)
         ..lineTo(boxRect.left, boxRect.top)
         ..lineTo(boxRect.left, boxRect.bottom)
         ..close(),
-      // Top (Yellow)
+      // Top (P2)
       Path()
         ..moveTo(center.dx, center.dy)
         ..lineTo(boxRect.left, boxRect.top)
         ..lineTo(boxRect.right, boxRect.top)
         ..close(),
-      // Right (Blue)
+      // Right (P3)
       Path()
         ..moveTo(center.dx, center.dy)
         ..lineTo(boxRect.right, boxRect.top)
         ..lineTo(boxRect.right, boxRect.bottom)
         ..close(),
-      // Bottom (Red)
+      // Bottom (P0)
       Path()
         ..moveTo(center.dx, center.dy)
         ..lineTo(boxRect.left, boxRect.bottom)
@@ -391,12 +396,7 @@ class BoardPainter extends CustomPainter {
         ..close(),
     ];
 
-    final colors = [
-      PlayerColor.green.color,
-      PlayerColor.yellow.color,
-      PlayerColor.blue.color,
-      PlayerColor.red.color,
-    ];
+    final colors = [p1Color.color, p2Color.color, p3Color.color, p0Color.color];
 
     for (var i = 0; i < 4; i++) {
       canvas.drawPath(triangles[i], Paint()..color = colors[i]);
