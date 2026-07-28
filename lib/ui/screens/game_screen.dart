@@ -263,7 +263,6 @@ class _GameScreenState extends State<GameScreen>
   void _onDiceRoll() {
     if (!_isLocalPlayerTurn) return;
     widget.service.rollDice();
-    _syncToFirebase();
   }
 
   void _onTokenTap(int tokenIndex) {

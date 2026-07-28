@@ -123,12 +123,9 @@ class GameState extends ChangeNotifier {
     // Find valid moves
     validTokenMoves = _findValidMoves(currentPlayerIndex, rolled);
 
-    if (validTokenMoves.isEmpty) {
-      // No valid moves
-      phase = GamePhase.rolling;
-    } else {
-      phase = GamePhase.moving;
-    }
+    // ponytail: phase is ALWAYS moving after rolling so dice cannot be tapped again
+    // until turn finishes or advances
+    phase = GamePhase.moving;
 
     notifyListeners();
     return rolled;

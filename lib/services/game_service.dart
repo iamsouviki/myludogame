@@ -83,9 +83,9 @@ class GameService {
     onMoveComplete?.call();
 
     if (state.validTokenMoves.isEmpty) {
-      // No valid moves — check if player gets another roll (rolled 6) or pass
+      // No valid moves — display rolled dice clearly for 1.2s before passing turn or re-rolling
       _turnTimer?.cancel();
-      _turnTimer = Timer(displayDelay, () {
+      _turnTimer = Timer(const Duration(milliseconds: 1200), () {
         if (_disposed || state.isGameOver) return;
         if (state.getsExtraRoll) {
           // Rolled a 6 but no moves — still get another roll
