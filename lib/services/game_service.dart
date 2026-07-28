@@ -109,6 +109,10 @@ class GameService {
       _turnTimer?.cancel();
       _turnTimer = Timer(const Duration(milliseconds: 1200), () {
         if (_disposed || state.isGameOver) return;
+        // ponytail: re-validate — a new roll (e.g. from 6 re-roll) may have changed valid moves
+        if (state.phase != GamePhase.moving) return;
+        if (state.validTokenMoves.length != 1) return; // multiple choices now, let player decide
+        if (!state.validTokenMoves.contains(autoTokenIndex)) return;
         selectToken(autoTokenIndex);
       });
     }
@@ -160,7 +164,9 @@ class GameService {
     final capturedOpponents = state.findCapturedOpponents(playerIndex, tokenIndex);
 
     if (capturedOpponents.isNotEmpty) {
-      // Realistic reverse animation for captured tokens back to base with cut sound
+      // Capture confirmed — grant extra turn immediately before reverse animation
+      // (checkFinalCapture would miss them after reverseTokenStep moves them to posInBase)
+      state.getsExtraRoll = true;
       SoundService.playCaptureSound();
 
       Timer.periodic(const Duration(milliseconds: 70), (revTimer) {
@@ -182,9 +188,10 @@ class GameService {
 
         if (allBackInBase) {
           revTimer.cancel();
-          final captured = state.checkFinalCapture(playerIndex, tokenIndex);
+          // ponytail: pass captured=true directly; checkFinalCapture finds nothing
+          // because tokens are already at posInBase after reverse animation
           _isMovingStep = false;
-          _finishMoveTurn(captured);
+          _finishMoveTurn(true);
         }
       });
     } else {
