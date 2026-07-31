@@ -194,6 +194,7 @@ class GameState extends ChangeNotifier {
   }
 
   bool _isBlockedForMove(int playerIndex, int position, {required bool isFinal}) {
+    final sameTeam = players[playerIndex].teamId;
     final occupants = <int>[];
     for (var p = 0; p < players.length; p++) {
       for (var t = 0; t < tokensPerPlayer; t++) {
@@ -201,20 +202,10 @@ class GameState extends ChangeNotifier {
       }
     }
     if (occupants.isEmpty) return false;
-    // ponytail: null teamId = no team, so different playerIndex = opponent
-    bool isOpponent(int p) {
-      if (p == playerIndex) return false;
-      final myTeam = players[playerIndex].teamId;
-      final theirTeam = players[p].teamId;
-      if (myTeam == null || theirTeam == null) return p != playerIndex;
-      return myTeam != theirTeam;
-    }
-    final opponentCount = occupants.where(isOpponent).length;
-    // Opponent blockade: 2+ opponent tokens block passage AND landing
-    if (opponentCount >= 2) return true;
-    // Friendly stack: can't land on 2+ of your own/teammate tokens
-    final friendlyCount = occupants.where((p) => !isOpponent(p) && p != playerIndex).length;
-    return isFinal && friendlyCount >= 2;
+    final opponentStack = occupants.any((p) =>
+        players[p].teamId != sameTeam && p != playerIndex);
+    if (opponentStack) return occupants.length >= 2;
+    return isFinal && occupants.where((p) => p != playerIndex).length >= 2;
   }
 
   bool moveTokenStep(int playerIndex, int tokenIndex) {
