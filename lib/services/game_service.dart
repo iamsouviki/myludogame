@@ -80,7 +80,16 @@ class GameService {
     SoundService.playDiceRollSound();
     final value = state.rollDice();
     onDiceRoll?.call(value);
-    onMoveComplete?.call();
+    // ponytail: do NOT sync here — syncing phase=moving before the move
+    // completes causes stale Firebase echoes to overwrite extra-roll state.
+    // Sync happens after the turn resolves (in timer callbacks / _finishMoveTurn).
+
+    // ponytail: triple-6 already advanced turn inside state.rollDice()
+    if (state.lastDiceRoll == null && state.phase == GamePhase.rolling) {
+      onMoveComplete?.call();
+      _tryAITurn();
+      return;
+    }
 
     if (state.validTokenMoves.isEmpty) {
       // No valid moves — display rolled dice clearly for 1.2s before passing turn or re-rolling
