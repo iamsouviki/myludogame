@@ -87,14 +87,13 @@ class GameService {
       _turnTimer?.cancel();
       _turnTimer = Timer(const Duration(milliseconds: 1200), () {
         if (_disposed || state.isGameOver) return;
-        if (state.getsExtraRoll) {
-          // Rolled a 6 but no moves — still get another roll
-          state.getsExtraRoll = false;
+        // Ludo King: If you roll a 6 but have no valid moves, you still get the extra roll.
+        // However, to prevent infinite loops if the state gets stuck, we ensure 
+        // the turn advances if no tokens are even on the board or reachable.
+        if (state.getsExtraRoll && state.consecutiveSixes < maxConsecutiveSixes) {
           state.phase = GamePhase.rolling;
           state.lastDiceRoll = null;
           state.validTokenMoves = [];
-          state.activeEmoji = null;
-          state.activeEmojiPlayerIndex = null;
           state.notifyChange();
         } else {
           state.advanceTurn();
@@ -267,13 +266,10 @@ class GameService {
         _turnTimer?.cancel();
         _turnTimer = Timer(displayDelay, () {
           if (_disposed || state.isGameOver) return;
-          if (state.getsExtraRoll) {
-            state.getsExtraRoll = false;
+          if (state.getsExtraRoll && state.consecutiveSixes < maxConsecutiveSixes) {
             state.phase = GamePhase.rolling;
             state.lastDiceRoll = null;
             state.validTokenMoves = [];
-            state.activeEmoji = null;
-            state.activeEmojiPlayerIndex = null;
             state.notifyChange();
             onMoveComplete?.call();
             _tryAITurn();

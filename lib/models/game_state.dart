@@ -204,8 +204,19 @@ class GameState extends ChangeNotifier {
     if (occupants.isEmpty) return false;
     final opponentStack = occupants.any((p) =>
         players[p].teamId != sameTeam && p != playerIndex);
+    
+    // Ludo King: Blockade is 2+ tokens. Cannot pass or land on opponent blockade.
     if (opponentStack) return occupants.length >= 2;
-    return isFinal && occupants.where((p) => p != playerIndex).length >= 2;
+    
+    // Cannot land on a cell if it would result in 3+ friendly/team tokens (stack limit)
+    if (isFinal) {
+      final friendlyCount = occupants.where((p) => 
+        p == playerIndex || (players[p].teamId != null && players[p].teamId == sameTeam)
+      ).length;
+      return friendlyCount >= 2;
+    }
+    
+    return false;
   }
 
   bool moveTokenStep(int playerIndex, int tokenIndex) {
