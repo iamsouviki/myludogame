@@ -20,6 +20,7 @@ class GameService {
   Timer? _turnTimer;
   bool _disposed = false;
   bool _isMovingStep = false;
+  bool get isAnimating => _isMovingStep;
 
   /// Callback for capture events
   VoidCallback? onCapture;
@@ -43,33 +44,27 @@ class GameService {
 
   /// Start the game — if first player is AI, trigger their turn
   void start() {
-    state.phase = GamePhase.rolling;
-    state.notifyChange();
-    _tryAITurn();
+    // Do not reset a restored or remote move phase; only fresh games roll.
+    if (state.phase == GamePhase.setup) state.phase = GamePhase.rolling;
+    // Older snapshots could save a rolled die with a rolling phase.
+    if (state.phase == GamePhase.rolling && state.lastDiceRoll != null) {
+      state.phase = GamePhase.moving;
+    }
+    state.repaint();
+    if (runAI && state.phase == GamePhase.moving && state.validTokenMoves.isEmpty) {
+      _turnTimer = Timer(displayDelay, _finishNoMoveTurn);
+    } else {
+      _tryAITurn();
+    }
   }
 
   void _onStateChanged() {
     if (!runAI || _disposed || _isMovingStep || state.isGameOver) return;
     if (!state.isCurrentPlayerAI) return;
 
-    // If an AI turn is in progress but the delayed action was skipped or
-    // overwritten by a sync update, reschedule it from the latest state.
-    final timerActive = _turnTimer?.isActive ?? false;
-    if (timerActive) return;
-
-    if (state.phase == GamePhase.rolling) {
-      _tryAITurn();
-      return;
-    }
-
-    if (state.phase == GamePhase.moving && state.validTokenMoves.isNotEmpty) {
-      _turnTimer = Timer(const Duration(milliseconds: 500), () {
-        if (_disposed || state.isGameOver || !state.isCurrentPlayerAI) return;
-        if (state.phase != GamePhase.moving || state.validTokenMoves.isEmpty) return;
-        final token = _ai.chooseToken(state);
-        _animateStepByStepMove(token);
-      });
-    }
+    // Rebuild the AI timer from the latest state after every mutation or sync.
+    if (_turnTimer?.isActive ?? false) return;
+    _tryAITurn();
   }
 
   /// Human player rolls dice
@@ -82,19 +77,24 @@ class GameService {
     onDiceRoll?.call(value);
     onMoveComplete?.call();
 
+    // GameState already advanced after the third consecutive six.
+    if (state.phase == GamePhase.rolling) {
+      _tryAITurn();
+      return;
+    }
+
     if (state.validTokenMoves.isEmpty) {
       // No valid moves — display rolled dice clearly for 1.2s before passing turn or re-rolling
       _turnTimer?.cancel();
       _turnTimer = Timer(const Duration(milliseconds: 1200), () {
         if (_disposed || state.isGameOver) return;
-        if (state.getsExtraRoll) {
-          // Rolled a 6 but no moves — still get another roll
-          state.getsExtraRoll = false;
+        // Ludo King: If you roll a 6 but have no valid moves, you still get the extra roll.
+        // However, to prevent infinite loops if the state gets stuck, we ensure 
+        // the turn advances if no tokens are even on the board or reachable.
+        if (state.getsExtraRoll && state.consecutiveSixes < maxConsecutiveSixes) {
           state.phase = GamePhase.rolling;
           state.lastDiceRoll = null;
           state.validTokenMoves = [];
-          state.activeEmoji = null;
-          state.activeEmojiPlayerIndex = null;
           state.notifyChange();
         } else {
           state.advanceTurn();
@@ -128,6 +128,12 @@ class GameService {
 
   /// Animate step-by-step movement touching each tile box along the track
   void _animateStepByStepMove(int tokenIndex) {
+    if (state.phase != GamePhase.moving ||
+        state.lastDiceRoll == null ||
+        !state.validTokenMoves.contains(tokenIndex)) {
+      return;
+    }
+
     _isMovingStep = true;
     final playerIndex = state.currentPlayerIndex;
     final diceValue = state.lastDiceRoll!;
@@ -242,7 +248,37 @@ class GameService {
     if (!state.isCurrentPlayerAI) return;
 
     _turnTimer?.cancel();
+    if (state.phase == GamePhase.moving) {
+      if (state.validTokenMoves.isEmpty) {
+        _turnTimer = Timer(displayDelay, _finishNoMoveTurn);
+      } else {
+        _turnTimer = Timer(const Duration(milliseconds: 1400), () {
+          if (_disposed || state.isGameOver || !state.isCurrentPlayerAI) return;
+          if (state.phase != GamePhase.moving || state.validTokenMoves.isEmpty) return;
+          _animateStepByStepMove(_ai.chooseToken(state));
+        });
+      }
+      return;
+    }
+
+    if (state.phase != GamePhase.rolling) return;
     _turnTimer = Timer(const Duration(milliseconds: 1400), _executeAITurn);
+  }
+
+  void _finishNoMoveTurn() {
+    if (_disposed || state.isGameOver || state.phase != GamePhase.moving || state.validTokenMoves.isNotEmpty) return;
+    if (state.getsExtraRoll && state.consecutiveSixes < maxConsecutiveSixes) {
+      state.phase = GamePhase.rolling;
+      state.lastDiceRoll = null;
+      state.validTokenMoves = [];
+      state.notifyChange();
+      onMoveComplete?.call();
+      _tryAITurn();
+    } else {
+      state.advanceTurn();
+      onMoveComplete?.call();
+      _tryAITurn();
+    }
   }
 
   void _executeAITurn() {
@@ -254,11 +290,21 @@ class GameService {
       onDiceRoll?.call(value);
       onMoveComplete?.call();
 
-      if (state.phase == GamePhase.moving) {
+      // GameState already advanced after the third consecutive six.
+      if (state.phase == GamePhase.rolling) {
+        _tryAITurn();
+        return;
+      }
+
+      if (state.phase == GamePhase.moving && state.validTokenMoves.isNotEmpty) {
         // Show AI dice roll result for 1s before AI steps token
         _turnTimer?.cancel();
         _turnTimer = Timer(const Duration(milliseconds: 1400), () {
           if (_disposed || state.isGameOver) return;
+          if (state.phase != GamePhase.moving || state.validTokenMoves.isEmpty) {
+            _finishNoMoveTurn();
+            return;
+          }
           final token = _ai.chooseToken(state);
           _animateStepByStepMove(token);
         });
@@ -267,21 +313,7 @@ class GameService {
         _turnTimer?.cancel();
         _turnTimer = Timer(displayDelay, () {
           if (_disposed || state.isGameOver) return;
-          if (state.getsExtraRoll) {
-            state.getsExtraRoll = false;
-            state.phase = GamePhase.rolling;
-            state.lastDiceRoll = null;
-            state.validTokenMoves = [];
-            state.activeEmoji = null;
-            state.activeEmojiPlayerIndex = null;
-            state.notifyChange();
-            onMoveComplete?.call();
-            _tryAITurn();
-          } else {
-            state.advanceTurn();
-            onMoveComplete?.call();
-            _tryAITurn();
-          }
+          _finishNoMoveTurn();
         });
       }
     }

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../services/game_service.dart';
 import '../../services/online_service.dart';
+import '../../services/local_game_storage.dart';
+import '../../models/game_state.dart';
 import '../../models/app_notification.dart';
 import '../../services/notification_service.dart';
 import '../../utils/constants.dart';
@@ -46,6 +48,14 @@ class _HomeScreenState extends State<HomeScreen> {
     PlayerColor.yellow,
     PlayerColor.blue,
   ];
+
+  GameState? _savedGame;
+
+  @override
+  void initState() {
+    super.initState();
+    _savedGame = LocalGameStorage.loadGame();
+  }
 
   @override
   void dispose() {
@@ -106,6 +116,12 @@ class _HomeScreenState extends State<HomeScreen> {
     _navigateToGame(service);
   }
 
+  void _resumeSavedGame() {
+    final savedGame = _savedGame;
+    if (savedGame == null) return;
+    _navigateToGame(GameService(state: savedGame));
+  }
+
   void _navigateToGame(GameService service) {
     Navigator.of(context).push(
       PageRouteBuilder(
@@ -118,7 +134,9 @@ class _HomeScreenState extends State<HomeScreen> {
         },
         transitionDuration: const Duration(milliseconds: 350),
       ),
-    );
+    ).then((_) {
+      if (mounted) setState(() => _savedGame = LocalGameStorage.loadGame());
+    });
   }
 
   // ── VS Computer Modal ──
@@ -690,6 +708,20 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildThreeMainButtons(bool isCompact) {
     return Column(
       children: [
+        if (_savedGame != null) ...[
+          _buildMenuButtonCard(
+            isCompact: isCompact,
+            icon: Icons.play_circle_fill_rounded,
+            title: 'RESUME GAME',
+            subtitle: '${_savedGame!.currentPlayer.name}\'s turn • Saved in this browser',
+            gradient: const LinearGradient(
+              colors: [Color(0xFF10B981), Color(0xFF0EA5E9)],
+            ),
+            glowColor: const Color(0xFF10B981),
+            onTap: _resumeSavedGame,
+          ),
+          SizedBox(height: isCompact ? 12 : 16),
+        ],
         // 1. VS COMPUTER
         _buildMenuButtonCard(
           isCompact: isCompact,

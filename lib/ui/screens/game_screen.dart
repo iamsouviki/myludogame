@@ -16,6 +16,7 @@ import '../widgets/token_widget.dart';
 
 import '../../services/online_service.dart';
 import '../../services/notification_service.dart';
+import '../../services/local_game_storage.dart';
 import '../../models/app_notification.dart';
 import '../widgets/online_chat_widget.dart';
 
@@ -49,6 +50,7 @@ class _GameScreenState extends State<GameScreen>
   Timer? _emojiTimer;
   List<String> _knownRoomPlayerIds = [];
   bool _leaveHandled = false;
+  Map<String, dynamic>? _pendingRemoteState;
   static const List<String> _turnEmojis = ['🎲', '⚡', '🔥', '👊', '🏆'];
   int? _lastEmojiSeenAt;
 
@@ -129,6 +131,9 @@ class _GameScreenState extends State<GameScreen>
   bool _dialogShown = false;
 
   void _onStateChange() {
+    if (!_isOnline && !widget.service.isAnimating) {
+      LocalGameStorage.saveGame(state);
+    }
     if (mounted) {
       _syncEmojiLifecycle();
       setState(() {});
@@ -144,7 +149,11 @@ class _GameScreenState extends State<GameScreen>
 
   /// Apply remote state from Firebase (for the non-active player's device)
   void _onRemoteStateUpdate(Map<String, dynamic> remoteState) {
-    // Firebase is authoritative. Applying every update keeps both devices in sync.
+    // Do not overwrite a local token animation; apply the newest state afterward.
+    if (widget.service.isAnimating) {
+      _pendingRemoteState = Map<String, dynamic>.from(remoteState);
+      return;
+    }
     state.loadFromJson(remoteState);
   }
 
@@ -244,6 +253,14 @@ class _GameScreenState extends State<GameScreen>
   }
 
   void _syncToFirebase() {
+    if (!widget.service.isAnimating && _pendingRemoteState != null) {
+      final pending = _pendingRemoteState;
+      _pendingRemoteState = null;
+      final beforeVersion = state.stateVersion;
+      if (pending != null) state.loadFromJson(pending);
+      if (_isOnline && state.stateVersion != beforeVersion) return;
+    }
+
     if (_isOnline) {
       widget.onlineService!.syncGameState(state);
     }
@@ -1141,7 +1158,9 @@ class _GameScreenState extends State<GameScreen>
         title: const Text('Leave Game?',
             style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
         content: Text(
-          'Your progress will be lost.',
+          _isOnline
+              ? 'Your online match will be left.'
+              : 'Your progress is saved in this browser until you leave or finish the game.',
           style: TextStyle(color: AppTheme.textSecondary),
         ),
         actions: [
@@ -1154,6 +1173,8 @@ class _GameScreenState extends State<GameScreen>
               Navigator.pop(ctx);
               if (_isOnline) {
                 await widget.onlineService?.leaveRoom();
+              } else {
+                LocalGameStorage.removeGame();
               }
               if (mounted) {
                 Navigator.of(context).popUntil((route) => route.isFirst);
