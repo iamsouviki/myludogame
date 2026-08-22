@@ -51,7 +51,9 @@ class GameService {
       state.phase = GamePhase.moving;
     }
     state.repaint();
-    if (runAI && state.phase == GamePhase.moving && state.validTokenMoves.isEmpty) {
+    if (runAI &&
+        state.phase == GamePhase.moving &&
+        state.validTokenMoves.isEmpty) {
       _turnTimer = Timer(displayDelay, _finishNoMoveTurn);
     } else {
       _tryAITurn();
@@ -89,9 +91,10 @@ class GameService {
       _turnTimer = Timer(const Duration(milliseconds: 1200), () {
         if (_disposed || state.isGameOver) return;
         // Ludo King: If you roll a 6 but have no valid moves, you still get the extra roll.
-        // However, to prevent infinite loops if the state gets stuck, we ensure 
+        // However, to prevent infinite loops if the state gets stuck, we ensure
         // the turn advances if no tokens are even on the board or reachable.
-        if (state.getsExtraRoll && state.consecutiveSixes < maxConsecutiveSixes) {
+        if (state.getsExtraRoll &&
+            state.consecutiveSixes < maxConsecutiveSixes) {
           state.phase = GamePhase.rolling;
           state.lastDiceRoll = null;
           state.validTokenMoves = [];
@@ -111,7 +114,9 @@ class GameService {
         if (_disposed || state.isGameOver) return;
         // ponytail: re-validate — a new roll (e.g. from 6 re-roll) may have changed valid moves
         if (state.phase != GamePhase.moving) return;
-        if (state.validTokenMoves.length != 1) return; // multiple choices now, let player decide
+        if (state.validTokenMoves.length != 1) {
+          return; // multiple choices now, let player decide
+        }
         if (!state.validTokenMoves.contains(autoTokenIndex)) return;
         selectToken(autoTokenIndex);
       });
@@ -167,38 +172,26 @@ class GameService {
   }
 
   void _checkAndFinishMove(int playerIndex, int tokenIndex) {
-    final capturedOpponents = state.findCapturedOpponents(playerIndex, tokenIndex);
+    final capturedOpponents = state.findCapturedOpponents(
+      playerIndex,
+      tokenIndex,
+    );
 
     if (capturedOpponents.isNotEmpty) {
-      // Capture confirmed — grant extra turn immediately before reverse animation
-      // (checkFinalCapture would miss them after reverseTokenStep moves them to posInBase)
+      // Capture confirmed — grant extra turn immediately before the capture pause.
       state.getsExtraRoll = true;
       SoundService.playCaptureSound();
 
-      Timer.periodic(const Duration(milliseconds: 70), (revTimer) {
+      // Keep the visual capture pause bounded. Walking a captured token backward
+      // along the track can take seconds and leaves the turn unavailable.
+      Timer(const Duration(milliseconds: 280), () {
         if (_disposed) {
-          revTimer.cancel();
           _isMovingStep = false;
           return;
         }
-
-        var allBackInBase = true;
-        for (final opp in capturedOpponents) {
-          final oppP = opp.x;
-          final oppT = opp.y;
-          if (state.tokenPositions[oppP][oppT] != posInBase) {
-            state.reverseTokenStep(oppP, oppT);
-            allBackInBase = false;
-          }
-        }
-
-        if (allBackInBase) {
-          revTimer.cancel();
-          // ponytail: pass captured=true directly; checkFinalCapture finds nothing
-          // because tokens are already at posInBase after reverse animation
-          _isMovingStep = false;
-          _finishMoveTurn(true);
-        }
+        state.sendCapturedTokensHome(capturedOpponents);
+        _isMovingStep = false;
+        _finishMoveTurn(true);
       });
     } else {
       final captured = state.checkFinalCapture(playerIndex, tokenIndex);
@@ -254,7 +247,10 @@ class GameService {
       } else {
         _turnTimer = Timer(const Duration(milliseconds: 1400), () {
           if (_disposed || state.isGameOver || !state.isCurrentPlayerAI) return;
-          if (state.phase != GamePhase.moving || state.validTokenMoves.isEmpty) return;
+          if (state.phase != GamePhase.moving ||
+              state.validTokenMoves.isEmpty) {
+            return;
+          }
           _animateStepByStepMove(_ai.chooseToken(state));
         });
       }
@@ -266,7 +262,12 @@ class GameService {
   }
 
   void _finishNoMoveTurn() {
-    if (_disposed || state.isGameOver || state.phase != GamePhase.moving || state.validTokenMoves.isNotEmpty) return;
+    if (_disposed ||
+        state.isGameOver ||
+        state.phase != GamePhase.moving ||
+        state.validTokenMoves.isNotEmpty) {
+      return;
+    }
     if (state.getsExtraRoll && state.consecutiveSixes < maxConsecutiveSixes) {
       state.phase = GamePhase.rolling;
       state.lastDiceRoll = null;
@@ -301,7 +302,8 @@ class GameService {
         _turnTimer?.cancel();
         _turnTimer = Timer(const Duration(milliseconds: 1400), () {
           if (_disposed || state.isGameOver) return;
-          if (state.phase != GamePhase.moving || state.validTokenMoves.isEmpty) {
+          if (state.phase != GamePhase.moving ||
+              state.validTokenMoves.isEmpty) {
             _finishNoMoveTurn();
             return;
           }
@@ -337,7 +339,12 @@ class GameService {
     bool enableTeamUp = false,
   }) {
     final allColors = boardType == BoardType.classic4
-        ? [PlayerColor.red, PlayerColor.green, PlayerColor.yellow, PlayerColor.blue]
+        ? [
+            PlayerColor.red,
+            PlayerColor.green,
+            PlayerColor.yellow,
+            PlayerColor.blue,
+          ]
         : PlayerColor.values;
 
     final players = <Player>[];
@@ -346,7 +353,10 @@ class GameService {
     final totalPlayersCount = humanPlayers + aiPlayers;
 
     for (var i = 0; i < humanPlayers; i++) {
-      final name = (humanNames != null && i < humanNames.length && humanNames[i].trim().isNotEmpty)
+      final name =
+          (humanNames != null &&
+              i < humanNames.length &&
+              humanNames[i].trim().isNotEmpty)
           ? humanNames[i].trim()
           : 'Player ${i + 1}';
       final color = (humanColors != null && i < humanColors.length)
@@ -358,16 +368,20 @@ class GameService {
           ? (i % 2 == 0 ? 0 : 1)
           : null;
 
-      players.add(Player(
-        id: 'human_$i',
-        name: name,
-        color: color,
-        type: PlayerType.human,
-        teamId: teamId,
-      ));
+      players.add(
+        Player(
+          id: 'human_$i',
+          name: name,
+          color: color,
+          type: PlayerType.human,
+          teamId: teamId,
+        ),
+      );
     }
 
-    final remainingColors = allColors.where((c) => !assignedColors.contains(c)).toList();
+    final remainingColors = allColors
+        .where((c) => !assignedColors.contains(c))
+        .toList();
     for (var i = 0; i < aiPlayers; i++) {
       final playerIndex = humanPlayers + i;
       final color = i < remainingColors.length
@@ -378,14 +392,16 @@ class GameService {
           ? (playerIndex % 2 == 0 ? 0 : 1)
           : null;
 
-      players.add(Player(
-        id: 'ai_$i',
-        name: 'Bot ${i + 1}',
-        color: color,
-        type: PlayerType.ai,
-        difficulty: aiDifficulty,
-        teamId: teamId,
-      ));
+      players.add(
+        Player(
+          id: 'ai_$i',
+          name: 'Bot ${i + 1}',
+          color: color,
+          type: PlayerType.ai,
+          difficulty: aiDifficulty,
+          teamId: teamId,
+        ),
+      );
     }
 
     final state = GameState(

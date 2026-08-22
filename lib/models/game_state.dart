@@ -20,7 +20,8 @@ class GameState extends ChangeNotifier {
   int currentPlayerIndex = 0;
   int? lastDiceRoll;
   int consecutiveSixes = 0;
-  bool getsExtraRoll = false; // Ludo King: rolling 6 or capturing = one extra turn
+  bool getsExtraRoll =
+      false; // Ludo King: rolling 6 or capturing = one extra turn
   GamePhase phase = GamePhase.rolling;
   List<int> validTokenMoves = []; // indices of tokens that can move
   int? winner; // player index of winner, null if game ongoing
@@ -61,12 +62,21 @@ class GameState extends ChangeNotifier {
   /// Color is cosmetic only — position is always index-based so any color choice
   /// is valid without colliding with another player's start.
   int startPosition(int playerIndex) {
-    if (playerIndex < 0 || playerIndex >= players.length) return 0;
+    if (playerIndex < 0 || playerIndex >= boardType.maxPlayers) return 0;
+    if (boardType == BoardType.classic4) {
+      // Matches BoardConfig._classic4Track: red, green, yellow, blue starts.
+      const starts = [0, 12, 25, 38];
+      return starts[playerIndex];
+    }
     return playerIndex * boardType.cellsPerArm; // ponytail: color is cosmetic
   }
 
   /// Absolute board position for a player's entry into home stretch (Tile 50 for Red)
   int homeEntryPosition(int playerIndex) {
+    if (boardType == BoardType.classic4) {
+      const entries = [51, 11, 24, 37];
+      return entries[playerIndex];
+    }
     final start = startPosition(playerIndex);
     return (start + boardType.trackLength - 2) % boardType.trackLength;
   }
@@ -76,9 +86,11 @@ class GameState extends ChangeNotifier {
     final spots = <int>{};
     // Standard 4 start positions and 4 star positions on the track
     for (var i = 0; i < boardType.maxPlayers; i++) {
-      final start = i * boardType.cellsPerArm;
+      final start = startPosition(i);
       spots.add(start); // all starting cells on board are safe
-      spots.add((start + 8) % boardType.trackLength); // star cells 8 steps after start
+      spots.add(
+        (start + 8) % boardType.trackLength,
+      ); // star cells 8 steps after start
     }
     return spots;
   }
@@ -90,7 +102,7 @@ class GameState extends ChangeNotifier {
     if (pos >= boardType.trackLength) {
       // Token is on home stretch (encoded as trackLength + stepsIntoHome)
       final stepsIntoHome = pos - boardType.trackLength;
-      return (boardType.trackLength - 2) + stepsIntoHome + 1;
+      return boardType.trackLength + stepsIntoHome;
     }
     final start = startPosition(playerIndex);
     return (pos - start + boardType.trackLength) % boardType.trackLength;
@@ -200,7 +212,8 @@ class GameState extends ChangeNotifier {
       }
 
       currPos = nextPos;
-      if (currPos >= 0 && currPos < boardType.trackLength &&
+      if (currPos >= 0 &&
+          currPos < boardType.trackLength &&
           _isBlockedForMove(playerIndex, currPos, isFinal: s == diceValue)) {
         return false;
       }
@@ -209,31 +222,34 @@ class GameState extends ChangeNotifier {
     return true;
   }
 
-  bool _isBlockedForMove(int playerIndex, int position, {required bool isFinal}) {
-    final sameTeam = players[playerIndex].teamId;
-    final occupants = <int>[];
+  bool _isBlockedForMove(
+    int playerIndex,
+    int position, {
+    required bool isFinal,
+  }) {
+    if (safeSpots.contains(position)) return false;
+
+    final countsByPlayer = <int, int>{};
     for (var p = 0; p < players.length; p++) {
       for (var t = 0; t < tokensPerPlayer; t++) {
-        if (tokenPositions[p][t] == position) occupants.add(p);
+        if (tokenPositions[p][t] == position) {
+          countsByPlayer[p] = (countsByPlayer[p] ?? 0) + 1;
+        }
       }
     }
-    if (occupants.isEmpty) return false;
-    bool isTeammate(int otherPlayerIndex) {
-      if (otherPlayerIndex == playerIndex) return true;
-      final otherTeam = players[otherPlayerIndex].teamId;
-      return sameTeam != null && otherTeam == sameTeam;
-    }
 
-    final sameTeamCount = occupants.where(isTeammate).length;
-    final opponentCount = occupants.where((p) => !isTeammate(p)).length;
-
-    // A two-token stack is a blockade for both passing and landing.
-    if (sameTeamCount >= 2) return true;
-    if (opponentCount >= 2) return true;
-    return false;
+    // A blockade is two tokens of one color/player. Two different opponents,
+    // including teammates in team mode, do not create a blockade together.
+    return countsByPlayer.values.any((count) => count >= 2);
   }
 
   bool moveTokenStep(int playerIndex, int tokenIndex) {
+    if (playerIndex < 0 ||
+        playerIndex >= tokenPositions.length ||
+        tokenIndex < 0 ||
+        tokenIndex >= tokenPositions[playerIndex].length) {
+      return false;
+    }
     final pos = tokenPositions[playerIndex][tokenIndex];
     if (pos == posInBase) {
       tokenPositions[playerIndex][tokenIndex] = startPosition(playerIndex);
@@ -246,7 +262,8 @@ class GameState extends ChangeNotifier {
       if (stepsIntoHome >= boardType.homeStretchLength) {
         tokenPositions[playerIndex][tokenIndex] = posHome;
         getsExtraRoll = true; // Reached home cell — extra turn
-        if (hasPlayerFinished(playerIndex) && !finishOrder.contains(playerIndex)) {
+        if (hasPlayerFinished(playerIndex) &&
+            !finishOrder.contains(playerIndex)) {
           finishOrder.add(playerIndex);
           winner ??= playerIndex;
           // Game ends when all but 1 player have finished
@@ -274,8 +291,34 @@ class GameState extends ChangeNotifier {
     return false;
   }
 
+  /// Send captured tokens directly back to their base.
+  void sendCapturedTokensHome(Iterable<Point<int>> capturedTokens) {
+    var changed = false;
+    for (final captured in capturedTokens) {
+      final playerIndex = captured.x;
+      final tokenIndex = captured.y;
+      if (playerIndex < 0 ||
+          playerIndex >= tokenPositions.length ||
+          tokenIndex < 0 ||
+          tokenIndex >= tokenPositions[playerIndex].length) {
+        continue;
+      }
+      if (tokenPositions[playerIndex][tokenIndex] != posInBase) {
+        tokenPositions[playerIndex][tokenIndex] = posInBase;
+        changed = true;
+      }
+    }
+    if (changed) _markChanged();
+  }
+
   /// Move a token 1 step backwards along its track toward its base
   void reverseTokenStep(int playerIndex, int tokenIndex) {
+    if (playerIndex < 0 ||
+        playerIndex >= tokenPositions.length ||
+        tokenIndex < 0 ||
+        tokenIndex >= tokenPositions[playerIndex].length) {
+      return;
+    }
     final pos = tokenPositions[playerIndex][tokenIndex];
     if (pos == posInBase) return;
 
@@ -284,12 +327,15 @@ class GameState extends ChangeNotifier {
     } else if (pos >= boardType.trackLength) {
       final stepsIntoHome = pos - boardType.trackLength;
       if (stepsIntoHome == 0) {
-        tokenPositions[playerIndex][tokenIndex] = homeEntryPosition(playerIndex);
+        tokenPositions[playerIndex][tokenIndex] = homeEntryPosition(
+          playerIndex,
+        );
       } else {
         tokenPositions[playerIndex][tokenIndex] = pos - 1;
       }
     } else {
-      tokenPositions[playerIndex][tokenIndex] = (pos - 1 + boardType.trackLength) % boardType.trackLength;
+      tokenPositions[playerIndex][tokenIndex] =
+          (pos - 1 + boardType.trackLength) % boardType.trackLength;
     }
 
     _markChanged();
@@ -324,7 +370,10 @@ class GameState extends ChangeNotifier {
   /// Move a token. Returns true if a capture occurred.
   bool moveToken(int tokenIndex) {
     if (phase != GamePhase.moving) return false;
-    if (!validTokenMoves.contains(tokenIndex)) return false;
+    if (lastDiceRoll == null || !validTokenMoves.contains(tokenIndex)) {
+      return false;
+    }
+    if (tokenIndex < 0 || tokenIndex >= tokensPerPlayer) return false;
 
     final playerIndex = currentPlayerIndex;
     final diceValue = lastDiceRoll!;
@@ -367,7 +416,9 @@ class GameState extends ChangeNotifier {
     var captured = false;
     for (var p = 0; p < players.length; p++) {
       if (p == playerIndex) continue;
-      if (currentTeam != null && players[p].teamId == currentTeam) continue; // teammates don't capture each other
+      if (currentTeam != null && players[p].teamId == currentTeam) {
+        continue; // teammates don't capture each other
+      }
       for (var t = 0; t < tokensPerPlayer; t++) {
         if (tokenPositions[p][t] == pos) {
           tokenPositions[p][t] = posInBase; // send home
@@ -483,23 +534,22 @@ class GameState extends ChangeNotifier {
 
   /// Serialize for online sync
   Map<String, dynamic> toJson() => {
-        'boardType': boardType.index,
-        'players': players.map((p) => p.toJson()).toList(),
-        'tokenPositions':
-            tokenPositions.map((t) => t.toList()).toList(),
-        'currentPlayerIndex': currentPlayerIndex,
-        'lastDiceRoll': lastDiceRoll,
-        'consecutiveSixes': consecutiveSixes,
-        'getsExtraRoll': getsExtraRoll,
-        'phase': phase.index,
-        'validTokenMoves': validTokenMoves,
-        'winner': winner,
-        'finishOrder': finishOrder,
-        'activeEmoji': activeEmoji,
-        'activeEmojiPlayerIndex': activeEmojiPlayerIndex,
-        'activeEmojiAt': activeEmojiAt,
-        'stateVersion': stateVersion,
-      };
+    'boardType': boardType.index,
+    'players': players.map((p) => p.toJson()).toList(),
+    'tokenPositions': tokenPositions.map((t) => t.toList()).toList(),
+    'currentPlayerIndex': currentPlayerIndex,
+    'lastDiceRoll': lastDiceRoll,
+    'consecutiveSixes': consecutiveSixes,
+    'getsExtraRoll': getsExtraRoll,
+    'phase': phase.index,
+    'validTokenMoves': validTokenMoves,
+    'winner': winner,
+    'finishOrder': finishOrder,
+    'activeEmoji': activeEmoji,
+    'activeEmojiPlayerIndex': activeEmojiPlayerIndex,
+    'activeEmojiAt': activeEmojiAt,
+    'stateVersion': stateVersion,
+  };
 
   /// Restore from online sync (mutates in place)
   void loadFromJson(Map<String, dynamic> json, {bool force = false}) {
@@ -509,7 +559,10 @@ class GameState extends ChangeNotifier {
     if (json['players'] is List) {
       final rawPlayers = json['players'] as List;
       final parsedPlayers = rawPlayers
-          .map((p) => p is Map ? Player.fromJson(Map<String, dynamic>.from(p)) : null)
+          .map(
+            (p) =>
+                p is Map ? Player.fromJson(Map<String, dynamic>.from(p)) : null,
+          )
           .whereType<Player>()
           .toList();
       if (parsedPlayers.isNotEmpty) {
@@ -521,8 +574,20 @@ class GameState extends ChangeNotifier {
     final rawTokens = json['tokenPositions'];
     if (rawTokens is List) {
       tokenPositions = rawTokens.map((t) {
+        final maxTrackPosition =
+            boardType.trackLength + boardType.homeStretchLength - 1;
         final values = t is List
-            ? t.whereType<num>().map((value) => value.toInt()).take(tokensPerPlayer).toList()
+            ? t
+                  .whereType<num>()
+                  .map((value) => value.toInt())
+                  .where(
+                    (value) =>
+                        value == posInBase ||
+                        value == posHome ||
+                        (value >= 0 && value <= maxTrackPosition),
+                  )
+                  .take(tokensPerPlayer)
+                  .toList()
             : <int>[];
         while (values.length < tokensPerPlayer) {
           values.add(posInBase);
@@ -539,42 +604,73 @@ class GameState extends ChangeNotifier {
     }
 
     currentPlayerIndex = (json['currentPlayerIndex'] as num?)?.toInt() ?? 0;
-    if (players.isEmpty || currentPlayerIndex < 0 || currentPlayerIndex >= players.length) {
+    if (players.isEmpty ||
+        currentPlayerIndex < 0 ||
+        currentPlayerIndex >= players.length) {
       currentPlayerIndex = 0;
     }
 
-    lastDiceRoll = (json['lastDiceRoll'] as num?)?.toInt();
-    consecutiveSixes = (json['consecutiveSixes'] as num?)?.toInt() ?? 0;
+    final parsedDice = (json['lastDiceRoll'] as num?)?.toInt();
+    lastDiceRoll =
+        parsedDice != null && parsedDice >= diceMin && parsedDice <= diceMax
+        ? parsedDice
+        : null;
+    consecutiveSixes = ((json['consecutiveSixes'] as num?)?.toInt() ?? 0).clamp(
+      0,
+      maxConsecutiveSixes - 1,
+    );
     getsExtraRoll = (json['getsExtraRoll'] as bool?) ?? false;
-    final phaseIndex = (json['phase'] as num?)?.toInt() ?? GamePhase.rolling.index;
+    final phaseIndex =
+        (json['phase'] as num?)?.toInt() ?? GamePhase.rolling.index;
     if (phaseIndex >= 0 && phaseIndex < GamePhase.values.length) {
       phase = GamePhase.values[phaseIndex];
     }
     validTokenMoves = (json['validTokenMoves'] is List)
         ? (json['validTokenMoves'] as List)
-            .whereType<num>()
-            .map((value) => value.toInt())
-            .where((value) => value >= 0 && value < tokensPerPlayer)
-            .toList()
+              .whereType<num>()
+              .map((value) => value.toInt())
+              .where((value) => value >= 0 && value < tokensPerPlayer)
+              .toSet()
+              .toList()
         : <int>[];
+    if (phase == GamePhase.rolling &&
+        lastDiceRoll != null &&
+        validTokenMoves.isNotEmpty) {
+      phase = GamePhase.moving;
+    } else if (phase == GamePhase.moving && lastDiceRoll == null) {
+      phase = GamePhase.rolling;
+      validTokenMoves = [];
+    } else if (phase == GamePhase.animating) {
+      phase = lastDiceRoll != null ? GamePhase.moving : GamePhase.rolling;
+    }
     final parsedWinner = (json['winner'] as num?)?.toInt();
-    winner = parsedWinner != null && parsedWinner >= 0 && parsedWinner < players.length
+    winner =
+        parsedWinner != null &&
+            parsedWinner >= 0 &&
+            parsedWinner < players.length
         ? parsedWinner
         : null;
     finishOrder = (json['finishOrder'] is List)
         ? (json['finishOrder'] as List)
-            .whereType<num>()
-            .map((value) => value.toInt())
-            .where((value) => value >= 0 && value < players.length)
-            .toSet()
-            .toList()
+              .whereType<num>()
+              .map((value) => value.toInt())
+              .where((value) => value >= 0 && value < players.length)
+              .toSet()
+              .toList()
         : <int>[];
     activeEmoji = json['activeEmoji'] as String?;
-    activeEmojiPlayerIndex = (json['activeEmojiPlayerIndex'] as num?)?.toInt();
+    final parsedEmojiPlayer = (json['activeEmojiPlayerIndex'] as num?)?.toInt();
+    activeEmojiPlayerIndex =
+        parsedEmojiPlayer != null &&
+            parsedEmojiPlayer >= 0 &&
+            parsedEmojiPlayer < players.length
+        ? parsedEmojiPlayer
+        : null;
     activeEmojiAt = (json['activeEmojiAt'] as num?)?.toInt();
     stateVersion = incomingVersion;
     notifyListeners();
   }
+
   /// Allow external callers (GameService) to record a state mutation and repaint.
   void notifyChange() => _markChanged();
 }
