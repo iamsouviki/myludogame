@@ -36,13 +36,13 @@ class GameScreen extends StatefulWidget {
   State<GameScreen> createState() => _GameScreenState();
 }
 
-class _GameScreenState extends State<GameScreen>
-    with TickerProviderStateMixin {
+class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   GameState get state => widget.service.state;
   late AnimationController _turnGlow;
   late final ConfettiController _emojiConfetti;
   StreamSubscription<RoomData>? _roomSubscription;
   StreamSubscription<List<ChatMessage>>? _chatSubscription;
+  StreamSubscription<OnlineAction>? _actionSubscription;
   int _seenChatCount = 0;
   int _unreadChatCount = 0;
   String? _bannerText;
@@ -51,8 +51,31 @@ class _GameScreenState extends State<GameScreen>
   List<String> _knownRoomPlayerIds = [];
   bool _leaveHandled = false;
   Map<String, dynamic>? _pendingRemoteState;
+  RoomData? _pendingRoomUpdate;
   static const List<String> _turnEmojis = ['🎲', '⚡', '🔥', '👊', '🏆'];
   int? _lastEmojiSeenAt;
+  bool _onlineActionPending = false;
+  Timer? _onlineActionTimer;
+  final Set<String> _seenOnlineActions = <String>{};
+
+  Future<void> _leaveOnlineAndGoHome() async {
+    if (_isOnline) {
+      await widget.onlineService!.leaveRoom();
+      widget.onlineService!.dispose();
+    } else {
+      LocalGameStorage.removeGame();
+    }
+    if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
+  }
+
+  void _replayOfflineGame() {
+    if (_isOnline) {
+      unawaited(_leaveOnlineAndGoHome());
+      return;
+    }
+    state.reset();
+    widget.service.start();
+  }
 
   /// Whether the local player is the one whose turn it is
   bool get _isLocalPlayerTurn {
@@ -79,7 +102,10 @@ class _GameScreenState extends State<GameScreen>
       vsync: this,
     )..repeat(reverse: true);
     state.addListener(_onStateChange);
-    widget.service.onMoveComplete = _syncToFirebase;
+    widget.service.onMoveComplete = () {
+      _syncToFirebase();
+      _applyPendingRoomUpdate();
+    };
     widget.service.start();
     _knownRoomPlayerIds = state.players.map((p) => p.id).toList();
 
@@ -112,6 +138,9 @@ class _GameScreenState extends State<GameScreen>
           setState(() {});
         }
       });
+      _actionSubscription = widget.onlineService!.actionStream.listen(
+        _onOnlineAction,
+      );
     }
   }
 
@@ -122,9 +151,12 @@ class _GameScreenState extends State<GameScreen>
     state.removeListener(_onStateChange);
     _roomSubscription?.cancel();
     _chatSubscription?.cancel();
+    _actionSubscription?.cancel();
     _bannerTimer?.cancel();
     _emojiTimer?.cancel();
+    _onlineActionTimer?.cancel();
     widget.service.dispose();
+    widget.onlineService?.dispose();
     super.dispose();
   }
 
@@ -137,7 +169,9 @@ class _GameScreenState extends State<GameScreen>
     if (mounted) {
       _syncEmojiLifecycle();
       setState(() {});
-      if (state.isGameOver && !_dialogShown) {
+      if (state.isGameOver &&
+          !_dialogShown &&
+          (!_isOnline || state.players.length >= 2)) {
         _dialogShown = true;
         if (_isOnline) {
           widget.onlineService!.storeFinishedMatch(state);
@@ -154,23 +188,56 @@ class _GameScreenState extends State<GameScreen>
       _pendingRemoteState = Map<String, dynamic>.from(remoteState);
       return;
     }
+    final beforeVersion = state.stateVersion;
     state.loadFromJson(remoteState);
+    if (state.stateVersion != beforeVersion) {
+      _onlineActionPending = false;
+      _onlineActionTimer?.cancel();
+      widget.service.recoverNoMoveTurn();
+    }
+  }
+
+  void _applyPendingRoomUpdate() {
+    if (_pendingRoomUpdate == null || widget.service.isAnimating) return;
+    final pending = _pendingRoomUpdate;
+    _pendingRoomUpdate = null;
+    if (pending != null) _handleRoomRosterChange(pending);
   }
 
   void _handleRoomRosterChange(RoomData room) {
+    if (widget.service.isAnimating) {
+      _pendingRoomUpdate = room;
+      return;
+    }
     if (_isOnline) {
-      widget.service.runAI = (widget.onlineService!.localPlayerId == room.hostId);
+      widget.service.runAI =
+          (widget.onlineService!.localPlayerId == room.hostId);
     }
 
     final incomingIds = room.players.map((p) => p.id).toList();
-    final removedIds = _knownRoomPlayerIds.where((id) => !incomingIds.contains(id)).toList();
+    if (incomingIds.isEmpty && room.status == RoomStatus.finished) {
+      if (!_leaveHandled) {
+        _leaveHandled = true;
+        _showInlineBanner('This online match has ended.');
+        Future.delayed(const Duration(seconds: 1), () {
+          if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
+        });
+      }
+      return;
+    }
+    final removedIds = _knownRoomPlayerIds
+        .where((id) => !incomingIds.contains(id))
+        .toList();
     if (removedIds.isEmpty) {
       _knownRoomPlayerIds = incomingIds;
+      widget.service.recoverNoMoveTurn();
       return;
     }
 
     for (final removedId in removedIds) {
-      final removedPlayer = state.players.where((p) => p.id == removedId).toList();
+      final removedPlayer = state.players
+          .where((p) => p.id == removedId)
+          .toList();
       if (removedPlayer.isNotEmpty) {
         final name = removedPlayer.first.name;
         state.removePlayerById(removedId);
@@ -190,6 +257,7 @@ class _GameScreenState extends State<GameScreen>
     }
 
     _knownRoomPlayerIds = incomingIds;
+    widget.service.recoverNoMoveTurn();
 
     if (_isOnline && state.players.length <= 1 && !_leaveHandled) {
       _leaveHandled = true;
@@ -198,6 +266,46 @@ class _GameScreenState extends State<GameScreen>
         if (!mounted) return;
         Navigator.of(context).popUntil((route) => route.isFirst);
       });
+    }
+  }
+
+  Future<void> _onOnlineAction(OnlineAction action) async {
+    if (!_isOnline || !widget.onlineService!.isLocalHost) return;
+    if (!_seenOnlineActions.add(action.id)) {
+      await widget.onlineService!.consumeAction(action);
+      return;
+    }
+    if (action.actorId == widget.onlineService!.localPlayerId) return;
+
+    final actorIndex = state.players.indexWhere(
+      (player) => player.id == action.actorId,
+    );
+    if (actorIndex < 0 || actorIndex != state.currentPlayerIndex) {
+      await widget.onlineService!.consumeAction(action);
+      return;
+    }
+
+    try {
+      switch (action.type) {
+        case 'roll':
+          if (state.phase == GamePhase.rolling && !state.isCurrentPlayerAI) {
+            widget.service.rollDice();
+          }
+        case 'move':
+          final tokenIndex = action.tokenIndex;
+          if (tokenIndex != null &&
+              state.phase == GamePhase.moving &&
+              state.validTokenMoves.contains(tokenIndex)) {
+            widget.service.selectToken(tokenIndex);
+          }
+        case 'emoji':
+          final emoji = action.emoji;
+          if (emoji != null && state.phase != GamePhase.finished) {
+            if (state.setTurnEmoji(emoji)) _syncToFirebase();
+          }
+      }
+    } finally {
+      await widget.onlineService!.consumeAction(action);
     }
   }
 
@@ -231,7 +339,8 @@ class _GameScreenState extends State<GameScreen>
       return;
     }
 
-    if (_lastEmojiSeenAt == state.activeEmojiAt && (_emojiTimer?.isActive ?? false)) {
+    if (_lastEmojiSeenAt == state.activeEmojiAt &&
+        (_emojiTimer?.isActive ?? false)) {
       return;
     }
 
@@ -241,7 +350,8 @@ class _GameScreenState extends State<GameScreen>
 
     _emojiTimer = Timer(const Duration(seconds: 2), () {
       if (!mounted || state.activeEmoji == null) return;
-      if (widget.localPlayerId != null && state.currentPlayer.id != widget.localPlayerId) {
+      if (widget.localPlayerId != null &&
+          state.currentPlayer.id != widget.localPlayerId) {
         return;
       }
       state.activeEmoji = null;
@@ -268,8 +378,15 @@ class _GameScreenState extends State<GameScreen>
 
   void _chooseEmoji(String emoji) {
     if (!mounted || state.isGameOver) return;
-    if (widget.localPlayerId != null && state.currentPlayer.id != widget.localPlayerId) return;
+    if (widget.localPlayerId != null &&
+        state.currentPlayer.id != widget.localPlayerId) {
+      return;
+    }
     if (state.activeEmoji != null) return;
+    if (_isOnline && !widget.onlineService!.isLocalHost) {
+      unawaited(_submitOnlineAction(type: 'emoji', emoji: emoji));
+      return;
+    }
     if (state.setTurnEmoji(emoji)) {
       _emojiConfetti.play();
       _syncToFirebase();
@@ -277,13 +394,42 @@ class _GameScreenState extends State<GameScreen>
     }
   }
 
+  Future<void> _submitOnlineAction({
+    required String type,
+    int? tokenIndex,
+    String? emoji,
+  }) async {
+    _onlineActionPending = true;
+    _onlineActionTimer?.cancel();
+    _onlineActionTimer = Timer(const Duration(seconds: 5), () {
+      if (mounted) setState(() => _onlineActionPending = false);
+    });
+    final submitted = await widget.onlineService!.submitAction(
+      type: type,
+      tokenIndex: tokenIndex,
+      emoji: emoji,
+    );
+    if (!submitted && mounted) {
+      _onlineActionTimer?.cancel();
+      setState(() => _onlineActionPending = false);
+    }
+  }
+
   void _onDiceRoll() {
-    if (!_isLocalPlayerTurn) return;
+    if (!_isLocalPlayerTurn || _onlineActionPending) return;
+    if (_isOnline && !widget.onlineService!.isLocalHost) {
+      unawaited(_submitOnlineAction(type: 'roll'));
+      return;
+    }
     widget.service.rollDice();
   }
 
   void _onTokenTap(int tokenIndex) {
-    if (!_isLocalPlayerTurn) return;
+    if (!_isLocalPlayerTurn || _onlineActionPending) return;
+    if (_isOnline && !widget.onlineService!.isLocalHost) {
+      unawaited(_submitOnlineAction(type: 'move', tokenIndex: tokenIndex));
+      return;
+    }
     widget.service.selectToken(tokenIndex);
     // Sync will happen after animation completes via _finishMoveTurn
   }
@@ -295,8 +441,8 @@ class _GameScreenState extends State<GameScreen>
         children: [
           Container(
             decoration: AppTheme.artisticBackground(),
-          child: SafeArea(
-            child: LayoutBuilder(
+            child: SafeArea(
+              child: LayoutBuilder(
                 builder: (context, constraints) {
                   final isWide = constraints.maxWidth > 700;
                   return isWide
@@ -310,7 +456,9 @@ class _GameScreenState extends State<GameScreen>
           IgnorePointer(
             child: SafeArea(
               child: AnimatedSlide(
-                offset: _bannerText == null ? const Offset(0, -0.2) : Offset.zero,
+                offset: _bannerText == null
+                    ? const Offset(0, -0.2)
+                    : Offset.zero,
                 duration: const Duration(milliseconds: 240),
                 curve: Curves.easeOutCubic,
                 child: AnimatedOpacity(
@@ -325,53 +473,67 @@ class _GameScreenState extends State<GameScreen>
                         child: ConstrainedBox(
                           constraints: const BoxConstraints(maxWidth: 420),
                           child: Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 16),
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFF111827), Color(0xFF1F2937)],
+                            margin: const EdgeInsets.symmetric(horizontal: 16),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 10,
                             ),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.45)),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.35),
-                                blurRadius: 18,
-                                offset: const Offset(0, 8),
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFF111827), Color(0xFF1F2937)],
                               ),
-                            ],
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 34,
-                                height: 34,
-                                decoration: BoxDecoration(
-                                  gradient: const LinearGradient(
-                                    colors: [Color(0xFF00E5FF), Color(0xFFEC4899)],
-                                  ),
-                                  borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: const Color(
+                                  0xFF00E5FF,
+                                ).withValues(alpha: 0.45),
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.35),
+                                  blurRadius: 18,
+                                  offset: const Offset(0, 8),
                                 ),
-                                child: const Icon(Icons.notifications_active_rounded, color: Colors.white, size: 18),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  _bannerText ?? '',
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
+                              ],
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 34,
+                                  height: 34,
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                      colors: [
+                                        Color(0xFF00E5FF),
+                                        Color(0xFFEC4899),
+                                      ],
+                                    ),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Icon(
+                                    Icons.notifications_active_rounded,
                                     color: Colors.white,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 13,
+                                    size: 18,
                                   ),
                                 ),
-                              ),
-                            ],
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    _bannerText ?? '',
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
-                    ),
                     ),
                   ),
                 ),
@@ -389,15 +551,16 @@ class _GameScreenState extends State<GameScreen>
     final controlPanelHeight = isCompact ? 160.0 : 220.0;
     final maxAvailableWidth = constraints.maxWidth - 24;
     final maxAvailableHeight = constraints.maxHeight - controlPanelHeight - 60;
-    final boardSize = min(maxAvailableWidth, maxAvailableHeight).clamp(200.0, 600.0);
+    final boardSize = min(
+      maxAvailableWidth,
+      maxAvailableHeight,
+    ).clamp(200.0, 600.0);
 
     return Column(
       children: [
         _buildTopBar(),
         if (!isCompact) const SizedBox(height: 8),
-        Expanded(
-          child: Center(child: _buildBoard(boardSize)),
-        ),
+        Expanded(child: Center(child: _buildBoard(boardSize))),
         _buildControlPanel(isCompact: isCompact),
         SizedBox(height: isCompact ? 4 : 8),
       ],
@@ -407,7 +570,10 @@ class _GameScreenState extends State<GameScreen>
   Widget _buildWideLayout(BoxConstraints constraints) {
     final maxAvailableWidth = constraints.maxWidth - 320;
     final maxAvailableHeight = constraints.maxHeight - 40;
-    final boardSize = min(maxAvailableWidth, maxAvailableHeight).clamp(300.0, 750.0);
+    final boardSize = min(
+      maxAvailableWidth,
+      maxAvailableHeight,
+    ).clamp(300.0, 750.0);
 
     return Row(
       children: [
@@ -454,7 +620,11 @@ class _GameScreenState extends State<GameScreen>
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: const [
-                  Icon(Icons.emoji_events_rounded, color: Colors.black87, size: 16),
+                  Icon(
+                    Icons.emoji_events_rounded,
+                    color: Colors.black87,
+                    size: 16,
+                  ),
                   SizedBox(width: 4),
                   Text(
                     'GAME OVER',
@@ -496,10 +666,16 @@ class _GameScreenState extends State<GameScreen>
           _unreadChatCount = 0;
           setState(() {});
           final myName = state.players
-              .firstWhere((p) => p.id == widget.localPlayerId,
-                  orElse: () => state.players.first)
+              .firstWhere(
+                (p) => p.id == widget.localPlayerId,
+                orElse: () => state.players.first,
+              )
               .name;
-          OnlineChatWidget.showChatModal(context, widget.onlineService!, myName);
+          OnlineChatWidget.showChatModal(
+            context,
+            widget.onlineService!,
+            myName,
+          );
         }),
         if (_unreadChatCount > 0)
           Positioned(
@@ -508,7 +684,9 @@ class _GameScreenState extends State<GameScreen>
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [Color(0xFFEC4899), Color(0xFF7C3AED)]),
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFEC4899), Color(0xFF7C3AED)],
+                ),
                 borderRadius: BorderRadius.circular(999),
                 border: Border.all(color: Colors.white, width: 1),
               ),
@@ -585,10 +763,12 @@ class _GameScreenState extends State<GameScreen>
           final homeCenter = config.homeStretchPosition(p, 5);
           final row = t ~/ 2;
           final col = t % 2;
-          pixelPos = homeCenter + Offset(
-            (col - 0.5) * (config.cellSize * 0.28),
-            (row - 0.5) * (config.cellSize * 0.28),
-          );
+          pixelPos =
+              homeCenter +
+              Offset(
+                (col - 0.5) * (config.cellSize * 0.28),
+                (row - 0.5) * (config.cellSize * 0.28),
+              );
           tokenSize = config.cellSize * 0.48;
         } else if (pos == posInBase) {
           pixelPos = config.basePosition(p, t);
@@ -620,12 +800,16 @@ class _GameScreenState extends State<GameScreen>
           }
 
           // If this token is NOT the representative token for its player color on this cell, skip rendering
-          final isRepresentative = distinctPlayerTokens.any((ref) => ref.playerIndex == p && ref.tokenIndex == t);
+          final isRepresentative = distinctPlayerTokens.any(
+            (ref) => ref.playerIndex == p && ref.tokenIndex == t,
+          );
           if (!isRepresentative) continue;
 
           if (distinctPlayerTokens.length > 1) {
             tokenSize = config.cellSize * 0.48;
-            final myColorIndex = distinctPlayerTokens.indexWhere((ref) => ref.playerIndex == p);
+            final myColorIndex = distinctPlayerTokens.indexWhere(
+              (ref) => ref.playerIndex == p,
+            );
 
             final offsets = [
               Offset(-config.cellSize * 0.2, -config.cellSize * 0.2),
@@ -638,7 +822,8 @@ class _GameScreenState extends State<GameScreen>
           }
         }
 
-        final isHighlighted = p == state.currentPlayerIndex &&
+        final isHighlighted =
+            p == state.currentPlayerIndex &&
             state.phase == GamePhase.moving &&
             state.validTokenMoves.contains(t) &&
             !state.isCurrentPlayerAI;
@@ -667,10 +852,12 @@ class _GameScreenState extends State<GameScreen>
   // ── Control panel ──
 
   Widget _buildControlPanel({bool isCompact = false}) {
-    final isMyTurn = widget.localPlayerId == null ||
+    final isMyTurn =
+        widget.localPlayerId == null ||
         state.currentPlayer.id == widget.localPlayerId;
 
-    final canRoll = state.phase == GamePhase.rolling &&
+    final canRoll =
+        state.phase == GamePhase.rolling &&
         !state.isCurrentPlayerAI &&
         !state.isGameOver &&
         isMyTurn;
@@ -741,11 +928,11 @@ class _GameScreenState extends State<GameScreen>
                         SizedBox(
                           height: 36,
                           child: ElevatedButton(
-                            onPressed: () {
-                              state.reset();
-                              widget.service.start();
-                            },
-                            child: const Text('REPLAY', style: TextStyle(fontSize: 11)),
+                            onPressed: _replayOfflineGame,
+                            child: Text(
+                              _isOnline ? 'HOME' : 'REPLAY',
+                              style: const TextStyle(fontSize: 11),
+                            ),
                           ),
                         ),
                       ],
@@ -806,7 +993,10 @@ class _GameScreenState extends State<GameScreen>
                   if (canRoll && state.lastDiceRoll == null)
                     AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: activePlayerColor.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(8),
@@ -817,7 +1007,11 @@ class _GameScreenState extends State<GameScreen>
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.touch_app_rounded, size: 14, color: activePlayerColor),
+                          Icon(
+                            Icons.touch_app_rounded,
+                            size: 14,
+                            color: activePlayerColor,
+                          ),
                           const SizedBox(width: 4),
                           Text(
                             'Tap to roll',
@@ -830,9 +1024,13 @@ class _GameScreenState extends State<GameScreen>
                         ],
                       ),
                     )
-                  else if (state.phase == GamePhase.moving && !state.isCurrentPlayerAI)
+                  else if (state.phase == GamePhase.moving &&
+                      !state.isCurrentPlayerAI)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: activePlayerColor.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(8),
@@ -850,7 +1048,9 @@ class _GameScreenState extends State<GameScreen>
                       ),
                     )
                   else
-                    const SizedBox(height: 24), // Reserve empty space while rolling or showing dice result
+                    const SizedBox(
+                      height: 24,
+                    ), // Reserve empty space while rolling or showing dice result
 
                   if (state.isGameOver) ...[
                     const SizedBox(height: 12),
@@ -858,12 +1058,12 @@ class _GameScreenState extends State<GameScreen>
                       width: double.infinity,
                       height: 44,
                       child: ElevatedButton.icon(
-                        onPressed: () {
-                          state.reset();
-                          widget.service.start();
-                        },
-                        icon: const Icon(Icons.replay_rounded, size: 18),
-                        label: const Text('PLAY AGAIN'),
+                        onPressed: _replayOfflineGame,
+                        icon: Icon(
+                          _isOnline ? Icons.home_rounded : Icons.replay_rounded,
+                          size: 18,
+                        ),
+                        label: Text(_isOnline ? 'RETURN HOME' : 'PLAY AGAIN'),
                       ),
                     ),
                   ],
@@ -878,12 +1078,20 @@ class _GameScreenState extends State<GameScreen>
     if (canRoll && state.lastDiceRoll == null) {
       return Text(
         'Tap dice to roll',
-        style: TextStyle(color: activePlayerColor, fontSize: 10, fontWeight: FontWeight.w600),
+        style: TextStyle(
+          color: activePlayerColor,
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
+        ),
       );
     } else if (state.phase == GamePhase.moving && !state.isCurrentPlayerAI) {
       return Text(
         'Select a token',
-        style: TextStyle(color: activePlayerColor, fontSize: 10, fontWeight: FontWeight.w600),
+        style: TextStyle(
+          color: activePlayerColor,
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
+        ),
       );
     }
     return const SizedBox.shrink();
@@ -892,10 +1100,12 @@ class _GameScreenState extends State<GameScreen>
   // ponytail: compact emoji row for small phones — high visibility buttons with distinct touch targets
   Widget _buildCompactEmojiStrip(bool canRollNow) {
     final active = state.activeEmoji;
-    final canPick = !state.isGameOver &&
+    final canPick =
+        !state.isGameOver &&
         active == null &&
         (_isOnline
-            ? (widget.localPlayerId == null || state.currentPlayer.id == widget.localPlayerId)
+            ? (widget.localPlayerId == null ||
+                  state.currentPlayer.id == widget.localPlayerId)
             : !state.isCurrentPlayerAI);
 
     return Container(
@@ -914,19 +1124,25 @@ class _GameScreenState extends State<GameScreen>
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 gradient: isSelected
-                    ? const LinearGradient(colors: [Color(0xFF7C3AED), Color(0xFFEC4899)])
+                    ? const LinearGradient(
+                        colors: [Color(0xFF7C3AED), Color(0xFFEC4899)],
+                      )
                     : LinearGradient(colors: [AppTheme.bg3, AppTheme.surface]),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: isSelected
                       ? const Color(0xFF00E5FF)
-                      : (canPick ? AppTheme.accentLight.withValues(alpha: 0.5) : AppTheme.border),
+                      : (canPick
+                            ? AppTheme.accentLight.withValues(alpha: 0.5)
+                            : AppTheme.border),
                   width: isSelected ? 2 : 1,
                 ),
                 boxShadow: canPick
                     ? [
                         BoxShadow(
-                          color: const Color(0xFF7C3AED).withValues(alpha: 0.25),
+                          color: const Color(
+                            0xFF7C3AED,
+                          ).withValues(alpha: 0.25),
                           blurRadius: 6,
                         ),
                       ]
@@ -942,10 +1158,12 @@ class _GameScreenState extends State<GameScreen>
 
   Widget _buildEmojiStrip(bool canUseNow) {
     final active = state.activeEmoji;
-    final canPickEmoji = !state.isGameOver &&
+    final canPickEmoji =
+        !state.isGameOver &&
         active == null &&
         (_isOnline
-            ? (widget.localPlayerId == null || state.currentPlayer.id == widget.localPlayerId)
+            ? (widget.localPlayerId == null ||
+                  state.currentPlayer.id == widget.localPlayerId)
             : !state.isCurrentPlayerAI);
 
     return Column(
@@ -953,7 +1171,11 @@ class _GameScreenState extends State<GameScreen>
       children: [
         Row(
           children: [
-            Icon(Icons.emoji_emotions_outlined, size: 16, color: AppTheme.accentLight),
+            Icon(
+              Icons.emoji_emotions_outlined,
+              size: 16,
+              color: AppTheme.accentLight,
+            ),
             const SizedBox(width: 6),
             Text(
               'Turn emoji',
@@ -979,10 +1201,15 @@ class _GameScreenState extends State<GameScreen>
               onTap: canPickEmoji ? () => _chooseEmoji(emoji) : null,
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 220),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
                   gradient: isSelected
-                      ? const LinearGradient(colors: [Color(0xFF7C3AED), Color(0xFFEC4899)])
+                      ? const LinearGradient(
+                          colors: [Color(0xFF7C3AED), Color(0xFFEC4899)],
+                        )
                       : null,
                   color: isSelected ? null : AppTheme.bg3,
                   borderRadius: BorderRadius.circular(14),
@@ -994,7 +1221,9 @@ class _GameScreenState extends State<GameScreen>
                   boxShadow: isSelected
                       ? [
                           BoxShadow(
-                            color: const Color(0xFFEC4899).withValues(alpha: 0.3),
+                            color: const Color(
+                              0xFFEC4899,
+                            ).withValues(alpha: 0.3),
                             blurRadius: 14,
                             spreadRadius: 1,
                           ),
@@ -1026,7 +1255,9 @@ class _GameScreenState extends State<GameScreen>
 
   Widget _buildEmojiOverlay() {
     final emoji = state.activeEmoji ?? '🎉';
-    final name = state.activeEmojiPlayerIndex != null && state.activeEmojiPlayerIndex! < state.players.length
+    final name =
+        state.activeEmojiPlayerIndex != null &&
+            state.activeEmojiPlayerIndex! < state.players.length
         ? state.players[state.activeEmojiPlayerIndex!].name
         : state.currentPlayer.name;
 
@@ -1075,7 +1306,10 @@ class _GameScreenState extends State<GameScreen>
                     return Transform.scale(scale: scale, child: child);
                   },
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 22),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 28,
+                      vertical: 22,
+                    ),
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
                         colors: [Color(0xFF111827), Color(0xFF1F2937)],
@@ -1129,10 +1363,24 @@ class _GameScreenState extends State<GameScreen>
 
   String _statusText() {
     if (state.isGameOver) {
-      return '${state.players[state.winner!].name} wins the game!';
+      final winner = state.winner;
+      if (winner != null && winner >= 0 && winner < state.players.length) {
+        final winnerPlayer = state.players[winner];
+        if (state.isTeamMode && winnerPlayer.teamId != null) {
+          final teamNames = state.players
+              .where((player) => player.teamId == winnerPlayer.teamId)
+              .map((player) => player.name)
+              .join(' & ');
+          return '$teamNames win the game!';
+        }
+        return '${winnerPlayer.name} wins the game!';
+      }
+      return 'Match ended';
     }
     final name = state.currentPlayer.name;
-    if (state.isCurrentPlayerAI) return '$name (AI) is thinking... ${state.activeEmoji ?? '🤖'}';
+    if (state.isCurrentPlayerAI) {
+      return '$name (AI) is thinking... ${state.activeEmoji ?? '🤖'}';
+    }
 
     switch (state.phase) {
       case GamePhase.rolling:
@@ -1155,8 +1403,10 @@ class _GameScreenState extends State<GameScreen>
       builder: (ctx) => AlertDialog(
         backgroundColor: AppTheme.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Leave Game?',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+        title: const Text(
+          'Leave Game?',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+        ),
         content: Text(
           _isOnline
               ? 'Your online match will be left.'
@@ -1171,14 +1421,7 @@ class _GameScreenState extends State<GameScreen>
           TextButton(
             onPressed: () async {
               Navigator.pop(ctx);
-              if (_isOnline) {
-                await widget.onlineService?.leaveRoom();
-              } else {
-                LocalGameStorage.removeGame();
-              }
-              if (mounted) {
-                Navigator.of(context).popUntil((route) => route.isFirst);
-              }
+              await _leaveOnlineAndGoHome();
             },
             child: Text('Leave', style: TextStyle(color: AppTheme.danger)),
           ),
@@ -1193,21 +1436,27 @@ class _GameScreenState extends State<GameScreen>
       builder: (ctx) => AlertDialog(
         backgroundColor: AppTheme.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Restart Game?',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+        title: const Text(
+          'Restart Game?',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel',
-                style: TextStyle(color: AppTheme.textSecondary)),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: AppTheme.textSecondary),
+            ),
           ),
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
-              state.reset();
-              widget.service.start();
+              _replayOfflineGame();
             },
-            child: Text('Restart', style: TextStyle(color: AppTheme.warning)),
+            child: Text(
+              _isOnline ? 'Leave Match' : 'Restart',
+              style: TextStyle(color: AppTheme.warning),
+            ),
           ),
         ],
       ),
@@ -1215,8 +1464,19 @@ class _GameScreenState extends State<GameScreen>
   }
 
   void _showVictoryModal() {
-    final winnerIndex = state.winner ?? 0;
+    final winnerIndex = state.winner;
+    if (winnerIndex == null ||
+        winnerIndex < 0 ||
+        winnerIndex >= state.players.length) {
+      return;
+    }
     final winnerPlayer = state.players[winnerIndex];
+    final winnerLabel = state.isTeamMode && winnerPlayer.teamId != null
+        ? state.players
+              .where((player) => player.teamId == winnerPlayer.teamId)
+              .map((player) => player.name)
+              .join(' & ')
+        : winnerPlayer.name;
 
     showDialog(
       context: context,
@@ -1228,7 +1488,10 @@ class _GameScreenState extends State<GameScreen>
           decoration: BoxDecoration(
             color: AppTheme.surface,
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: AppTheme.accentLight.withValues(alpha: 0.5), width: 2),
+            border: Border.all(
+              color: AppTheme.accentLight.withValues(alpha: 0.5),
+              width: 2,
+            ),
             boxShadow: [
               BoxShadow(
                 color: const Color(0xFFFFD700).withValues(alpha: 0.3),
@@ -1266,7 +1529,7 @@ class _GameScreenState extends State<GameScreen>
                   ),
                   const SizedBox(width: 10),
                   Text(
-                    winnerPlayer.name,
+                    winnerLabel,
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 20,
@@ -1293,7 +1556,9 @@ class _GameScreenState extends State<GameScreen>
                           Text(
                             '#${rank + 1}',
                             style: TextStyle(
-                              color: rank == 0 ? AppTheme.gold : AppTheme.textSecondary,
+                              color: rank == 0
+                                  ? AppTheme.gold
+                                  : AppTheme.textSecondary,
                               fontWeight: FontWeight.w800,
                               fontSize: 14,
                             ),
@@ -1326,7 +1591,7 @@ class _GameScreenState extends State<GameScreen>
                     child: OutlinedButton(
                       onPressed: () {
                         Navigator.pop(ctx);
-                        Navigator.of(context).popUntil((route) => route.isFirst);
+                        unawaited(_leaveOnlineAndGoHome());
                       },
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppTheme.textSecondary,
@@ -1346,8 +1611,7 @@ class _GameScreenState extends State<GameScreen>
                         setState(() {
                           _dialogShown = false;
                         });
-                        state.reset();
-                        widget.service.start();
+                        _replayOfflineGame();
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppTheme.accent,
@@ -1355,7 +1619,7 @@ class _GameScreenState extends State<GameScreen>
                           borderRadius: BorderRadius.circular(14),
                         ),
                       ),
-                      child: const Text('PLAY AGAIN'),
+                      child: Text(_isOnline ? 'RETURN HOME' : 'PLAY AGAIN'),
                     ),
                   ),
                 ],

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 
 import '../../services/online_service.dart';
 import '../theme.dart';
@@ -15,19 +16,18 @@ class OnlineChatWidget extends StatefulWidget {
     required this.playerName,
   });
 
-  static void showChatModal(BuildContext context, OnlineService service, String playerName) {
+  static void showChatModal(
+    BuildContext context,
+    OnlineService service,
+    String playerName,
+  ) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(ctx).viewInsets.bottom,
-        ),
-        child: OnlineChatWidget(
-          onlineService: service,
-          playerName: playerName,
-        ),
+        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+        child: OnlineChatWidget(onlineService: service, playerName: playerName),
       ),
     );
   }
@@ -40,6 +40,7 @@ class _OnlineChatWidgetState extends State<OnlineChatWidget> {
   final TextEditingController _msgController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   List<ChatMessage> _messages = [];
+  StreamSubscription<List<ChatMessage>>? _chatSubscription;
 
   static const List<String> _quickPhrases = [
     'Good luck! 🎲',
@@ -53,7 +54,7 @@ class _OnlineChatWidgetState extends State<OnlineChatWidget> {
   void initState() {
     super.initState();
     _messages = widget.onlineService.currentChatMessages();
-    widget.onlineService.chatStream.listen((msgs) {
+    _chatSubscription = widget.onlineService.chatStream.listen((msgs) {
       if (mounted) {
         setState(() => _messages = msgs);
         _scrollToBottom();
@@ -63,6 +64,7 @@ class _OnlineChatWidgetState extends State<OnlineChatWidget> {
 
   @override
   void dispose() {
+    _chatSubscription?.cancel();
     _msgController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -114,7 +116,11 @@ class _OnlineChatWidgetState extends State<OnlineChatWidget> {
             ),
             child: Row(
               children: [
-                const Icon(Icons.chat_bubble_outline_rounded, color: Color(0xFF00E5FF), size: 20),
+                const Icon(
+                  Icons.chat_bubble_outline_rounded,
+                  color: Color(0xFF00E5FF),
+                  size: 20,
+                ),
                 const SizedBox(width: 8),
                 Text(
                   'Live Chat',
@@ -126,7 +132,11 @@ class _OnlineChatWidgetState extends State<OnlineChatWidget> {
                 ),
                 const Spacer(),
                 IconButton(
-                  icon: const Icon(Icons.close_rounded, size: 20, color: Colors.white60),
+                  icon: const Icon(
+                    Icons.close_rounded,
+                    size: 20,
+                    color: Colors.white60,
+                  ),
                   onPressed: () => Navigator.pop(context),
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
@@ -149,34 +159,47 @@ class _OnlineChatWidgetState extends State<OnlineChatWidget> {
                     itemCount: _messages.length,
                     itemBuilder: (context, index) {
                       final msg = _messages[index];
-                      final isMe = msg.senderId == widget.onlineService.localPlayerId;
+                      final isMe =
+                          msg.senderId == widget.onlineService.localPlayerId;
 
                       return Padding(
                         padding: const EdgeInsets.symmetric(vertical: 4),
                         child: Align(
-                          alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+                          alignment: isMe
+                              ? Alignment.centerRight
+                              : Alignment.centerLeft,
                           child: Container(
                             constraints: const BoxConstraints(maxWidth: 260),
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
                             decoration: BoxDecoration(
                               color: isMe
-                                  ? const Color(0xFF8B5CF6).withValues(alpha: 0.3)
+                                  ? const Color(
+                                      0xFF8B5CF6,
+                                    ).withValues(alpha: 0.3)
                                   : AppTheme.bg3,
                               borderRadius: BorderRadius.circular(14),
                               border: Border.all(
                                 color: isMe
-                                    ? const Color(0xFF8B5CF6).withValues(alpha: 0.6)
+                                    ? const Color(
+                                        0xFF8B5CF6,
+                                      ).withValues(alpha: 0.6)
                                     : AppTheme.border,
                               ),
                             ),
                             child: Column(
-                              crossAxisAlignment:
-                                  isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                              crossAxisAlignment: isMe
+                                  ? CrossAxisAlignment.end
+                                  : CrossAxisAlignment.start,
                               children: [
                                 Text(
                                   msg.senderName,
                                   style: TextStyle(
-                                    color: isMe ? const Color(0xFFEC4899) : AppTheme.accentLight,
+                                    color: isMe
+                                        ? const Color(0xFFEC4899)
+                                        : AppTheme.accentLight,
                                     fontSize: 10,
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -212,11 +235,16 @@ class _OnlineChatWidgetState extends State<OnlineChatWidget> {
                   child: ActionChip(
                     label: Text(
                       phrase,
-                      style: const TextStyle(color: Colors.white70, fontSize: 11),
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 11,
+                      ),
                     ),
                     backgroundColor: AppTheme.bg3,
                     side: BorderSide(color: AppTheme.border),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                     onPressed: () => _sendMessage(phrase),
                   ),
                 );
@@ -240,10 +268,16 @@ class _OnlineChatWidgetState extends State<OnlineChatWidget> {
                     onSubmitted: (_) => _sendMessage(),
                     decoration: InputDecoration(
                       hintText: 'Type any message...',
-                      hintStyle: TextStyle(color: AppTheme.textMuted, fontSize: 13),
+                      hintStyle: TextStyle(
+                        color: AppTheme.textMuted,
+                        fontSize: 13,
+                      ),
                       filled: true,
                       fillColor: AppTheme.bg3,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16),
                         borderSide: BorderSide(color: AppTheme.border),
@@ -275,7 +309,11 @@ class _OnlineChatWidgetState extends State<OnlineChatWidget> {
                         ),
                       ],
                     ),
-                    child: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
+                    child: const Icon(
+                      Icons.send_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
                   ),
                 ),
               ],

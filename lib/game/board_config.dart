@@ -56,7 +56,7 @@ class BoardConfig {
         PlayerColor.red,
         PlayerColor.green,
         PlayerColor.yellow,
-        PlayerColor.blue
+        PlayerColor.blue,
       ];
     } else {
       return PlayerColor.values;
@@ -106,7 +106,7 @@ class BoardConfig {
     [5, 8], [4, 8], [3, 8], [2, 8], [1, 8], [0, 8],
     // Turn (cell 11)
     [0, 7],
-    // Green Start (cell 12): [0, 6]
+    // Green pre-entry (cell 12): [0, 6]
     [0, 6],
     // Left arm bottom row going right (cells 13-17)
     [1, 6], [2, 6], [3, 6], [4, 6], [5, 6],
@@ -114,7 +114,7 @@ class BoardConfig {
     [6, 5], [6, 4], [6, 3], [6, 2], [6, 1], [6, 0],
     // Turn (cell 24)
     [7, 0],
-    // Yellow Start (cell 25): [8, 0]
+    // Yellow pre-entry (cell 25): [8, 0]
     [8, 0],
     // Top arm right col going down (cells 26-30)
     [8, 1], [8, 2], [8, 3], [8, 4], [8, 5],
@@ -122,7 +122,7 @@ class BoardConfig {
     [9, 6], [10, 6], [11, 6], [12, 6], [13, 6], [14, 6],
     // Turn (cell 37)
     [14, 7],
-    // Blue Start (cell 38): [14, 8]
+    // Blue pre-entry (cell 38): [14, 8]
     [14, 8],
     // Right arm bottom row going left (cells 39-43)
     [13, 8], [12, 8], [11, 8], [10, 8], [9, 8],
