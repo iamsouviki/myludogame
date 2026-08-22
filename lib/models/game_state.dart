@@ -29,6 +29,9 @@ class GameState extends ChangeNotifier {
   int? activeEmojiPlayerIndex;
   int? activeEmojiAt;
 
+  // Monotonic client revision used to reject stale online state writes.
+  int stateVersion = 0;
+
   GameState({
     required this.boardType,
     required this.players,
@@ -45,6 +48,14 @@ class GameState extends ChangeNotifier {
   Player get currentPlayer => players[currentPlayerIndex];
   bool get isCurrentPlayerAI => currentPlayer.isAI;
   bool get isGameOver => phase == GamePhase.finished;
+
+  void _markChanged() {
+    stateVersion++;
+    notifyListeners();
+  }
+
+  /// Repaint without claiming a gameplay mutation.
+  void repaint() => notifyListeners();
 
   /// Absolute board position for a player's start cell based on their index.
   /// Color is cosmetic only — position is always index-based so any color choice
@@ -111,7 +122,7 @@ class GameState extends ChangeNotifier {
         lastDiceRoll = null;
         _nextTurn();
         phase = GamePhase.rolling;
-        notifyListeners();
+        _markChanged();
         return rolled;
       }
       // Rolling a 6 grants an extra turn (set after move in moveToken)
@@ -127,7 +138,7 @@ class GameState extends ChangeNotifier {
     // until turn finishes or advances
     phase = GamePhase.moving;
 
-    notifyListeners();
+    _markChanged();
     return rolled;
   }
 
@@ -136,7 +147,7 @@ class GameState extends ChangeNotifier {
     getsExtraRoll = false;
     _nextTurn();
     phase = GamePhase.rolling;
-    notifyListeners();
+    _markChanged();
   }
 
   /// Get valid token indices that can move with the given dice roll
@@ -156,7 +167,12 @@ class GameState extends ChangeNotifier {
     if (pos == posHome) return false; // already home
 
     if (pos == posInBase) {
-      return diceValue == diceToEnter; // need 6 to enter
+      return diceValue == diceToEnter &&
+          !_isBlockedForMove(
+            playerIndex,
+            startPosition(playerIndex),
+            isFinal: true,
+          );
     }
 
     // Ludo King: a two-token stack is a blockade. A move may not pass through
@@ -202,20 +218,18 @@ class GameState extends ChangeNotifier {
       }
     }
     if (occupants.isEmpty) return false;
-    final opponentStack = occupants.any((p) =>
-        players[p].teamId != sameTeam && p != playerIndex);
-    
-    // Ludo King: Blockade is 2+ tokens. Cannot pass or land on opponent blockade.
-    if (opponentStack) return occupants.length >= 2;
-    
-    // Cannot land on a cell if it would result in 3+ friendly/team tokens (stack limit)
-    if (isFinal) {
-      final friendlyCount = occupants.where((p) => 
-        p == playerIndex || (players[p].teamId != null && players[p].teamId == sameTeam)
-      ).length;
-      return friendlyCount >= 2;
+    bool isTeammate(int otherPlayerIndex) {
+      if (otherPlayerIndex == playerIndex) return true;
+      final otherTeam = players[otherPlayerIndex].teamId;
+      return sameTeam != null && otherTeam == sameTeam;
     }
-    
+
+    final sameTeamCount = occupants.where(isTeammate).length;
+    final opponentCount = occupants.where((p) => !isTeammate(p)).length;
+
+    // A two-token stack is a blockade for both passing and landing.
+    if (sameTeamCount >= 2) return true;
+    if (opponentCount >= 2) return true;
     return false;
   }
 
@@ -223,7 +237,7 @@ class GameState extends ChangeNotifier {
     final pos = tokenPositions[playerIndex][tokenIndex];
     if (pos == posInBase) {
       tokenPositions[playerIndex][tokenIndex] = startPosition(playerIndex);
-      notifyListeners();
+      _markChanged();
       return true;
     }
 
@@ -256,7 +270,7 @@ class GameState extends ChangeNotifier {
           (pos + 1) % boardType.trackLength;
     }
 
-    notifyListeners();
+    _markChanged();
     return false;
   }
 
@@ -278,7 +292,7 @@ class GameState extends ChangeNotifier {
       tokenPositions[playerIndex][tokenIndex] = (pos - 1 + boardType.trackLength) % boardType.trackLength;
     }
 
-    notifyListeners();
+    _markChanged();
   }
 
   /// Returns list of (playerIndex, tokenIndex) opponents at current pos if captured
@@ -314,8 +328,11 @@ class GameState extends ChangeNotifier {
 
     final playerIndex = currentPlayerIndex;
     final diceValue = lastDiceRoll!;
+    final pos = tokenPositions[playerIndex][tokenIndex];
 
-    for (var i = 0; i < diceValue; i++) {
+    // Leaving base consumes the six; it does not also advance five more cells.
+    final steps = pos == posInBase ? 1 : diceValue;
+    for (var i = 0; i < steps; i++) {
       moveTokenStep(playerIndex, tokenIndex);
     }
 
@@ -335,7 +352,7 @@ class GameState extends ChangeNotifier {
       }
     }
 
-    notifyListeners();
+    _markChanged();
     return captured;
   }
 
@@ -451,7 +468,7 @@ class GameState extends ChangeNotifier {
     activeEmojiAt = null;
     lastDiceRoll = null;
     getsExtraRoll = false;
-    notifyListeners();
+    _markChanged();
     return true;
   }
 
@@ -460,7 +477,7 @@ class GameState extends ChangeNotifier {
     activeEmoji = emoji;
     activeEmojiPlayerIndex = currentPlayerIndex;
     activeEmojiAt = DateTime.now().millisecondsSinceEpoch;
-    notifyListeners();
+    _markChanged();
     return true;
   }
 
@@ -481,10 +498,14 @@ class GameState extends ChangeNotifier {
         'activeEmoji': activeEmoji,
         'activeEmojiPlayerIndex': activeEmojiPlayerIndex,
         'activeEmojiAt': activeEmojiAt,
+        'stateVersion': stateVersion,
       };
 
   /// Restore from online sync (mutates in place)
-  void loadFromJson(Map<String, dynamic> json) {
+  void loadFromJson(Map<String, dynamic> json, {bool force = false}) {
+    final incomingVersion = (json['stateVersion'] as num?)?.toInt() ?? 0;
+    if (!force && incomingVersion <= stateVersion) return;
+
     if (json['players'] is List) {
       final rawPlayers = json['players'] as List;
       final parsedPlayers = rawPlayers
@@ -499,9 +520,15 @@ class GameState extends ChangeNotifier {
 
     final rawTokens = json['tokenPositions'];
     if (rawTokens is List) {
-      tokenPositions = rawTokens
-          .map((t) => t is List ? List<int>.from(t.cast<int>()) : List.filled(tokensPerPlayer, posInBase))
-          .toList();
+      tokenPositions = rawTokens.map((t) {
+        final values = t is List
+            ? t.whereType<num>().map((value) => value.toInt()).take(tokensPerPlayer).toList()
+            : <int>[];
+        while (values.length < tokensPerPlayer) {
+          values.add(posInBase);
+        }
+        return values;
+      }).toList();
     }
 
     while (tokenPositions.length < players.length) {
@@ -512,7 +539,7 @@ class GameState extends ChangeNotifier {
     }
 
     currentPlayerIndex = (json['currentPlayerIndex'] as num?)?.toInt() ?? 0;
-    if (currentPlayerIndex >= players.length) {
+    if (players.isEmpty || currentPlayerIndex < 0 || currentPlayerIndex >= players.length) {
       currentPlayerIndex = 0;
     }
 
@@ -524,17 +551,30 @@ class GameState extends ChangeNotifier {
       phase = GamePhase.values[phaseIndex];
     }
     validTokenMoves = (json['validTokenMoves'] is List)
-        ? List<int>.from(json['validTokenMoves'] as List)
+        ? (json['validTokenMoves'] as List)
+            .whereType<num>()
+            .map((value) => value.toInt())
+            .where((value) => value >= 0 && value < tokensPerPlayer)
+            .toList()
         : <int>[];
-    winner = (json['winner'] as num?)?.toInt();
+    final parsedWinner = (json['winner'] as num?)?.toInt();
+    winner = parsedWinner != null && parsedWinner >= 0 && parsedWinner < players.length
+        ? parsedWinner
+        : null;
     finishOrder = (json['finishOrder'] is List)
-        ? List<int>.from(json['finishOrder'] as List)
+        ? (json['finishOrder'] as List)
+            .whereType<num>()
+            .map((value) => value.toInt())
+            .where((value) => value >= 0 && value < players.length)
+            .toSet()
+            .toList()
         : <int>[];
     activeEmoji = json['activeEmoji'] as String?;
     activeEmojiPlayerIndex = (json['activeEmojiPlayerIndex'] as num?)?.toInt();
     activeEmojiAt = (json['activeEmojiAt'] as num?)?.toInt();
+    stateVersion = incomingVersion;
     notifyListeners();
   }
-  /// Allow external callers (GameService) to trigger a repaint
-  void notifyChange() => notifyListeners();
+  /// Allow external callers (GameService) to record a state mutation and repaint.
+  void notifyChange() => _markChanged();
 }

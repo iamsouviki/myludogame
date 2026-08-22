@@ -1,5 +1,12 @@
 import '../utils/constants.dart';
 
+T _enumOrDefault<T>(List<T> values, dynamic raw, T fallback) {
+  final index = (raw as num?)?.toInt();
+  return index != null && index >= 0 && index < values.length
+      ? values[index]
+      : fallback;
+}
+
 class Player {
   final String id;
   final String name;
@@ -54,15 +61,11 @@ class Player {
   factory Player.fromJson(Map<String, dynamic> json) => Player(
         id: (json['id'] as String?) ?? 'player',
         name: (json['name'] as String?) ?? 'Player',
-        color: json['color'] != null
-            ? PlayerColor.values[(json['color'] as num).toInt()]
-            : PlayerColor.red,
-        type: json['type'] != null
-            ? PlayerType.values[(json['type'] as num).toInt()]
-            : PlayerType.human,
-        difficulty: json['difficulty'] != null
-            ? AIDifficulty.values[(json['difficulty'] as num).toInt()]
-            : null,
+        color: _enumOrDefault(PlayerColor.values, json['color'], PlayerColor.red),
+        type: _enumOrDefault(PlayerType.values, json['type'], PlayerType.human),
+        difficulty: json['difficulty'] == null
+            ? null
+            : _enumOrDefault(AIDifficulty.values, json['difficulty'], AIDifficulty.medium),
         avatarIndex: (json['avatarIndex'] as num?)?.toInt() ?? 0,
         teamId: (json['teamId'] as num?)?.toInt(),
       );

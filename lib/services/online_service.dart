@@ -8,6 +8,13 @@ import '../models/player.dart';
 import '../utils/constants.dart';
 import '../utils/room_code_generator.dart';
 
+T _safeEnum<T>(List<T> values, dynamic raw, T fallback) {
+  final index = (raw as num?)?.toInt();
+  return index != null && index >= 0 && index < values.length
+      ? values[index]
+      : fallback;
+}
+
 // ponytail: Online multiplayer service using Firebase Realtime DB.
 // Falls back to in-memory local map if Firebase instance is not configured.
 
@@ -64,23 +71,20 @@ class RoomData {
   factory RoomData.fromJson(Map<String, dynamic> json) => RoomData(
         code: (json['code'] as String?) ?? '',
         hostId: (json['hostId'] as String?) ?? '',
-        boardType: json['boardType'] != null
-            ? BoardType.values[(json['boardType'] as num).toInt()]
-            : BoardType.classic4,
+        boardType: _safeEnum(BoardType.values, json['boardType'], BoardType.classic4),
         players: (json['players'] is List)
             ? (json['players'] as List)
                 .map((p) => p is Map ? Player.fromJson(Map<String, dynamic>.from(p)) : null)
                 .whereType<Player>()
                 .toList()
             : <Player>[],
-        status: json['status'] != null
-            ? RoomStatus.values[(json['status'] as num).toInt()]
-            : RoomStatus.waiting,
+        status: _safeEnum(RoomStatus.values, json['status'], RoomStatus.waiting),
         gameState: json['gameState'] != null
             ? Map<String, dynamic>.from(json['gameState'] as Map)
             : null,
         isTeamUp: (json['isTeamUp'] as bool?) ?? false,
-        targetPlayerCount: (json['targetPlayerCount'] as num?)?.toInt() ?? 4,
+        targetPlayerCount: ((json['targetPlayerCount'] as num?)?.toInt() ?? 4)
+            .clamp(2, 6),
       );
 }
 
@@ -659,6 +663,8 @@ class OnlineService {
       players: room.players,
       status: room.status,
       gameState: state.toJson(),
+      isTeamUp: room.isTeamUp,
+      targetPlayerCount: room.targetPlayerCount,
     );
 
     _localRooms[currentRoomCode!] = updatedRoom;
@@ -666,7 +672,35 @@ class OnlineService {
     final ref = _roomRef(currentRoomCode!);
     if (ref != null) {
       try {
-        await ref.child('gameState').set(state.toJson());
+        final payload = state.toJson();
+        final transaction = await ref.child('gameState').runTransaction((data) {
+          final current = data == null ? null : _deepConvert(data);
+          if (current is Map) {
+            final currentVersion = (current['stateVersion'] as num?)?.toInt() ?? 0;
+            final incomingVersion = (payload['stateVersion'] as num?)?.toInt() ?? 0;
+            if (currentVersion >= incomingVersion) return Transaction.abort();
+          }
+          return Transaction.success(payload);
+        });
+
+        if (!transaction.committed) {
+          // ponytail: first writer wins for a turn; reload the authoritative state.
+          final latest = await ref.child('gameState').get();
+          if (latest.exists && latest.value != null) {
+            final latestJson = _deepConvert(latest.value) as Map<String, dynamic>;
+            state.loadFromJson(latestJson, force: true);
+            _localRooms[room.code] = RoomData(
+              code: room.code,
+              hostId: room.hostId,
+              boardType: room.boardType,
+              players: room.players,
+              status: room.status,
+              gameState: latestJson,
+              isTeamUp: room.isTeamUp,
+              targetPlayerCount: room.targetPlayerCount,
+            );
+          }
+        }
       } catch (_) {
         _roomController.add(updatedRoom);
       }
