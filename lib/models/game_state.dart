@@ -64,17 +64,17 @@ class GameState extends ChangeNotifier {
   int startPosition(int playerIndex) {
     if (playerIndex < 0 || playerIndex >= boardType.maxPlayers) return 0;
     if (boardType == BoardType.classic4) {
-      // Matches BoardConfig._classic4Track: red, green, yellow, blue starts.
-      const starts = [0, 12, 25, 38];
+      // Matches the painted classic track: red, green, yellow, blue starts.
+      const starts = [0, 13, 26, 39];
       return starts[playerIndex];
     }
     return playerIndex * boardType.cellsPerArm; // ponytail: color is cosmetic
   }
 
-  /// Absolute board position for a player's entry into home stretch (Tile 50 for Red)
+  /// Absolute board position for a player's entry into home stretch
   int homeEntryPosition(int playerIndex) {
     if (boardType == BoardType.classic4) {
-      const entries = [51, 11, 24, 37];
+      const entries = [51, 12, 25, 38];
       return entries[playerIndex];
     }
     final start = startPosition(playerIndex);
@@ -117,6 +117,18 @@ class GameState extends ChangeNotifier {
   /// Check if all tokens of a player have reached home
   bool hasPlayerFinished(int playerIndex) =>
       tokenPositions[playerIndex].every((pos) => pos == posHome);
+
+  bool get isTeamMode =>
+      players.map((player) => player.teamId).whereType<int>().toSet().length >
+      1;
+
+  bool _hasTeamFinished(int teamId) {
+    final teamPlayers = <int>[];
+    for (var i = 0; i < players.length; i++) {
+      if (players[i].teamId == teamId) teamPlayers.add(i);
+    }
+    return teamPlayers.isNotEmpty && teamPlayers.every(hasPlayerFinished);
+  }
 
   /// Roll the dice (Ludo King rules)
   int rollDice() {
@@ -265,15 +277,27 @@ class GameState extends ChangeNotifier {
         if (hasPlayerFinished(playerIndex) &&
             !finishOrder.contains(playerIndex)) {
           finishOrder.add(playerIndex);
-          winner ??= playerIndex;
-          // Game ends when all but 1 player have finished
-          if (finishOrder.length >= players.length - 1) {
-            getsExtraRoll = false;
-            // Add the last remaining player to the end
-            for (var i = 0; i < players.length; i++) {
-              if (!finishOrder.contains(i)) finishOrder.add(i);
+
+          if (isTeamMode) {
+            final teamId = players[playerIndex].teamId;
+            if (teamId != null && _hasTeamFinished(teamId)) {
+              winner = playerIndex;
+              getsExtraRoll = false;
+              for (var i = 0; i < players.length; i++) {
+                if (!finishOrder.contains(i)) finishOrder.add(i);
+              }
+              phase = GamePhase.finished;
             }
-            phase = GamePhase.finished;
+          } else {
+            winner ??= playerIndex;
+            // Ranking mode ends when all but 1 player have finished.
+            if (finishOrder.length >= players.length - 1) {
+              getsExtraRoll = false;
+              for (var i = 0; i < players.length; i++) {
+                if (!finishOrder.contains(i)) finishOrder.add(i);
+              }
+              phase = GamePhase.finished;
+            }
           }
         }
       } else {
@@ -463,7 +487,7 @@ class GameState extends ChangeNotifier {
     activeEmoji = null;
     activeEmojiPlayerIndex = null;
     activeEmojiAt = null;
-    notifyListeners();
+    _markChanged();
   }
 
   /// Remove a player from the active match, keeping the game alive for the rest.

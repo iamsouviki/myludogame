@@ -1,12 +1,14 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 
 import '../models/game_state.dart';
 import '../models/player.dart';
 import '../utils/constants.dart';
 import '../utils/room_code_generator.dart';
+import 'browser_storage.dart';
 
 T _safeEnum<T>(List<T> values, dynamic raw, T fallback) {
   final index = (raw as num?)?.toInt();
@@ -50,7 +52,8 @@ class RoomData {
     this.targetPlayerCount = 4,
   });
 
-  int get maxPlayers => targetPlayerCount;
+  int get maxPlayers =>
+      targetPlayerCount.clamp(2, boardType.maxPlayers).toInt();
   bool get isFull => players.length >= maxPlayers;
 
   Map<String, dynamic> toJson() {
@@ -68,24 +71,39 @@ class RoomData {
     return json;
   }
 
-  factory RoomData.fromJson(Map<String, dynamic> json) => RoomData(
-        code: (json['code'] as String?) ?? '',
-        hostId: (json['hostId'] as String?) ?? '',
-        boardType: _safeEnum(BoardType.values, json['boardType'], BoardType.classic4),
-        players: (json['players'] is List)
-            ? (json['players'] as List)
-                .map((p) => p is Map ? Player.fromJson(Map<String, dynamic>.from(p)) : null)
-                .whereType<Player>()
-                .toList()
-            : <Player>[],
-        status: _safeEnum(RoomStatus.values, json['status'], RoomStatus.waiting),
-        gameState: json['gameState'] != null
-            ? Map<String, dynamic>.from(json['gameState'] as Map)
-            : null,
-        isTeamUp: (json['isTeamUp'] as bool?) ?? false,
-        targetPlayerCount: ((json['targetPlayerCount'] as num?)?.toInt() ?? 4)
-            .clamp(2, 6),
-      );
+  factory RoomData.fromJson(Map<String, dynamic> json) {
+    final boardType = _safeEnum(
+      BoardType.values,
+      json['boardType'],
+      BoardType.classic4,
+    );
+    final rawPlayers = json['players'];
+    final players = rawPlayers is List
+        ? rawPlayers
+              .map(
+                (p) => p is Map
+                    ? Player.fromJson(Map<String, dynamic>.from(p))
+                    : null,
+              )
+              .whereType<Player>()
+              .toList()
+        : <Player>[];
+    final rawGameState = json['gameState'];
+    return RoomData(
+      code: (json['code'] as String?) ?? '',
+      hostId: (json['hostId'] as String?) ?? '',
+      boardType: boardType,
+      players: players,
+      status: _safeEnum(RoomStatus.values, json['status'], RoomStatus.waiting),
+      gameState: rawGameState is Map
+          ? Map<String, dynamic>.from(rawGameState)
+          : null,
+      isTeamUp: (json['isTeamUp'] as bool?) ?? false,
+      targetPlayerCount: ((json['targetPlayerCount'] as num?)?.toInt() ?? 4)
+          .clamp(2, boardType.maxPlayers)
+          .toInt(),
+    );
+  }
 }
 
 class ChatMessage {
@@ -102,18 +120,62 @@ class ChatMessage {
   });
 
   Map<String, dynamic> toJson() => {
-        'senderId': senderId,
-        'senderName': senderName,
-        'text': text,
-        'timestamp': timestamp,
-      };
+    'senderId': senderId,
+    'senderName': senderName,
+    'text': text,
+    'timestamp': timestamp,
+  };
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) => ChatMessage(
-        senderId: json['senderId'] as String,
-        senderName: json['senderName'] as String,
-        text: json['text'] as String,
-        timestamp: (json['timestamp'] as int?) ?? DateTime.now().millisecondsSinceEpoch,
-      );
+    senderId: json['senderId'] as String,
+    senderName: json['senderName'] as String,
+    text: json['text'] as String,
+    timestamp:
+        (json['timestamp'] as num?)?.toInt() ??
+        DateTime.now().millisecondsSinceEpoch,
+  );
+}
+
+class OnlineAction {
+  final String id;
+  final String type;
+  final String actorId;
+  final int? tokenIndex;
+  final String? emoji;
+  final int createdAt;
+
+  const OnlineAction({
+    required this.id,
+    required this.type,
+    required this.actorId,
+    this.tokenIndex,
+    this.emoji,
+    required this.createdAt,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'type': type,
+    'actorId': actorId,
+    if (tokenIndex != null) 'tokenIndex': tokenIndex,
+    if (emoji != null) 'emoji': emoji,
+    'createdAt': createdAt,
+  };
+
+  factory OnlineAction.fromSnapshot(DataSnapshot snapshot) {
+    final raw = snapshot.value is Map
+        ? Map<String, dynamic>.from(
+            OnlineService._deepConvert(snapshot.value) as Map,
+          )
+        : <String, dynamic>{};
+    return OnlineAction(
+      id: snapshot.key ?? '',
+      type: raw['type'] as String? ?? '',
+      actorId: raw['actorId'] as String? ?? '',
+      tokenIndex: (raw['tokenIndex'] as num?)?.toInt(),
+      emoji: raw['emoji'] as String?,
+      createdAt: (raw['createdAt'] as num?)?.toInt() ?? 0,
+    );
+  }
 }
 
 /// Online service interface powered by Firebase Realtime DB.
@@ -125,9 +187,12 @@ class OnlineService {
       StreamController<RoomData>.broadcast();
   final StreamController<List<ChatMessage>> _chatController =
       StreamController<List<ChatMessage>>.broadcast();
+  final StreamController<OnlineAction> _actionController =
+      StreamController<OnlineAction>.broadcast();
 
   Stream<RoomData> get roomStream => _roomController.stream;
   Stream<List<ChatMessage>> get chatStream => _chatController.stream;
+  Stream<OnlineAction> get actionStream => _actionController.stream;
 
   List<ChatMessage> currentChatMessages([String? roomCode]) {
     final code = roomCode ?? currentRoomCode;
@@ -135,19 +200,94 @@ class OnlineService {
     return List.unmodifiable(_localChats[code] ?? const <ChatMessage>[]);
   }
 
+  Future<bool> submitAction({
+    required String type,
+    int? tokenIndex,
+    String? emoji,
+  }) async {
+    final code = currentRoomCode;
+    final actorId = localPlayerId;
+    final ref = code == null ? null : _actionsRef(code);
+    if (ref == null || actorId == null) return false;
+    try {
+      final actionRef = ref.push();
+      final payload = <String, dynamic>{
+        'type': type,
+        'actorId': actorId,
+        'createdAt': ServerValue.timestamp,
+      };
+      if (tokenIndex != null) payload['tokenIndex'] = tokenIndex;
+      if (emoji != null) payload['emoji'] = emoji;
+      await actionRef.set(payload);
+      return true;
+    } catch (e) {
+      debugPrint('[OnlineService] Action submission failed: $e');
+      return false;
+    }
+  }
+
+  Future<void> _deleteAction(String code, String actionId) async {
+    final ref = _actionsRef(code);
+    if (ref == null || actionId.isEmpty) return;
+    try {
+      await ref.child(actionId).remove();
+    } catch (e) {
+      debugPrint('[OnlineService] Action cleanup failed: $e');
+    }
+  }
+
+  Future<void> consumeAction(OnlineAction action) async {
+    final code = currentRoomCode;
+    if (code != null) await _deleteAction(code, action.id);
+  }
+
   StreamSubscription<DatabaseEvent>? _firebaseSubscription;
   StreamSubscription<DatabaseEvent>? _chatSubscription;
   StreamSubscription<DatabaseEvent>? _chatChildSubscription;
   StreamSubscription<DatabaseEvent>? _presenceSubscription;
+  StreamSubscription<DatabaseEvent>? _actionSubscription;
+  StreamSubscription<DatabaseEvent>? _connectionSubscription;
 
   String? currentRoomCode;
   String? localPlayerId;
+  bool _disposed = false;
+
+  bool get isLocalHost {
+    final code = currentRoomCode;
+    final room = code == null ? null : _localRooms[code];
+    return room != null && room.hostId == localPlayerId;
+  }
 
   OnlineService() {
+    User? firebaseUser;
+    try {
+      firebaseUser = FirebaseAuth.instance.currentUser;
+    } catch (_) {}
+    if (firebaseUser != null) {
+      localPlayerId = firebaseUser.uid;
+      return;
+    }
+    const key = 'myludo_online_player_id';
+    String? stored;
+    if (kIsWeb) {
+      try {
+        stored = readBrowserStorage(key);
+      } catch (_) {}
+    }
+    if (stored != null &&
+        RegExp(r'^(web|app)_[A-Za-z0-9_]+$').hasMatch(stored)) {
+      localPlayerId = stored;
+      return;
+    }
     final prefix = kIsWeb ? 'web' : 'app';
     final ts = DateTime.now().microsecondsSinceEpoch;
     final rand = Random().nextInt(99999);
     localPlayerId = '${prefix}_${ts}_$rand';
+    if (kIsWeb) {
+      try {
+        writeBrowserStorage(key, localPlayerId!);
+      } catch (_) {}
+    }
   }
 
   DatabaseReference? _roomRef(String code) {
@@ -166,13 +306,41 @@ class OnlineService {
     }
   }
 
+  DatabaseReference? _actionsRef(String code) {
+    try {
+      return FirebaseDatabase.instance.ref('rooms/$code/actions');
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void _validateRoomConfig({
+    required BoardType boardType,
+    required int targetPlayerCount,
+    required bool isTeamUp,
+  }) {
+    if (targetPlayerCount < 2 || targetPlayerCount > boardType.maxPlayers) {
+      throw ArgumentError(
+        'A ${boardType.label} room must have 2-${boardType.maxPlayers} players.',
+      );
+    }
+    if (isTeamUp &&
+        (boardType != BoardType.classic4 || targetPlayerCount != 4)) {
+      throw ArgumentError(
+        'Team-up mode requires exactly four classic-board players.',
+      );
+    }
+  }
+
   // ponytail: Firebase returns Map<Object?, Object?> and nums as dynamic.
   // Shallow Map.from() leaves nested values unconverted, causing silent cast
   // failures that kill the onValue listener.
   static dynamic _deepConvert(dynamic value) {
     if (value is Map) {
       return Map<String, dynamic>.fromEntries(
-        value.entries.map((e) => MapEntry(e.key.toString(), _deepConvert(e.value))),
+        value.entries.map(
+          (e) => MapEntry(e.key.toString(), _deepConvert(e.value)),
+        ),
       );
     }
     if (value is List) {
@@ -186,21 +354,45 @@ class OnlineService {
     _chatSubscription?.cancel();
     _chatChildSubscription?.cancel();
     _presenceSubscription?.cancel();
+    _actionSubscription?.cancel();
+    _connectionSubscription?.cancel();
+    _firebaseSubscription = null;
+    _chatSubscription = null;
+    _chatChildSubscription = null;
+    _presenceSubscription = null;
+    _actionSubscription = null;
+    _connectionSubscription = null;
 
     final ref = _roomRef(code);
     if (ref != null) {
       _firebaseSubscription = ref.onValue.listen((event) {
-        if (event.snapshot.value != null) {
-          try {
-            final data = _deepConvert(event.snapshot.value) as Map<String, dynamic>;
-            // ponytail: strip chat node — it's handled by its own listener
-            data.remove('chat');
-            final room = RoomData.fromJson(data);
-            _localRooms[code] = room;
-            _roomController.add(room);
-          } catch (e) {
-            debugPrint('[OnlineService] Error parsing room update: $e');
+        if (event.snapshot.value == null) {
+          final previous = _localRooms.remove(code);
+          if (currentRoomCode == code) currentRoomCode = null;
+          if (previous != null) {
+            _roomController.add(
+              RoomData(
+                code: previous.code,
+                hostId: previous.hostId,
+                boardType: previous.boardType,
+                players: const [],
+                status: RoomStatus.finished,
+                isTeamUp: previous.isTeamUp,
+                targetPlayerCount: previous.targetPlayerCount,
+              ),
+            );
           }
+          return;
+        }
+        try {
+          final data =
+              _deepConvert(event.snapshot.value) as Map<String, dynamic>;
+          data.remove('chat');
+          final room = RoomData.fromJson(data);
+          _localRooms[code] = room;
+          _roomController.add(room);
+        } catch (e) {
+          debugPrint('[OnlineService] Error parsing room update: $e');
         }
       });
 
@@ -211,7 +403,9 @@ class OnlineService {
           if (raw is Map) {
             for (final value in raw.values) {
               if (value is Map) {
-                messages.add(ChatMessage.fromJson(Map<String, dynamic>.from(value)));
+                messages.add(
+                  ChatMessage.fromJson(Map<String, dynamic>.from(value)),
+                );
               }
             }
           }
@@ -242,18 +436,23 @@ class OnlineService {
                 : value == true;
             if (!isOnline) offlineIds.add(entry.key.toString());
           }
+          offlineIds.remove(localPlayerId);
           if (offlineIds.isEmpty) return;
           final currentPlayers = room.players;
           final removedNames = <String>[];
           var updated = false;
           for (final id in offlineIds) {
-            final removedPlayer = currentPlayers.where((p) => p.id == id).toList();
+            final removedPlayer = currentPlayers
+                .where((p) => p.id == id)
+                .toList();
             if (removedPlayer.isEmpty) continue;
             removedNames.add(removedPlayer.first.name);
             updated = true;
           }
           if (!updated) return;
-          final remainingPlayers = currentPlayers.where((p) => !offlineIds.contains(p.id)).toList();
+          final remainingPlayers = currentPlayers
+              .where((p) => !offlineIds.contains(p.id))
+              .toList();
           final updatedRoom = RoomData(
             code: room.code,
             hostId: room.hostId,
@@ -266,11 +465,30 @@ class OnlineService {
           );
           _localRooms[code] = updatedRoom;
           _roomController.add(updatedRoom);
+          unawaited(_persistOfflinePlayers(code, offlineIds));
           if (removedNames.isNotEmpty) {
             _chatController.add(_localChats[code] ?? const <ChatMessage>[]);
           }
         } catch (e) {
           debugPrint('[OnlineService] Error parsing presence update: $e');
+        }
+      });
+
+      _actionSubscription = ref.child('actions').onChildAdded.listen((event) {
+        try {
+          final action = OnlineAction.fromSnapshot(event.snapshot);
+          if (action.id.isNotEmpty && action.actorId.isNotEmpty) {
+            _actionController.add(action);
+          }
+        } catch (e) {
+          debugPrint('[OnlineService] Error parsing action: $e');
+        }
+      });
+
+      final infoRef = FirebaseDatabase.instance.ref('.info/connected');
+      _connectionSubscription = infoRef.onValue.listen((event) {
+        if (event.snapshot.value == true && currentRoomCode == code) {
+          unawaited(_registerPresenceSafely(code));
         }
       });
     }
@@ -280,8 +498,89 @@ class OnlineService {
     final ref = _presenceRef(code);
     if (ref == null || localPlayerId == null) return;
     final node = ref.child(localPlayerId!);
-    await node.onDisconnect().set({'online': false, 'updatedAt': ServerValue.timestamp});
+    await node.onDisconnect().set({
+      'online': false,
+      'updatedAt': ServerValue.timestamp,
+    });
     await node.set({'online': true, 'updatedAt': ServerValue.timestamp});
+  }
+
+  Future<void> _registerPresenceSafely(String code) async {
+    try {
+      await _registerPresence(code);
+    } catch (e) {
+      debugPrint('[OnlineService] Presence registration failed: $e');
+    }
+  }
+
+  Future<void> _persistOfflinePlayers(
+    String code,
+    List<String> offlineIds,
+  ) async {
+    if (offlineIds.isEmpty) return;
+    final ref = _roomRef(code);
+    if (ref == null) return;
+    try {
+      await ref.runTransaction((data) {
+        if (data == null) return Transaction.abort();
+        final roomMap = _deepConvert(data);
+        if (roomMap is! Map) return Transaction.abort();
+        final playersRaw = roomMap['players'];
+        if (playersRaw is! List) return Transaction.abort();
+        final players = playersRaw
+            .where((item) => item is Map && !offlineIds.contains(item['id']))
+            .toList();
+        if (players.isEmpty) return Transaction.success(null);
+        final hostId = roomMap['hostId'];
+        final nextHost = offlineIds.contains(hostId)
+            ? (players.first as Map)['id']
+            : hostId;
+        roomMap['players'] = players;
+        roomMap['hostId'] = nextHost;
+
+        final gameStateRaw = roomMap['gameState'];
+        if (gameStateRaw is Map) {
+          try {
+            final boardType = _safeEnum(
+              BoardType.values,
+              gameStateRaw['boardType'],
+              _safeEnum(
+                BoardType.values,
+                roomMap['boardType'],
+                BoardType.classic4,
+              ),
+            );
+            final statePlayers = players
+                .whereType<Map>()
+                .map(
+                  (player) =>
+                      Player.fromJson(Map<String, dynamic>.from(player)),
+                )
+                .toList();
+            if (statePlayers.length >= 2) {
+              final gameState = GameState(
+                boardType: boardType,
+                players: statePlayers,
+              );
+              gameState.loadFromJson(
+                Map<String, dynamic>.from(gameStateRaw),
+                force: true,
+              );
+              roomMap['gameState'] = gameState.toJson();
+            } else {
+              roomMap.remove('gameState');
+            }
+          } catch (e) {
+            debugPrint(
+              '[OnlineService] Could not prune offline game state: $e',
+            );
+          }
+        }
+        return Transaction.success(roomMap);
+      });
+    } catch (e) {
+      debugPrint('[OnlineService] Offline roster persistence failed: $e');
+    }
   }
 
   Future<void> sendChatMessage(String text, {String? senderName}) async {
@@ -334,11 +633,17 @@ class OnlineService {
     bool isTeamUp = false,
     int targetPlayerCount = 4,
   }) async {
+    _validateRoomConfig(
+      boardType: boardType,
+      targetPlayerCount: targetPlayerCount,
+      isTeamUp: isTeamUp,
+    );
     final code = RoomCodeGenerator.generate();
     final player = Player(
       id: localPlayerId!,
       name: playerName,
-      color: preferredColor ??
+      color:
+          preferredColor ??
           (boardType == BoardType.classic4
               ? PlayerColor.red
               : PlayerColor.values[0]),
@@ -365,15 +670,22 @@ class OnlineService {
         debugPrint('[OnlineService] Creating room $code on Firebase...');
         await ref.set(room.toJson());
         await _registerPresence(code);
-        debugPrint('[OnlineService] Room $code created successfully on Firebase.');
+        debugPrint(
+          '[OnlineService] Room $code created successfully on Firebase.',
+        );
         _listenToRoom(code);
       } catch (e, stack) {
-        debugPrint('[OnlineService] ERROR creating room $code on Firebase: $e\n$stack');
-        _roomController.add(room);
+        debugPrint(
+          '[OnlineService] ERROR creating room $code on Firebase: $e\n$stack',
+        );
+        _localRooms.remove(code);
+        currentRoomCode = null;
+        rethrow;
       }
     } else {
-      debugPrint('[OnlineService] Firebase ref is null. Operating in local memory fallback.');
-      _roomController.add(room);
+      _localRooms.remove(code);
+      currentRoomCode = null;
+      throw StateError('Online service is unavailable.');
     }
 
     return room;
@@ -387,118 +699,131 @@ class OnlineService {
     PlayerColor? preferredColor,
   }) async {
     final cleanCode = code.toUpperCase();
-    debugPrint('[OnlineService] Attempting to join room: $cleanCode');
-    RoomData? room = _localRooms[cleanCode];
-
     final ref = _roomRef(cleanCode);
-    if (ref != null) {
-      try {
-        debugPrint('[OnlineService] Fetching room $cleanCode from Firebase Realtime DB...');
-        final snapshot = await ref.get();
-        if (snapshot.exists && snapshot.value != null) {
-          final data = _deepConvert(snapshot.value) as Map<String, dynamic>;
-          data.remove('chat');
-          room = RoomData.fromJson(data);
-        } else {
-          debugPrint('[OnlineService] Snapshot for room $cleanCode does not exist on Firebase.');
-        }
-      } catch (e, stack) {
-        debugPrint('[OnlineService] ERROR fetching room $cleanCode from Firebase: $e\n$stack');
-      }
-    } else {
-      debugPrint('[OnlineService] Firebase ref is null. Checking local memory for $cleanCode.');
+    if (ref == null) {
+      return JoinRoomResult(error: 'Online service is unavailable.');
     }
 
-    if (room == null) {
-      return JoinRoomResult(error: 'Room "$cleanCode" not found! Check the room code and try again.');
+    RoomData room;
+    try {
+      final snapshot = await ref.get();
+      if (!snapshot.exists || snapshot.value == null) {
+        return JoinRoomResult(
+          error:
+              'Room "$cleanCode" not found! Check the room code and try again.',
+        );
+      }
+      final data = _deepConvert(snapshot.value) as Map<String, dynamic>;
+      data.remove('chat');
+      room = RoomData.fromJson(data);
+    } catch (e, stack) {
+      debugPrint('[OnlineService] ERROR fetching room $cleanCode: $e\n$stack');
+      return JoinRoomResult(
+        error: 'Unable to reach room "$cleanCode". Try again.',
+      );
+    }
+
+    final existing = room.players
+        .where((p) => p.id == localPlayerId)
+        .firstOrNull;
+    if (room.status != RoomStatus.waiting && existing == null) {
+      return JoinRoomResult(
+        error: 'Match in room "$cleanCode" has already started!',
+      );
+    }
+    final ids = room.players.map((p) => p.id).toSet();
+    final colors = room.players.map((p) => p.color).toSet();
+    if (ids.length != room.players.length ||
+        colors.length != room.players.length ||
+        room.players.length > room.maxPlayers) {
+      return JoinRoomResult(
+        error: 'Room "$cleanCode" has invalid player data.',
+      );
+    }
+
+    if (existing != null) {
+      _localRooms[cleanCode] = room;
+      currentRoomCode = cleanCode;
+      _listenToRoom(cleanCode);
+      await _registerPresenceSafely(cleanCode);
+      return JoinRoomResult(room: room);
     }
     if (room.isFull) {
       return JoinRoomResult(error: 'Room "$cleanCode" is already full!');
     }
-    if (room.status != RoomStatus.waiting) {
-      return JoinRoomResult(error: 'Match in room "$cleanCode" has already started!');
-    }
-    final targetRoom = room;
 
-    final usedColors = targetRoom.players.map((p) => p.color).toSet();
+    final allColors = room.boardType == BoardType.classic4
+        ? [
+            PlayerColor.red,
+            PlayerColor.green,
+            PlayerColor.yellow,
+            PlayerColor.blue,
+          ]
+        : PlayerColor.values;
+    final usedColors = room.players.map((p) => p.color).toSet();
     if (preferredColor != null && usedColors.contains(preferredColor)) {
       return JoinRoomResult(
-        error: 'Color "${preferredColor.label}" is already selected by another player! Please choose a different color.',
+        error:
+            'Color "${preferredColor.label}" is already selected by another player! Please choose a different color.',
       );
     }
-
-    final allColors = targetRoom.boardType == BoardType.classic4
-        ? [PlayerColor.red, PlayerColor.green, PlayerColor.yellow, PlayerColor.blue]
-        : PlayerColor.values;
-
-    final availableColor = preferredColor ??
-        allColors.firstWhere(
-          (c) => !usedColors.contains(c),
-          orElse: () => allColors[targetRoom.players.length % allColors.length],
-        );
-
-    final playerIndex = targetRoom.players.length;
-    final teamId = (targetRoom.isTeamUp && targetRoom.targetPlayerCount == 4)
-        ? (playerIndex % 2 == 0 ? 0 : 1)
-        : null;
-
+    final availableColor =
+        preferredColor ?? allColors.firstWhere((c) => !usedColors.contains(c));
+    final playerIndex = room.players.length;
     final player = Player(
       id: localPlayerId!,
       name: playerName,
       color: availableColor,
       type: PlayerType.human,
       avatarIndex: avatarIndex,
-      teamId: teamId,
+      teamId: room.isTeamUp ? playerIndex % 2 : null,
     );
 
-    final updatedPlayers = [...room.players, player];
-    final updatedRoom = RoomData(
-      code: room.code,
-      hostId: room.hostId,
-      boardType: room.boardType,
-      players: updatedPlayers,
-      status: room.status,
-      gameState: room.gameState,
-      isTeamUp: room.isTeamUp,
-      targetPlayerCount: room.targetPlayerCount,
-    );
-
-    _localRooms[cleanCode] = updatedRoom;
-    currentRoomCode = cleanCode;
-
-    if (ref != null) {
-      try {
-        // Atomic transaction prevents two simultaneous joins from losing a player.
-        final transaction = await ref.child('players').runTransaction((data) {
-          final current = data == null
-              ? <dynamic>[]
-              : _deepConvert(data) as List;
-          if (current.any((item) => item is Map && item['id'] == localPlayerId)) {
-            return Transaction.success(current);
-          }
-          if (current.any((item) => item is Map && item['color'] == player.color.index)) {
-            return Transaction.abort();
-          }
-          if (current.length >= targetRoom.maxPlayers) {
-            return Transaction.abort();
-          }
-          return Transaction.success([...current, player.toJson()]);
-        });
-        if (!transaction.committed) {
-          return JoinRoomResult(error: 'That color was just selected by another player. Choose a different color.');
+    try {
+      final transaction = await ref.child('players').runTransaction((data) {
+        final converted = data == null ? <dynamic>[] : _deepConvert(data);
+        if (converted is! List) return Transaction.abort();
+        final current = converted;
+        if (current.any((item) => item is Map && item['id'] == localPlayerId)) {
+          return Transaction.success(current);
         }
-        debugPrint('[OnlineService] Joined room $cleanCode — players updated on Firebase.');
-      } catch (e, stack) {
-        debugPrint('[OnlineService] ERROR updating room $cleanCode on Firebase: $e\n$stack');
+        if (current.any(
+          (item) => item is Map && item['color'] == player.color.index,
+        )) {
+          return Transaction.abort();
+        }
+        if (current.length >= room.maxPlayers) return Transaction.abort();
+        return Transaction.success([...current, player.toJson()]);
+      });
+      if (!transaction.committed) {
+        return JoinRoomResult(
+          error: 'The room changed. Check capacity and choose another color.',
+        );
       }
-      // ponytail: always listen regardless of write success — we need remote updates
-      _listenToRoom(cleanCode);
-      await _registerPresence(cleanCode);
-    } else {
-      _roomController.add(updatedRoom);
-    }
 
-    return JoinRoomResult(room: updatedRoom);
+      final updatedRoom = RoomData(
+        code: room.code,
+        hostId: room.hostId,
+        boardType: room.boardType,
+        players: [...room.players, player],
+        status: room.status,
+        gameState: room.gameState,
+        isTeamUp: room.isTeamUp,
+        targetPlayerCount: room.targetPlayerCount,
+      );
+      _localRooms[cleanCode] = updatedRoom;
+      currentRoomCode = cleanCode;
+      _listenToRoom(cleanCode);
+      await _registerPresenceSafely(cleanCode);
+      return JoinRoomResult(room: updatedRoom);
+    } catch (e, stack) {
+      debugPrint('[OnlineService] ERROR joining room $cleanCode: $e\n$stack');
+      _localRooms.remove(cleanCode);
+      if (currentRoomCode == cleanCode) currentRoomCode = null;
+      return JoinRoomResult(
+        error: 'Unable to join room "$cleanCode". Try again.',
+      );
+    }
   }
 
   /// Backwards-compatible join room helper
@@ -521,11 +846,18 @@ class OnlineService {
   Future<bool> fillWithBots() async {
     if (currentRoomCode == null) return false;
     final room = _localRooms[currentRoomCode!];
-    if (room == null || room.hostId != localPlayerId || room.targetPlayerCount < 4) {
+    if (room == null ||
+        room.hostId != localPlayerId ||
+        room.targetPlayerCount < 4) {
       return false;
     }
     final colors = room.boardType == BoardType.classic4
-        ? [PlayerColor.red, PlayerColor.green, PlayerColor.yellow, PlayerColor.blue]
+        ? [
+            PlayerColor.red,
+            PlayerColor.green,
+            PlayerColor.yellow,
+            PlayerColor.blue,
+          ]
         : PlayerColor.values;
     final used = room.players.map((p) => p.color).toSet();
     final players = [...room.players];
@@ -534,14 +866,16 @@ class OnlineService {
       final color = colors.firstWhere((c) => !used.contains(c));
       used.add(color);
       final index = players.length;
-      players.add(Player(
-        id: 'bot_${room.code}_$botNumber',
-        name: 'Bot $botNumber',
-        color: color,
-        type: PlayerType.ai,
-        difficulty: AIDifficulty.medium,
-        teamId: room.isTeamUp ? index % 2 : null,
-      ));
+      players.add(
+        Player(
+          id: 'bot_${room.code}_$botNumber',
+          name: 'Bot $botNumber',
+          color: color,
+          type: PlayerType.ai,
+          difficulty: AIDifficulty.medium,
+          teamId: room.isTeamUp ? index % 2 : null,
+        ),
+      );
       botNumber++;
     }
     final updated = RoomData(
@@ -554,20 +888,25 @@ class OnlineService {
       isTeamUp: room.isTeamUp,
       targetPlayerCount: room.targetPlayerCount,
     );
-    _localRooms[room.code] = updated;
     final ref = _roomRef(room.code);
-    if (ref != null) {
+    if (ref == null) return false;
+    try {
       await ref.child('players').set(players.map((p) => p.toJson()).toList());
-    } else {
-      _roomController.add(updated);
+      _localRooms[room.code] = updated;
+      return true;
+    } catch (e) {
+      debugPrint('[OnlineService] Bot fill failed: $e');
+      return false;
     }
-    return true;
   }
 
   Future<bool> setTeamUpPair({required String teammateId}) async {
     if (currentRoomCode == null) return false;
     final room = _localRooms[currentRoomCode!];
-    if (room == null || room.hostId != localPlayerId || !room.isTeamUp || room.players.length != 4) {
+    if (room == null ||
+        room.hostId != localPlayerId ||
+        !room.isTeamUp ||
+        room.players.length != 4) {
       return false;
     }
 
@@ -580,7 +919,9 @@ class OnlineService {
     final updatedPlayers = <Player>[];
     for (var i = 0; i < room.players.length; i++) {
       final player = room.players[i];
-      final teamId = (player.id == localPlayerId || player.id == teammateId) ? 0 : 1;
+      final teamId = (player.id == localPlayerId || player.id == teammateId)
+          ? 0
+          : 1;
       updatedPlayers.add(player.copyWith(teamId: teamId));
     }
 
@@ -594,22 +935,26 @@ class OnlineService {
       isTeamUp: room.isTeamUp,
       targetPlayerCount: room.targetPlayerCount,
     );
-    _localRooms[room.code] = updated;
-
     final ref = _roomRef(room.code);
-    if (ref != null) {
-      await ref.child('players').set(updatedPlayers.map((p) => p.toJson()).toList());
-      await _registerPresence(room.code);
-    } else {
-      _roomController.add(updated);
+    if (ref == null) return false;
+    try {
+      await ref
+          .child('players')
+          .set(updatedPlayers.map((p) => p.toJson()).toList());
+      _localRooms[room.code] = updated;
+      await _registerPresenceSafely(room.code);
+      return true;
+    } catch (e) {
+      debugPrint('[OnlineService] Team pairing failed: $e');
+      return false;
     }
-    return true;
   }
 
   Future<void> startGame() async {
     if (currentRoomCode == null) return;
     final room = _localRooms[currentRoomCode!];
-    if (room == null || room.hostId != localPlayerId ||
+    if (room == null ||
+        room.hostId != localPlayerId ||
         room.players.length < 2 ||
         (room.isTeamUp && room.players.length != 4)) {
       return;
@@ -631,28 +976,26 @@ class OnlineService {
       targetPlayerCount: room.targetPlayerCount,
     );
 
-    _localRooms[currentRoomCode!] = updatedRoom;
-
-    final ref = _roomRef(currentRoomCode!);
-    if (ref != null) {
-      try {
-        // Publish the complete player roster & initial state before clients enter the game.
-        await ref.child('players').set(
-            room.players.map((p) => p.toJson()).toList());
-        await ref.child('gameState').set(initialState.toJson());
-        await ref.child('status').set(RoomStatus.playing.index);
-        await _registerPresence(currentRoomCode!);
-      } catch (_) {
-        _roomController.add(updatedRoom);
-      }
-    } else {
-      _roomController.add(updatedRoom);
+    final code = currentRoomCode!;
+    final ref = _roomRef(code);
+    if (ref == null) throw StateError('Online service is unavailable.');
+    try {
+      await ref.update({
+        'players': room.players.map((p) => p.toJson()).toList(),
+        'gameState': initialState.toJson(),
+        'status': RoomStatus.playing.index,
+      });
+      _localRooms[code] = updatedRoom;
+      await _registerPresenceSafely(code);
+    } catch (e) {
+      debugPrint('[OnlineService] Start-game write failed: $e');
+      rethrow;
     }
   }
 
   /// Sync game state to room
   Future<void> syncGameState(GameState state) async {
-    if (currentRoomCode == null) return;
+    if (currentRoomCode == null || !isLocalHost) return;
     final room = _localRooms[currentRoomCode!];
     if (room == null) return;
 
@@ -667,27 +1010,31 @@ class OnlineService {
       targetPlayerCount: room.targetPlayerCount,
     );
 
-    _localRooms[currentRoomCode!] = updatedRoom;
-
-    final ref = _roomRef(currentRoomCode!);
+    final code = currentRoomCode!;
+    final ref = _roomRef(code);
     if (ref != null) {
       try {
         final payload = state.toJson();
         final transaction = await ref.child('gameState').runTransaction((data) {
           final current = data == null ? null : _deepConvert(data);
           if (current is Map) {
-            final currentVersion = (current['stateVersion'] as num?)?.toInt() ?? 0;
-            final incomingVersion = (payload['stateVersion'] as num?)?.toInt() ?? 0;
+            final currentVersion =
+                (current['stateVersion'] as num?)?.toInt() ?? 0;
+            final incomingVersion =
+                (payload['stateVersion'] as num?)?.toInt() ?? 0;
             if (currentVersion >= incomingVersion) return Transaction.abort();
           }
           return Transaction.success(payload);
         });
 
-        if (!transaction.committed) {
-          // ponytail: first writer wins for a turn; reload the authoritative state.
+        if (transaction.committed) {
+          _localRooms[code] = updatedRoom;
+        } else {
+          // First writer wins for a turn; reload the authoritative state.
           final latest = await ref.child('gameState').get();
           if (latest.exists && latest.value != null) {
-            final latestJson = _deepConvert(latest.value) as Map<String, dynamic>;
+            final latestJson =
+                _deepConvert(latest.value) as Map<String, dynamic>;
             state.loadFromJson(latestJson, force: true);
             _localRooms[room.code] = RoomData(
               code: room.code,
@@ -701,60 +1048,121 @@ class OnlineService {
             );
           }
         }
-      } catch (_) {
-        _roomController.add(updatedRoom);
+      } catch (e) {
+        debugPrint('[OnlineService] Game-state write failed: $e');
       }
     } else {
-      _roomController.add(updatedRoom);
+      throw StateError('Online service is unavailable.');
     }
   }
 
   /// Store completed game leaderboard data and delete active room data
   Future<void> storeFinishedMatch(GameState state) async {
-    if (currentRoomCode == null) return;
+    if (currentRoomCode == null || !isLocalHost) return;
     final code = currentRoomCode!;
     try {
-      // 1. Save minimal leaderboard record
-      final leaderboardRef = FirebaseDatabase.instance.ref('leaderboards/$code');
+      final leaderboardRef = FirebaseDatabase.instance.ref(
+        'leaderboards/$code',
+      );
       await leaderboardRef.set({
         'roomCode': code,
         'finishedAt': DateTime.now().millisecondsSinceEpoch,
-        'winnerName': state.winner != null ? state.players[state.winner!].name : 'Unknown',
-        'winnerColor': state.winner != null ? state.players[state.winner!].color.label : '',
-        'players': state.players.map((p) => {
-          'name': p.name,
-          'color': p.color.label,
-          'avatarIndex': p.avatarIndex,
-        }).toList(),
-        'rankings': state.finishOrder.map((idx) => {
-          'rank': state.finishOrder.indexOf(idx) + 1,
-          'name': state.players[idx].name,
-          'color': state.players[idx].color.label,
-        }).toList(),
+        'winnerName': state.winner != null
+            ? state.players[state.winner!].name
+            : 'Unknown',
+        'winnerColor': state.winner != null
+            ? state.players[state.winner!].color.label
+            : '',
+        'players': state.players
+            .map(
+              (p) => {
+                'name': p.name,
+                'color': p.color.label,
+                'avatarIndex': p.avatarIndex,
+              },
+            )
+            .toList(),
+        'rankings': state.finishOrder
+            .map(
+              (idx) => {
+                'rank': state.finishOrder.indexOf(idx) + 1,
+                'name': state.players[idx].name,
+                'color': state.players[idx].color.label,
+              },
+            )
+            .toList(),
       });
+    } catch (e) {
+      debugPrint('[OnlineService] Leaderboard write failed: $e');
+    }
 
-      // 2. Delete room data from DB to free up room memory
+    try {
       final roomRef = _roomRef(code);
-      if (roomRef != null) {
-        await roomRef.remove();
+      if (roomRef != null) await roomRef.remove();
+    } catch (e) {
+      debugPrint('[OnlineService] Finished-room cleanup failed: $e');
+    } finally {
+      final room = _localRooms.remove(code);
+      currentRoomCode = null;
+      if (room != null) {
+        _roomController.add(
+          RoomData(
+            code: room.code,
+            hostId: room.hostId,
+            boardType: room.boardType,
+            players: const [],
+            status: RoomStatus.finished,
+            isTeamUp: room.isTeamUp,
+            targetPlayerCount: room.targetPlayerCount,
+          ),
+        );
       }
-    } catch (_) {}
+    }
   }
 
   /// Leave room gracefully
   Future<void> leaveRoom() async {
-    if (currentRoomCode == null) return;
-    final code = currentRoomCode!;
+    final code = currentRoomCode;
     _firebaseSubscription?.cancel();
     _chatSubscription?.cancel();
     _chatChildSubscription?.cancel();
+    _presenceSubscription?.cancel();
+    _actionSubscription?.cancel();
+    _connectionSubscription?.cancel();
+    _firebaseSubscription = null;
+    _chatSubscription = null;
+    _chatChildSubscription = null;
+    _presenceSubscription = null;
+    _actionSubscription = null;
+    _connectionSubscription = null;
+    if (code == null) return;
 
     final room = _localRooms[code];
     final ref = _roomRef(code);
 
+    final presence = _presenceRef(code);
+    if (presence != null && localPlayerId != null) {
+      try {
+        await presence.child(localPlayerId!).set({
+          'online': false,
+          'updatedAt': ServerValue.timestamp,
+        });
+      } catch (e) {
+        debugPrint('[OnlineService] Presence leave update failed: $e');
+      }
+    }
+
+    if (room != null && room.hostId != localPlayerId) {
+      _localRooms.remove(code);
+      currentRoomCode = null;
+      return;
+    }
+
     if (ref != null && room != null) {
       try {
-        final remainingPlayers = room.players.where((p) => p.id != localPlayerId).toList();
+        final remainingPlayers = room.players
+            .where((p) => p.id != localPlayerId)
+            .toList();
         if (remainingPlayers.isEmpty) {
           // All players left -> remove room node
           await ref.remove();
@@ -767,12 +1175,17 @@ class OnlineService {
           Map<String, dynamic>? updatedStateJson;
           if (room.gameState != null) {
             try {
-              final tempState = GameState(boardType: room.boardType, players: room.players);
+              final tempState = GameState(
+                boardType: room.boardType,
+                players: room.players,
+              );
               tempState.loadFromJson(room.gameState!);
               tempState.removePlayerById(localPlayerId!);
               updatedStateJson = tempState.toJson();
             } catch (e) {
-              debugPrint('[OnlineService] Error updating gameState on leave: $e');
+              debugPrint(
+                '[OnlineService] Error updating gameState on leave: $e',
+              );
             }
           }
 
@@ -786,7 +1199,6 @@ class OnlineService {
 
           await ref.update(updates);
 
-          final presence = _presenceRef(code);
           if (presence != null) {
             await presence.child(localPlayerId!).remove();
           }
@@ -801,9 +1213,16 @@ class OnlineService {
   }
 
   void dispose() {
+    if (_disposed) return;
+    _disposed = true;
     _firebaseSubscription?.cancel();
     _chatSubscription?.cancel();
+    _chatChildSubscription?.cancel();
+    _presenceSubscription?.cancel();
+    _actionSubscription?.cancel();
+    _connectionSubscription?.cancel();
     _roomController.close();
     _chatController.close();
+    _actionController.close();
   }
 }

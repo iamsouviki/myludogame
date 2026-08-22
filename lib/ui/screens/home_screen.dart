@@ -26,7 +26,9 @@ class _HomeScreenState extends State<HomeScreen> {
   // VS Computer state
   int _vsCompMatchSize = 4; // 2 or 4
   AIDifficulty _vsCompDifficulty = AIDifficulty.medium;
-  final TextEditingController _vsCompNameController = TextEditingController(text: 'Player 1');
+  final TextEditingController _vsCompNameController = TextEditingController(
+    text: 'Player 1',
+  );
   PlayerColor _vsCompColor = PlayerColor.red;
 
   // Pass & Play state
@@ -66,7 +68,11 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  void _selectPassPlayColor(StateSetter setModalState, int index, PlayerColor newColor) {
+  void _selectPassPlayColor(
+    StateSetter setModalState,
+    int index,
+    PlayerColor newColor,
+  ) {
     setModalState(() {
       final existingIndex = _passPlayColors.indexOf(newColor);
       if (existingIndex != -1 && existingIndex != index) {
@@ -94,12 +100,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _startPassAndPlayGame() {
     final totalInMatch = _passPlayMatchSize;
-    final humanCount = totalInMatch == 2
-        ? 2
-        : _passPlayHumans.clamp(2, 4);
+    final humanCount = totalInMatch == 2 ? 2 : _passPlayHumans.clamp(2, 4);
     final aiCount = totalInMatch - humanCount;
 
-    final names = _passPlayNameControllers.take(humanCount).map((c) => c.text).toList();
+    final names = _passPlayNameControllers
+        .take(humanCount)
+        .map((c) => c.text)
+        .toList();
     final colors = _passPlayColors.take(humanCount).toList();
 
     final service = GameService.createLocalGame(
@@ -123,20 +130,25 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _navigateToGame(GameService service) {
-    Navigator.of(context).push(
-      PageRouteBuilder(
-        pageBuilder: (_, a1, a2) => GameScreen(service: service),
-        transitionsBuilder: (_, animation, a2, child) {
-          return FadeTransition(
-            opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
-            child: child,
-          );
-        },
-        transitionDuration: const Duration(milliseconds: 350),
-      ),
-    ).then((_) {
-      if (mounted) setState(() => _savedGame = LocalGameStorage.loadGame());
-    });
+    Navigator.of(context)
+        .push(
+          PageRouteBuilder(
+            pageBuilder: (_, a1, a2) => GameScreen(service: service),
+            transitionsBuilder: (_, animation, a2, child) {
+              return FadeTransition(
+                opacity: CurvedAnimation(
+                  parent: animation,
+                  curve: Curves.easeOut,
+                ),
+                child: child,
+              );
+            },
+            transitionDuration: const Duration(milliseconds: 350),
+          ),
+        )
+        .then((_) {
+          if (mounted) setState(() => _savedGame = LocalGameStorage.loadGame());
+        });
   }
 
   // ── VS Computer Modal ──
@@ -150,14 +162,20 @@ class _HomeScreenState extends State<HomeScreen> {
           builder: (context, setModalState) {
             return Dialog(
               backgroundColor: Colors.transparent,
-              insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 24,
+              ),
               child: Container(
                 constraints: const BoxConstraints(maxWidth: 420),
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   color: AppTheme.surface,
                   borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.5), width: 1.5),
+                  border: Border.all(
+                    color: const Color(0xFF00E5FF).withValues(alpha: 0.5),
+                    width: 1.5,
+                  ),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.6),
@@ -173,7 +191,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       // Header
                       Row(
                         children: [
-                          const Icon(Icons.smart_toy_rounded, color: Color(0xFF00E5FF), size: 22),
+                          const Icon(
+                            Icons.smart_toy_rounded,
+                            color: Color(0xFF00E5FF),
+                            size: 22,
+                          ),
                           const SizedBox(width: 10),
                           Text(
                             'VS Computer Setup',
@@ -185,7 +207,10 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           const Spacer(),
                           IconButton(
-                            icon: const Icon(Icons.close_rounded, color: Colors.white60),
+                            icon: const Icon(
+                              Icons.close_rounded,
+                              color: Colors.white60,
+                            ),
                             onPressed: () => Navigator.pop(ctx),
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(),
@@ -196,7 +221,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       // 2P / 4P Selection
                       _buildMatchSizeSelector(
                         selectedSize: _vsCompMatchSize,
-                        onSelected: (size) => setModalState(() => _vsCompMatchSize = size),
+                        onSelected: (size) =>
+                            setModalState(() => _vsCompMatchSize = size),
                       ),
                       const SizedBox(height: 12),
                       // Player 1 Name & Color
@@ -210,23 +236,36 @@ class _HomeScreenState extends State<HomeScreen> {
                               height: 38,
                               child: TextField(
                                 controller: _vsCompNameController,
-                                style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
                                 decoration: InputDecoration(
                                   hintText: 'Your Name',
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 8,
+                                  ),
                                   filled: true,
                                   fillColor: AppTheme.bg3,
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(10),
-                                    borderSide: BorderSide(color: AppTheme.border),
+                                    borderSide: BorderSide(
+                                      color: AppTheme.border,
+                                    ),
                                   ),
                                   enabledBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(10),
-                                    borderSide: BorderSide(color: AppTheme.border),
+                                    borderSide: BorderSide(
+                                      color: AppTheme.border,
+                                    ),
                                   ),
                                   focusedBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(10),
-                                    borderSide: const BorderSide(color: Color(0xFF00E5FF)),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFF00E5FF),
+                                    ),
                                   ),
                                 ),
                               ),
@@ -235,7 +274,8 @@ class _HomeScreenState extends State<HomeScreen> {
                             Expanded(
                               child: _buildColorDropdown(
                                 currentColor: _vsCompColor,
-                                onChanged: (color) => setModalState(() => _vsCompColor = color),
+                                onChanged: (color) =>
+                                    setModalState(() => _vsCompColor = color),
                               ),
                             ),
                           ],
@@ -245,7 +285,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       // Bot Difficulty
                       _buildDifficultySelector(
                         selected: _vsCompDifficulty,
-                        onSelected: (d) => setModalState(() => _vsCompDifficulty = d),
+                        onSelected: (d) =>
+                            setModalState(() => _vsCompDifficulty = d),
                       ),
                       const SizedBox(height: 20),
                       // Start Button
@@ -310,14 +351,20 @@ class _HomeScreenState extends State<HomeScreen> {
 
             return Dialog(
               backgroundColor: Colors.transparent,
-              insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 24,
+              ),
               child: Container(
                 constraints: const BoxConstraints(maxWidth: 420),
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   color: AppTheme.surface,
                   borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: const Color(0xFFEC4899).withValues(alpha: 0.5), width: 1.5),
+                  border: Border.all(
+                    color: const Color(0xFFEC4899).withValues(alpha: 0.5),
+                    width: 1.5,
+                  ),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.6),
@@ -333,7 +380,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       // Header
                       Row(
                         children: [
-                          const Icon(Icons.people_alt_rounded, color: Color(0xFFEC4899), size: 22),
+                          const Icon(
+                            Icons.people_alt_rounded,
+                            color: Color(0xFFEC4899),
+                            size: 22,
+                          ),
                           const SizedBox(width: 10),
                           Text(
                             'Pass & Play Setup',
@@ -345,7 +396,10 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           const Spacer(),
                           IconButton(
-                            icon: const Icon(Icons.close_rounded, color: Colors.white60),
+                            icon: const Icon(
+                              Icons.close_rounded,
+                              color: Colors.white60,
+                            ),
                             onPressed: () => Navigator.pop(ctx),
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(),
@@ -371,7 +425,11 @@ class _HomeScreenState extends State<HomeScreen> {
                             children: [
                               Row(
                                 children: [
-                                  Icon(Icons.person_rounded, size: 18, color: AppTheme.success),
+                                  Icon(
+                                    Icons.person_rounded,
+                                    size: 18,
+                                    color: AppTheme.success,
+                                  ),
                                   const SizedBox(width: 8),
                                   Expanded(
                                     child: Text(
@@ -386,7 +444,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                   _stepperBtn(
                                     icon: Icons.remove_rounded,
                                     enabled: _passPlayHumans > 2,
-                                    onTap: () => setModalState(() => _passPlayHumans--),
+                                    onTap: () =>
+                                        setModalState(() => _passPlayHumans--),
                                   ),
                                   SizedBox(
                                     width: 28,
@@ -403,18 +462,26 @@ class _HomeScreenState extends State<HomeScreen> {
                                   _stepperBtn(
                                     icon: Icons.add_rounded,
                                     enabled: _passPlayHumans < 4,
-                                    onTap: () => setModalState(() => _passPlayHumans++),
+                                    onTap: () =>
+                                        setModalState(() => _passPlayHumans++),
                                   ),
                                 ],
                               ),
                               if (4 - _passPlayHumans > 0) ...[
                                 const Padding(
                                   padding: EdgeInsets.symmetric(vertical: 4),
-                                  child: Divider(color: AppTheme.border, height: 1),
+                                  child: Divider(
+                                    color: AppTheme.border,
+                                    height: 1,
+                                  ),
                                 ),
                                 Row(
                                   children: [
-                                    Icon(Icons.smart_toy_rounded, size: 18, color: AppTheme.accentLight),
+                                    Icon(
+                                      Icons.smart_toy_rounded,
+                                      size: 18,
+                                      color: AppTheme.accentLight,
+                                    ),
                                     const SizedBox(width: 8),
                                     Expanded(
                                       child: Text(
@@ -444,11 +511,18 @@ class _HomeScreenState extends State<HomeScreen> {
                       // Team Up (2v2) Switch
                       if (is4P) ...[
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 4,
+                          ),
                           decoration: AppTheme.glassCard(),
                           child: Row(
                             children: [
-                              const Icon(Icons.groups_rounded, size: 18, color: Color(0xFF00E5FF)),
+                              const Icon(
+                                Icons.groups_rounded,
+                                size: 18,
+                                color: Color(0xFF00E5FF),
+                              ),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Column(
@@ -475,7 +549,9 @@ class _HomeScreenState extends State<HomeScreen> {
                               Switch(
                                 value: _passPlayEnableTeamUp,
                                 activeThumbColor: const Color(0xFF00E5FF),
-                                onChanged: (val) => setModalState(() => _passPlayEnableTeamUp = val),
+                                onChanged: (val) => setModalState(
+                                  () => _passPlayEnableTeamUp = val,
+                                ),
                               ),
                             ],
                           ),
@@ -491,7 +567,11 @@ class _HomeScreenState extends State<HomeScreen> {
                           children: [
                             Row(
                               children: [
-                                Icon(Icons.palette_rounded, size: 16, color: AppTheme.accentLight),
+                                Icon(
+                                  Icons.palette_rounded,
+                                  size: 16,
+                                  color: AppTheme.accentLight,
+                                ),
                                 const SizedBox(width: 8),
                                 Text(
                                   'Player Names & 20 Colors',
@@ -505,50 +585,78 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                             const SizedBox(height: 8),
                             Column(
-                              children: List.generate(is4P ? _passPlayHumans : 2, (i) {
-                                final currentColor = _passPlayColors[i];
+                              children: List.generate(
+                                is4P ? _passPlayHumans : 2,
+                                (i) {
+                                  final currentColor = _passPlayColors[i];
 
-                                return Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 4),
-                                  child: Row(
-                                    children: [
-                                      SizedBox(
-                                        width: 120,
-                                        height: 36,
-                                        child: TextField(
-                                          controller: _passPlayNameControllers[i],
-                                          style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
-                                          decoration: InputDecoration(
-                                            hintText: 'Player ${i + 1}',
-                                            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                            filled: true,
-                                            fillColor: AppTheme.bg3,
-                                            border: OutlineInputBorder(
-                                              borderRadius: BorderRadius.circular(10),
-                                              borderSide: BorderSide(color: AppTheme.border),
+                                  return Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 4,
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        SizedBox(
+                                          width: 120,
+                                          height: 36,
+                                          child: TextField(
+                                            controller:
+                                                _passPlayNameControllers[i],
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w600,
                                             ),
-                                            enabledBorder: OutlineInputBorder(
-                                              borderRadius: BorderRadius.circular(10),
-                                              borderSide: BorderSide(color: AppTheme.border),
-                                            ),
-                                            focusedBorder: OutlineInputBorder(
-                                              borderRadius: BorderRadius.circular(10),
-                                              borderSide: const BorderSide(color: Color(0xFF00E5FF)),
+                                            decoration: InputDecoration(
+                                              hintText: 'Player ${i + 1}',
+                                              contentPadding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 10,
+                                                    vertical: 6,
+                                                  ),
+                                              filled: true,
+                                              fillColor: AppTheme.bg3,
+                                              border: OutlineInputBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(10),
+                                                borderSide: BorderSide(
+                                                  color: AppTheme.border,
+                                                ),
+                                              ),
+                                              enabledBorder: OutlineInputBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(10),
+                                                borderSide: BorderSide(
+                                                  color: AppTheme.border,
+                                                ),
+                                              ),
+                                              focusedBorder: OutlineInputBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(10),
+                                                borderSide: const BorderSide(
+                                                  color: Color(0xFF00E5FF),
+                                                ),
+                                              ),
                                             ),
                                           ),
                                         ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: _buildColorDropdown(
-                                          currentColor: currentColor,
-                                          onChanged: (color) => _selectPassPlayColor(setModalState, i, color),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: _buildColorDropdown(
+                                            currentColor: currentColor,
+                                            onChanged: (color) =>
+                                                _selectPassPlayColor(
+                                                  setModalState,
+                                                  i,
+                                                  color,
+                                                ),
+                                          ),
                                         ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              }),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
                             ),
                           ],
                         ),
@@ -557,7 +665,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         const SizedBox(height: 12),
                         _buildDifficultySelector(
                           selected: _passPlayDifficulty,
-                          onSelected: (d) => setModalState(() => _passPlayDifficulty = d),
+                          onSelected: (d) =>
+                              setModalState(() => _passPlayDifficulty = d),
                         ),
                       ],
                       const SizedBox(height: 20),
@@ -615,7 +724,10 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
-    final screenHeight = mediaQuery.size.height - mediaQuery.padding.top - mediaQuery.padding.bottom;
+    final screenHeight =
+        mediaQuery.size.height -
+        mediaQuery.padding.top -
+        mediaQuery.padding.bottom;
     final isCompact = screenHeight < 680;
 
     return Scaffold(
@@ -663,24 +775,38 @@ class _HomeScreenState extends State<HomeScreen> {
                     IconButton(
                       onPressed: () {
                         Navigator.of(context).push(
-                          MaterialPageRoute(builder: (_) => const NotificationCenterScreen()),
+                          MaterialPageRoute(
+                            builder: (_) => const NotificationCenterScreen(),
+                          ),
                         );
                       },
-                      icon: const Icon(Icons.notifications_none_rounded, color: Colors.white70),
+                      icon: const Icon(
+                        Icons.notifications_none_rounded,
+                        color: Colors.white70,
+                      ),
                     ),
                     if (unread > 0)
                       Positioned(
                         right: 6,
                         top: 6,
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 1,
+                          ),
                           decoration: BoxDecoration(
-                            gradient: const LinearGradient(colors: [Color(0xFFEC4899), Color(0xFF7C3AED)]),
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFFEC4899), Color(0xFF7C3AED)],
+                            ),
                             borderRadius: BorderRadius.circular(999),
                           ),
                           child: Text(
                             unread > 9 ? '9+' : '$unread',
-                            style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                            ),
                           ),
                         ),
                       ),
@@ -713,7 +839,8 @@ class _HomeScreenState extends State<HomeScreen> {
             isCompact: isCompact,
             icon: Icons.play_circle_fill_rounded,
             title: 'RESUME GAME',
-            subtitle: '${_savedGame!.currentPlayer.name}\'s turn • Saved in this browser',
+            subtitle:
+                '${_savedGame!.currentPlayer.name}\'s turn • Saved in this browser',
             gradient: const LinearGradient(
               colors: [Color(0xFF10B981), Color(0xFF0EA5E9)],
             ),
@@ -780,14 +907,20 @@ class _HomeScreenState extends State<HomeScreen> {
           builder: (context, setModalState) {
             return Dialog(
               backgroundColor: Colors.transparent,
-              insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 24,
+              ),
               child: Container(
                 constraints: const BoxConstraints(maxWidth: 420),
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   color: AppTheme.surface,
                   borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.5), width: 1.5),
+                  border: Border.all(
+                    color: const Color(0xFF00E5FF).withValues(alpha: 0.5),
+                    width: 1.5,
+                  ),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.6),
@@ -803,7 +936,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       // Header
                       Row(
                         children: [
-                          const Icon(Icons.public_rounded, color: Color(0xFF00E5FF), size: 22),
+                          const Icon(
+                            Icons.public_rounded,
+                            color: Color(0xFF00E5FF),
+                            size: 22,
+                          ),
                           const SizedBox(width: 10),
                           Text(
                             'Play Online Setup',
@@ -815,8 +952,13 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           const Spacer(),
                           IconButton(
-                            icon: const Icon(Icons.close_rounded, color: Colors.white60),
-                            onPressed: isSubmitting ? null : () => Navigator.pop(ctx),
+                            icon: const Icon(
+                              Icons.close_rounded,
+                              color: Colors.white60,
+                            ),
+                            onPressed: isSubmitting
+                                ? null
+                                : () => Navigator.pop(ctx),
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(),
                           ),
@@ -827,7 +969,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       // Avatar Selector
                       _buildModalAvatarPicker(
                         selectedIndex: avatarIndex,
-                        onSelected: isSubmitting ? (_) {} : (idx) => setModalState(() => avatarIndex = idx),
+                        onSelected: isSubmitting
+                            ? (_) {}
+                            : (idx) => setModalState(() => avatarIndex = idx),
                       ),
                       const SizedBox(height: 12),
 
@@ -843,23 +987,36 @@ class _HomeScreenState extends State<HomeScreen> {
                               child: TextField(
                                 controller: nameController,
                                 enabled: !isSubmitting,
-                                style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
                                 decoration: InputDecoration(
                                   hintText: 'Your Name',
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 8,
+                                  ),
                                   filled: true,
                                   fillColor: AppTheme.bg3,
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(10),
-                                    borderSide: BorderSide(color: AppTheme.border),
+                                    borderSide: BorderSide(
+                                      color: AppTheme.border,
+                                    ),
                                   ),
                                   enabledBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(10),
-                                    borderSide: BorderSide(color: AppTheme.border),
+                                    borderSide: BorderSide(
+                                      color: AppTheme.border,
+                                    ),
                                   ),
                                   focusedBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(10),
-                                    borderSide: const BorderSide(color: Color(0xFF00E5FF)),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFF00E5FF),
+                                    ),
                                   ),
                                 ),
                               ),
@@ -868,7 +1025,11 @@ class _HomeScreenState extends State<HomeScreen> {
                             Expanded(
                               child: _buildColorDropdown(
                                 currentColor: selectedColor,
-                                onChanged: isSubmitting ? (_) {} : (color) => setModalState(() => selectedColor = color),
+                                onChanged: isSubmitting
+                                    ? (_) {}
+                                    : (color) => setModalState(
+                                        () => selectedColor = color,
+                                      ),
                               ),
                             ),
                           ],
@@ -888,19 +1049,27 @@ class _HomeScreenState extends State<HomeScreen> {
                           children: [
                             Expanded(
                               child: GestureDetector(
-                                onTap: isSubmitting ? null : () => setModalState(() => activeTab = 0),
+                                onTap: isSubmitting
+                                    ? null
+                                    : () => setModalState(() => activeTab = 0),
                                 child: AnimatedContainer(
                                   duration: const Duration(milliseconds: 200),
-                                  padding: const EdgeInsets.symmetric(vertical: 10),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 10,
+                                  ),
                                   decoration: BoxDecoration(
-                                    gradient: activeTab == 0 ? AppTheme.primaryGradient : null,
+                                    gradient: activeTab == 0
+                                        ? AppTheme.primaryGradient
+                                        : null,
                                     borderRadius: BorderRadius.circular(10),
                                   ),
                                   child: Text(
                                     'CREATE ROOM',
                                     textAlign: TextAlign.center,
                                     style: TextStyle(
-                                      color: activeTab == 0 ? Colors.white : Colors.white70,
+                                      color: activeTab == 0
+                                          ? Colors.white
+                                          : Colors.white70,
                                       fontWeight: FontWeight.w800,
                                       fontSize: 13,
                                     ),
@@ -910,19 +1079,27 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                             Expanded(
                               child: GestureDetector(
-                                onTap: isSubmitting ? null : () => setModalState(() => activeTab = 1),
+                                onTap: isSubmitting
+                                    ? null
+                                    : () => setModalState(() => activeTab = 1),
                                 child: AnimatedContainer(
                                   duration: const Duration(milliseconds: 200),
-                                  padding: const EdgeInsets.symmetric(vertical: 10),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 10,
+                                  ),
                                   decoration: BoxDecoration(
-                                    gradient: activeTab == 1 ? AppTheme.primaryGradient : null,
+                                    gradient: activeTab == 1
+                                        ? AppTheme.primaryGradient
+                                        : null,
                                     borderRadius: BorderRadius.circular(10),
                                   ),
                                   child: Text(
                                     'JOIN ROOM',
                                     textAlign: TextAlign.center,
                                     style: TextStyle(
-                                      color: activeTab == 1 ? Colors.white : Colors.white70,
+                                      color: activeTab == 1
+                                          ? Colors.white
+                                          : Colors.white70,
                                       fontWeight: FontWeight.w800,
                                       fontSize: 13,
                                     ),
@@ -939,13 +1116,19 @@ class _HomeScreenState extends State<HomeScreen> {
                         // CREATE ROOM TAB CONTENT
                         _buildMatchSizeSelector(
                           selectedSize: matchSize,
-                          onSelected: isSubmitting ? (_) {} : (size) => setModalState(() => matchSize = size),
+                          onSelected: isSubmitting
+                              ? (_) {}
+                              : (size) => setModalState(() => matchSize = size),
                         ),
                         if (matchSize == 4) ...[
                           const SizedBox(height: 10),
                           Row(
                             children: [
-                              const Icon(Icons.groups_rounded, size: 18, color: Color(0xFF00E5FF)),
+                              const Icon(
+                                Icons.groups_rounded,
+                                size: 18,
+                                color: Color(0xFF00E5FF),
+                              ),
                               const SizedBox(width: 8),
                               const Expanded(
                                 child: Text(
@@ -960,7 +1143,11 @@ class _HomeScreenState extends State<HomeScreen> {
                               Switch(
                                 value: enableTeamUp,
                                 activeThumbColor: const Color(0xFF00E5FF),
-                                onChanged: isSubmitting ? null : (val) => setModalState(() => enableTeamUp = val),
+                                onChanged: isSubmitting
+                                    ? null
+                                    : (val) => setModalState(
+                                        () => enableTeamUp = val,
+                                      ),
                               ),
                             ],
                           ),
@@ -974,16 +1161,21 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ? null
                                 : () async {
                                     setModalState(() => isSubmitting = true);
-                                    final name = nameController.text.trim().isEmpty ? 'Player 1' : nameController.text.trim();
+                                    final name =
+                                        nameController.text.trim().isEmpty
+                                        ? 'Player 1'
+                                        : nameController.text.trim();
                                     try {
-                                      final room = await onlineService.createRoom(
-                                        playerName: name,
-                                        boardType: _boardType,
-                                        preferredColor: selectedColor,
-                                        avatarIndex: avatarIndex,
-                                        targetPlayerCount: matchSize,
-                                        isTeamUp: matchSize == 4 && enableTeamUp,
-                                      );
+                                      final room = await onlineService
+                                          .createRoom(
+                                            playerName: name,
+                                            boardType: _boardType,
+                                            preferredColor: selectedColor,
+                                            avatarIndex: avatarIndex,
+                                            targetPlayerCount: matchSize,
+                                            isTeamUp:
+                                                matchSize == 4 && enableTeamUp,
+                                          );
                                       if (context.mounted) {
                                         Navigator.pop(ctx);
                                         Navigator.of(context).push(
@@ -997,8 +1189,21 @@ class _HomeScreenState extends State<HomeScreen> {
                                       }
                                     } catch (e) {
                                       if (context.mounted) {
-                                        setModalState(() => isSubmitting = false);
+                                        setModalState(
+                                          () => isSubmitting = false,
+                                        );
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              'Unable to create room: $e',
+                                            ),
+                                            backgroundColor: Colors.redAccent,
+                                          ),
+                                        );
                                       }
+                                      onlineService.dispose();
                                     }
                                   },
                             style: ElevatedButton.styleFrom(
@@ -1070,7 +1275,9 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Color(0xFF00E5FF)),
+                              borderSide: const BorderSide(
+                                color: Color(0xFF00E5FF),
+                              ),
                             ),
                           ),
                         ),
@@ -1082,23 +1289,37 @@ class _HomeScreenState extends State<HomeScreen> {
                             onPressed: isSubmitting
                                 ? null
                                 : () async {
-                                    final name = nameController.text.trim().isEmpty ? 'Player 1' : nameController.text.trim();
-                                    final code = codeController.text.trim().toUpperCase();
+                                    final name =
+                                        nameController.text.trim().isEmpty
+                                        ? 'Player 1'
+                                        : nameController.text.trim();
+                                    final code = codeController.text
+                                        .trim()
+                                        .toUpperCase();
                                     if (code.length != 6) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(content: Text('Enter a 6-character room code')),
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'Enter a 6-character room code',
+                                          ),
+                                        ),
                                       );
                                       return;
                                     }
                                     setModalState(() => isSubmitting = true);
                                     try {
-                                      final res = await onlineService.joinRoomResult(
-                                        code: code,
-                                        playerName: name,
-                                        avatarIndex: avatarIndex,
-                                        preferredColor: selectedColor,
-                                      );
-                                      if (res.isSuccess && res.room != null && context.mounted) {
+                                      final res = await onlineService
+                                          .joinRoomResult(
+                                            code: code,
+                                            playerName: name,
+                                            avatarIndex: avatarIndex,
+                                            preferredColor: selectedColor,
+                                          );
+                                      if (res.isSuccess &&
+                                          res.room != null &&
+                                          context.mounted) {
                                         Navigator.pop(ctx);
                                         Navigator.of(context).push(
                                           MaterialPageRoute(
@@ -1109,17 +1330,36 @@ class _HomeScreenState extends State<HomeScreen> {
                                           ),
                                         );
                                       } else if (context.mounted) {
-                                        setModalState(() => isSubmitting = false);
-                                        ScaffoldMessenger.of(context).showSnackBar(
+                                        setModalState(
+                                          () => isSubmitting = false,
+                                        );
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
                                           SnackBar(
-                                            content: Text(res.error ?? 'Unable to join room.'),
+                                            content: Text(
+                                              res.error ??
+                                                  'Unable to join room.',
+                                            ),
                                             backgroundColor: Colors.redAccent,
                                           ),
                                         );
                                       }
                                     } catch (e) {
                                       if (context.mounted) {
-                                        setModalState(() => isSubmitting = false);
+                                        setModalState(
+                                          () => isSubmitting = false,
+                                        );
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              'Unable to join room: $e',
+                                            ),
+                                            backgroundColor: Colors.redAccent,
+                                          ),
+                                        );
                                       }
                                     }
                                   },
@@ -1179,7 +1419,11 @@ class _HomeScreenState extends State<HomeScreen> {
       children: [
         const Text(
           'Select Avatar',
-          style: TextStyle(color: Color(0xFF8B949E), fontSize: 11, fontWeight: FontWeight.w600),
+          style: TextStyle(
+            color: Color(0xFF8B949E),
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+          ),
         ),
         const SizedBox(height: 6),
         SizedBox(
@@ -1201,13 +1445,17 @@ class _HomeScreenState extends State<HomeScreen> {
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: isSel ? const Color(0xFF00E5FF) : Colors.transparent,
+                        color: isSel
+                            ? const Color(0xFF00E5FF)
+                            : Colors.transparent,
                         width: 2,
                       ),
                       boxShadow: isSel
                           ? [
                               BoxShadow(
-                                color: const Color(0xFF00E5FF).withValues(alpha: 0.5),
+                                color: const Color(
+                                  0xFF00E5FF,
+                                ).withValues(alpha: 0.5),
                                 blurRadius: 6,
                                 spreadRadius: 1,
                               ),
@@ -1270,7 +1518,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     color: Colors.white.withValues(alpha: 0.15),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(icon, color: isOutline ? borderColor : Colors.white, size: 24),
+                  child: Icon(
+                    icon,
+                    color: isOutline ? borderColor : Colors.white,
+                    size: 24,
+                  ),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -1297,7 +1549,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         softWrap: false,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          color: isOutline ? Colors.white70 : Colors.white.withValues(alpha: 0.85),
+                          color: isOutline
+                              ? Colors.white70
+                              : Colors.white.withValues(alpha: 0.85),
                           fontSize: 11,
                           fontWeight: FontWeight.w500,
                         ),
@@ -1355,15 +1609,21 @@ class _HomeScreenState extends State<HomeScreen> {
                         color: isSelected ? null : AppTheme.bg3,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: isSelected ? AppTheme.accentLight : AppTheme.border,
+                          color: isSelected
+                              ? AppTheme.accentLight
+                              : AppTheme.border,
                         ),
                       ),
                       child: Text(
                         '$size Players',
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          color: isSelected ? Colors.white : AppTheme.textSecondary,
-                          fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                          color: isSelected
+                              ? Colors.white
+                              : AppTheme.textSecondary,
+                          fontWeight: isSelected
+                              ? FontWeight.w800
+                              : FontWeight.w600,
                           fontSize: 13,
                         ),
                       ),
@@ -1396,7 +1656,10 @@ class _HomeScreenState extends State<HomeScreen> {
           isExpanded: true,
           menuMaxHeight: 260,
           dropdownColor: AppTheme.surface,
-          icon: const Icon(Icons.arrow_drop_down_rounded, color: Colors.white70),
+          icon: const Icon(
+            Icons.arrow_drop_down_rounded,
+            color: Colors.white70,
+          ),
           items: PlayerColor.values.map((color) {
             return DropdownMenuItem<PlayerColor>(
               value: color,
@@ -1472,10 +1735,14 @@ class _HomeScreenState extends State<HomeScreen> {
                         duration: const Duration(milliseconds: 200),
                         padding: const EdgeInsets.symmetric(vertical: 6),
                         decoration: BoxDecoration(
-                          color: isSel ? color.withValues(alpha: 0.15) : AppTheme.bg3,
+                          color: isSel
+                              ? color.withValues(alpha: 0.15)
+                              : AppTheme.bg3,
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
-                            color: isSel ? color.withValues(alpha: 0.6) : AppTheme.border,
+                            color: isSel
+                                ? color.withValues(alpha: 0.6)
+                                : AppTheme.border,
                           ),
                         ),
                         child: Text(
@@ -1483,7 +1750,9 @@ class _HomeScreenState extends State<HomeScreen> {
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color: isSel ? color : AppTheme.textSecondary,
-                            fontWeight: isSel ? FontWeight.w700 : FontWeight.w500,
+                            fontWeight: isSel
+                                ? FontWeight.w700
+                                : FontWeight.w500,
                             fontSize: 11,
                           ),
                         ),

@@ -69,6 +69,19 @@ class GameService {
     _tryAITurn();
   }
 
+  /// Recover a saved/remote no-move turn when this client becomes authoritative.
+  void recoverNoMoveTurn() {
+    if (!runAI ||
+        _disposed ||
+        state.isGameOver ||
+        state.phase != GamePhase.moving ||
+        state.validTokenMoves.isNotEmpty) {
+      return;
+    }
+    _turnTimer?.cancel();
+    _turnTimer = Timer(displayDelay, _finishNoMoveTurn);
+  }
+
   /// Human player rolls dice
   void rollDice() {
     if (state.phase != GamePhase.rolling || _isMovingStep) return;
@@ -338,6 +351,22 @@ class GameService {
     bool enableJodi = true,
     bool enableTeamUp = false,
   }) {
+    final totalPlayersCount = humanPlayers + aiPlayers;
+    if (humanPlayers < 0 || aiPlayers < 0) {
+      throw ArgumentError('Player counts cannot be negative.');
+    }
+    if (totalPlayersCount < 2 || totalPlayersCount > boardType.maxPlayers) {
+      throw ArgumentError(
+        'A ${boardType.label} game must have 2-${boardType.maxPlayers} players.',
+      );
+    }
+    if (enableTeamUp &&
+        (boardType != BoardType.classic4 || totalPlayersCount != 4)) {
+      throw ArgumentError(
+        'Team-up mode requires exactly four classic-board players.',
+      );
+    }
+
     final allColors = boardType == BoardType.classic4
         ? [
             PlayerColor.red,
@@ -350,8 +379,6 @@ class GameService {
     final players = <Player>[];
     final assignedColors = <PlayerColor>[];
 
-    final totalPlayersCount = humanPlayers + aiPlayers;
-
     for (var i = 0; i < humanPlayers; i++) {
       final name =
           (humanNames != null &&
@@ -362,6 +389,9 @@ class GameService {
       final color = (humanColors != null && i < humanColors.length)
           ? humanColors[i]
           : allColors[i % allColors.length];
+      if (assignedColors.contains(color)) {
+        throw ArgumentError('Each player must have a unique color.');
+      }
       assignedColors.add(color);
 
       final teamId = enableTeamUp && totalPlayersCount == 4

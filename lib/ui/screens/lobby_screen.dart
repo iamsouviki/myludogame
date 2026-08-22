@@ -19,11 +19,7 @@ class LobbyScreen extends StatefulWidget {
   final RoomData? initialRoom;
   final OnlineService? onlineService;
 
-  const LobbyScreen({
-    super.key,
-    this.initialRoom,
-    this.onlineService,
-  });
+  const LobbyScreen({super.key, this.initialRoom, this.onlineService});
 
   @override
   State<LobbyScreen> createState() => _LobbyScreenState();
@@ -42,7 +38,9 @@ class _LobbyScreenState extends State<LobbyScreen> {
   RoomData? _room;
   bool _isLoading = false;
   bool _enteredGame = false;
+  bool _roomClosedHandled = false;
   String? _selectedTeammateId;
+  StreamSubscription<RoomData>? _roomSubscription;
   StreamSubscription<List<ChatMessage>>? _chatSubscription;
   int _seenChatCount = 0;
   int _unreadChatCount = 0;
@@ -54,12 +52,26 @@ class _LobbyScreenState extends State<LobbyScreen> {
     super.initState();
     _onlineService = widget.onlineService ?? OnlineService();
     _room = widget.initialRoom;
-    _onlineService.roomStream.listen((room) {
+    _roomSubscription = _onlineService.roomStream.listen((room) {
       if (mounted) {
         setState(() => _room = room);
+        if (room.status == RoomStatus.finished &&
+            room.players.isEmpty &&
+            !_roomClosedHandled) {
+          _roomClosedHandled = true;
+          _showBanner('This room is no longer available.');
+          Future.delayed(const Duration(seconds: 1), () {
+            if (mounted) {
+              Navigator.of(context).popUntil((route) => route.isFirst);
+            }
+          });
+          return;
+        }
         if (room.status == RoomStatus.playing &&
-            room.players.length >= 2 && !_enteredGame) {
+            room.players.length >= 2 &&
+            !_enteredGame) {
           _enteredGame = true;
+          _roomSubscription?.cancel();
           final gameState = GameState(
             boardType: room.boardType,
             players: room.players,
@@ -105,7 +117,9 @@ class _LobbyScreenState extends State<LobbyScreen> {
   @override
   void dispose() {
     // GameScreen owns this service after lobby navigation.
+    _roomSubscription?.cancel();
     _chatSubscription?.cancel();
+    if (!_enteredGame) _onlineService.dispose();
     _bannerTimer?.cancel();
     _nameController.dispose();
     _codeController.dispose();
@@ -114,17 +128,26 @@ class _LobbyScreenState extends State<LobbyScreen> {
 
   Future<void> _createRoom() async {
     setState(() => _isLoading = true);
-    await _onlineService.createRoom(
-      playerName: _nameController.text.trim().isEmpty
-          ? 'Player'
-          : _nameController.text.trim(),
-      boardType: _boardType,
-      preferredColor: _selectedColor,
-      avatarIndex: _selectedAvatarIndex,
-      targetPlayerCount: _onlineMatchSize,
-      isTeamUp: _onlineMatchSize == 4 && _onlineEnableTeamUp,
-    );
-    setState(() => _isLoading = false);
+    try {
+      await _onlineService.createRoom(
+        playerName: _nameController.text.trim().isEmpty
+            ? 'Player'
+            : _nameController.text.trim(),
+        boardType: _boardType,
+        preferredColor: _selectedColor,
+        avatarIndex: _selectedAvatarIndex,
+        targetPlayerCount: _onlineMatchSize,
+        isTeamUp: _onlineMatchSize == 4 && _onlineEnableTeamUp,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Unable to create room: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   Future<void> _joinRoom() async {
@@ -143,7 +166,9 @@ class _LobbyScreenState extends State<LobbyScreen> {
           ? 'Player'
           : _nameController.text.trim(),
       avatarIndex: _selectedAvatarIndex,
-      preferredColor: _takenColors.contains(_selectedColor) ? null : _selectedColor,
+      preferredColor: _takenColors.contains(_selectedColor)
+          ? null
+          : _selectedColor,
     );
     setState(() => _isLoading = false);
 
@@ -223,13 +248,18 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 420),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
                         colors: [Color(0xFF111827), Color(0xFF1F2937)],
                       ),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.4)),
+                      border: Border.all(
+                        color: const Color(0xFF00E5FF).withValues(alpha: 0.4),
+                      ),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withValues(alpha: 0.32),
@@ -249,7 +279,11 @@ class _LobbyScreenState extends State<LobbyScreen> {
                             ),
                             borderRadius: BorderRadius.circular(10),
                           ),
-                          child: const Icon(Icons.notifications_active_rounded, color: Colors.white, size: 16),
+                          child: const Icon(
+                            Icons.notifications_active_rounded,
+                            color: Colors.white,
+                            size: 16,
+                          ),
                         ),
                         const SizedBox(width: 10),
                         Expanded(
@@ -291,7 +325,11 @@ class _LobbyScreenState extends State<LobbyScreen> {
       children: [
         const Text(
           'Select Avatar',
-          style: TextStyle(color: Color(0xFF8B949E), fontSize: 11, fontWeight: FontWeight.w600),
+          style: TextStyle(
+            color: Color(0xFF8B949E),
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+          ),
         ),
         const SizedBox(height: 6),
         SizedBox(
@@ -313,13 +351,17 @@ class _LobbyScreenState extends State<LobbyScreen> {
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: isSel ? const Color(0xFF00E5FF) : Colors.transparent,
+                        color: isSel
+                            ? const Color(0xFF00E5FF)
+                            : Colors.transparent,
                         width: 2,
                       ),
                       boxShadow: isSel
                           ? [
                               BoxShadow(
-                                color: const Color(0xFF00E5FF).withValues(alpha: 0.5),
+                                color: const Color(
+                                  0xFF00E5FF,
+                                ).withValues(alpha: 0.5),
                                 blurRadius: 6,
                                 spreadRadius: 1,
                               ),
@@ -354,11 +396,20 @@ class _LobbyScreenState extends State<LobbyScreen> {
               Row(
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.arrow_back_rounded, color: Colors.white70),
-                    onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
+                    icon: const Icon(
+                      Icons.arrow_back_rounded,
+                      color: Colors.white70,
+                    ),
+                    onPressed: () => Navigator.of(
+                      context,
+                    ).popUntil((route) => route.isFirst),
                   ),
                   const SizedBox(width: 4),
-                  const Icon(Icons.public_rounded, color: Color(0xFF00E5FF), size: 24),
+                  const Icon(
+                    Icons.public_rounded,
+                    color: Color(0xFF00E5FF),
+                    size: 24,
+                  ),
                   const SizedBox(width: 8),
                   const Text(
                     'Online Multiplayer',
@@ -380,7 +431,11 @@ class _LobbyScreenState extends State<LobbyScreen> {
                   children: [
                     const Text(
                       'Your Player Profile',
-                      style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     _buildAvatarPicker(),
@@ -392,10 +447,17 @@ class _LobbyScreenState extends State<LobbyScreen> {
                           height: 38,
                           child: TextField(
                             controller: _nameController,
-                            style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
                             decoration: InputDecoration(
                               hintText: 'Player Name',
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 8,
+                              ),
                               filled: true,
                               fillColor: AppTheme.bg3,
                               border: OutlineInputBorder(
@@ -408,7 +470,9 @@ class _LobbyScreenState extends State<LobbyScreen> {
                               ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(10),
-                                borderSide: const BorderSide(color: Color(0xFF00E5FF)),
+                                borderSide: const BorderSide(
+                                  color: Color(0xFF00E5FF),
+                                ),
                               ),
                             ),
                           ),
@@ -425,15 +489,23 @@ class _LobbyScreenState extends State<LobbyScreen> {
                             ),
                             child: DropdownButtonHideUnderline(
                               child: DropdownButton<PlayerColor>(
-                                value: _takenColors.contains(_selectedColor) ? null : _selectedColor,
+                                value: _takenColors.contains(_selectedColor)
+                                    ? null
+                                    : _selectedColor,
                                 hint: Text(
                                   _selectedColor.label,
-                                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 13,
+                                  ),
                                 ),
                                 isExpanded: true,
                                 menuMaxHeight: 260,
                                 dropdownColor: AppTheme.surface,
-                                icon: const Icon(Icons.arrow_drop_down_rounded, color: Colors.white70),
+                                icon: const Icon(
+                                  Icons.arrow_drop_down_rounded,
+                                  color: Colors.white70,
+                                ),
                                 items: PlayerColor.values.map((color) {
                                   final isTaken = _takenColors.contains(color);
                                   return DropdownMenuItem<PlayerColor>(
@@ -446,17 +518,29 @@ class _LobbyScreenState extends State<LobbyScreen> {
                                           height: 14,
                                           decoration: BoxDecoration(
                                             shape: BoxShape.circle,
-                                            color: isTaken ? Colors.grey : color.color,
-                                            border: Border.all(color: isTaken ? Colors.grey : Colors.white38),
+                                            color: isTaken
+                                                ? Colors.grey
+                                                : color.color,
+                                            border: Border.all(
+                                              color: isTaken
+                                                  ? Colors.grey
+                                                  : Colors.white38,
+                                            ),
                                           ),
                                         ),
                                         const SizedBox(width: 8),
                                         Text(
-                                          isTaken ? '${color.label} (Taken)' : color.label,
+                                          isTaken
+                                              ? '${color.label} (Taken)'
+                                              : color.label,
                                           style: TextStyle(
-                                            color: isTaken ? Colors.white38 : Colors.white,
+                                            color: isTaken
+                                                ? Colors.white38
+                                                : Colors.white,
                                             fontSize: 13,
-                                            fontWeight: isTaken ? FontWeight.w400 : FontWeight.w600,
+                                            fontWeight: isTaken
+                                                ? FontWeight.w400
+                                                : FontWeight.w600,
                                           ),
                                         ),
                                       ],
@@ -464,7 +548,9 @@ class _LobbyScreenState extends State<LobbyScreen> {
                                   );
                                 }).toList(),
                                 onChanged: (val) {
-                                  if (val != null) setState(() => _selectedColor = val);
+                                  if (val != null) {
+                                    setState(() => _selectedColor = val);
+                                  }
                                 },
                               ),
                             ),
@@ -493,14 +579,18 @@ class _LobbyScreenState extends State<LobbyScreen> {
                           duration: const Duration(milliseconds: 200),
                           padding: const EdgeInsets.symmetric(vertical: 10),
                           decoration: BoxDecoration(
-                            gradient: _activeTab == 0 ? AppTheme.primaryGradient : null,
+                            gradient: _activeTab == 0
+                                ? AppTheme.primaryGradient
+                                : null,
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Text(
                             'CREATE ROOM',
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                              color: _activeTab == 0 ? Colors.white : Colors.white70,
+                              color: _activeTab == 0
+                                  ? Colors.white
+                                  : Colors.white70,
                               fontWeight: FontWeight.w800,
                               fontSize: 13,
                             ),
@@ -515,14 +605,18 @@ class _LobbyScreenState extends State<LobbyScreen> {
                           duration: const Duration(milliseconds: 200),
                           padding: const EdgeInsets.symmetric(vertical: 10),
                           decoration: BoxDecoration(
-                            gradient: _activeTab == 1 ? AppTheme.primaryGradient : null,
+                            gradient: _activeTab == 1
+                                ? AppTheme.primaryGradient
+                                : null,
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Text(
                             'JOIN ROOM',
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                              color: _activeTab == 1 ? Colors.white : Colors.white70,
+                              color: _activeTab == 1
+                                  ? Colors.white
+                                  : Colors.white70,
                               fontWeight: FontWeight.w800,
                               fontSize: 13,
                             ),
@@ -545,7 +639,11 @@ class _LobbyScreenState extends State<LobbyScreen> {
                     children: [
                       const Text(
                         'Select Match Size',
-                        style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       Row(
@@ -553,24 +651,35 @@ class _LobbyScreenState extends State<LobbyScreen> {
                           final selected = _onlineMatchSize == size;
                           return Expanded(
                             child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 4),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                              ),
                               child: GestureDetector(
-                                onTap: () => setState(() => _onlineMatchSize = size),
+                                onTap: () =>
+                                    setState(() => _onlineMatchSize = size),
                                 child: Container(
-                                  padding: const EdgeInsets.symmetric(vertical: 8),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 8,
+                                  ),
                                   decoration: BoxDecoration(
-                                    gradient: selected ? AppTheme.primaryGradient : null,
+                                    gradient: selected
+                                        ? AppTheme.primaryGradient
+                                        : null,
                                     color: selected ? null : AppTheme.bg3,
                                     borderRadius: BorderRadius.circular(10),
                                     border: Border.all(
-                                      color: selected ? AppTheme.accentLight : AppTheme.border,
+                                      color: selected
+                                          ? AppTheme.accentLight
+                                          : AppTheme.border,
                                     ),
                                   ),
                                   child: Text(
                                     '$size Players',
                                     textAlign: TextAlign.center,
                                     style: TextStyle(
-                                      color: selected ? Colors.white : AppTheme.textSecondary,
+                                      color: selected
+                                          ? Colors.white
+                                          : AppTheme.textSecondary,
                                       fontSize: 12,
                                       fontWeight: FontWeight.w700,
                                     ),
@@ -585,7 +694,11 @@ class _LobbyScreenState extends State<LobbyScreen> {
                         const SizedBox(height: 10),
                         Row(
                           children: [
-                            const Icon(Icons.groups_rounded, size: 18, color: Color(0xFF00E5FF)),
+                            const Icon(
+                              Icons.groups_rounded,
+                              size: 18,
+                              color: Color(0xFF00E5FF),
+                            ),
                             const SizedBox(width: 8),
                             const Expanded(
                               child: Text(
@@ -600,7 +713,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
                             Switch(
                               value: _onlineEnableTeamUp,
                               activeThumbColor: const Color(0xFF00E5FF),
-                              onChanged: (val) => setState(() => _onlineEnableTeamUp = val),
+                              onChanged: (val) =>
+                                  setState(() => _onlineEnableTeamUp = val),
                             ),
                           ],
                         ),
@@ -662,7 +776,11 @@ class _LobbyScreenState extends State<LobbyScreen> {
                     children: [
                       const Text(
                         'Enter 6-Digit Room Code',
-                        style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                       const SizedBox(height: 10),
                       TextField(
@@ -696,7 +814,9 @@ class _LobbyScreenState extends State<LobbyScreen> {
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFF00E5FF)),
+                            borderSide: const BorderSide(
+                              color: Color(0xFF00E5FF),
+                            ),
                           ),
                         ),
                       ),
@@ -770,10 +890,9 @@ class _LobbyScreenState extends State<LobbyScreen> {
             children: [
               Text(
                 '🏠 Room Lobby',
-                style: Theme.of(context)
-                    .textTheme
-                    .headlineMedium
-                    ?.copyWith(color: Colors.white),
+                style: Theme.of(
+                  context,
+                ).textTheme.headlineMedium?.copyWith(color: Colors.white),
               ),
               const SizedBox(height: 16),
 
@@ -808,8 +927,11 @@ class _LobbyScreenState extends State<LobbyScreen> {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          const Icon(Icons.copy,
-                              color: Color(0xFF58A6FF), size: 20),
+                          const Icon(
+                            Icons.copy,
+                            color: Color(0xFF58A6FF),
+                            size: 20,
+                          ),
                         ],
                       ),
                     ),
@@ -839,93 +961,108 @@ class _LobbyScreenState extends State<LobbyScreen> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    ...room.players.map((player) => Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: GestureDetector(
-                            onTap: isHost && isTeamUp && player.id != room.hostId
-                                ? () async {
-                                    setState(() => _selectedTeammateId = player.id);
-                                    await _onlineService.setTeamUpPair(teammateId: player.id);
-                                  }
-                                : null,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                              decoration: BoxDecoration(
+                    ...room.players.map(
+                      (player) => Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: GestureDetector(
+                          onTap: isHost && isTeamUp && player.id != room.hostId
+                              ? () async {
+                                  setState(
+                                    () => _selectedTeammateId = player.id,
+                                  );
+                                  await _onlineService.setTeamUpPair(
+                                    teammateId: player.id,
+                                  );
+                                }
+                              : null,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _selectedTeammateId == player.id
+                                  ? const Color(
+                                      0xFF00E5FF,
+                                    ).withValues(alpha: 0.10)
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
                                 color: _selectedTeammateId == player.id
-                                    ? const Color(0xFF00E5FF).withValues(alpha: 0.10)
+                                    ? const Color(
+                                        0xFF00E5FF,
+                                      ).withValues(alpha: 0.55)
                                     : Colors.transparent,
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(
-                                  color: _selectedTeammateId == player.id
-                                      ? const Color(0xFF00E5FF).withValues(alpha: 0.55)
-                                      : Colors.transparent,
-                                ),
                               ),
-                              child: Row(
-                                children: [
-                                  PlayerAvatarWidget(
-                                    avatarIndex: player.avatarIndex,
-                                    size: 36,
-                                    borderColor: player.color.color,
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
+                            ),
+                            child: Row(
+                              children: [
+                                PlayerAvatarWidget(
+                                  avatarIndex: player.avatarIndex,
+                                  size: 36,
+                                  borderColor: player.color.color,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        player.name,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      if (isTeamUp)
                                         Text(
-                                          player.name,
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 15,
+                                          player.teamId == 0
+                                              ? 'Team A'
+                                              : player.teamId == 1
+                                              ? 'Team B'
+                                              : 'Tap host to assign team',
+                                          style: TextStyle(
+                                            color: player.teamId == 0
+                                                ? const Color(0xFF00E5FF)
+                                                : player.teamId == 1
+                                                ? const Color(0xFFFFD700)
+                                                : AppTheme.textMuted,
+                                            fontSize: 11,
                                             fontWeight: FontWeight.w600,
                                           ),
                                         ),
-                                        if (isTeamUp)
-                                          Text(
-                                            player.teamId == 0
-                                                ? 'Team A'
-                                                : player.teamId == 1
-                                                    ? 'Team B'
-                                                    : 'Tap host to assign team',
-                                            style: TextStyle(
-                                              color: player.teamId == 0
-                                                  ? const Color(0xFF00E5FF)
-                                                  : player.teamId == 1
-                                                      ? const Color(0xFFFFD700)
-                                                      : AppTheme.textMuted,
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                      ],
+                                    ],
+                                  ),
+                                ),
+                                if (player.id == room.hostId)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(
+                                        0xFFFFD700,
+                                      ).withValues(alpha: 0.2),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: const Text(
+                                      'HOST',
+                                      style: TextStyle(
+                                        color: Color(0xFFFFD700),
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w700,
+                                      ),
                                     ),
                                   ),
-                                  if (player.id == room.hostId)
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 2,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFFFD700)
-                                            .withValues(alpha: 0.2),
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      child: const Text(
-                                        'HOST',
-                                        style: TextStyle(
-                                          color: Color(0xFFFFD700),
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                              ),
+                              ],
                             ),
                           ),
-                        )),
+                        ),
+                      ),
+                    ),
                     // Waiting slots
                     for (var i = room.players.length; i < room.maxPlayers; i++)
                       Padding(
@@ -963,20 +1100,29 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(14),
-                  decoration: AppTheme.glassCard(glowColor: const Color(0xFF00E5FF)),
+                  decoration: AppTheme.glassCard(
+                    glowColor: const Color(0xFF00E5FF),
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
                         'Team Up Setup',
-                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14),
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14,
+                        ),
                       ),
                       const SizedBox(height: 6),
                       Text(
                         isHost
                             ? 'Tap one joined player to make them your teammate. The remaining two players will form the other team.'
                             : 'Teams are assigned by the host before the match starts.',
-                        style: TextStyle(color: AppTheme.textSecondary, fontSize: 12),
+                        style: TextStyle(
+                          color: AppTheme.textSecondary,
+                          fontSize: 12,
+                        ),
                       ),
                     ],
                   ),
@@ -986,7 +1132,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
 
               // Start / Chat / Leave buttons
               if (isHost && room.players.length >= 2) ...[
-                if (room.players.length < room.maxPlayers && room.maxPlayers >= 4) ...[
+                if (room.players.length < room.maxPlayers &&
+                    room.maxPlayers >= 4) ...[
                   SizedBox(
                     width: double.infinity,
                     height: 48,
@@ -1023,14 +1170,21 @@ class _LobbyScreenState extends State<LobbyScreen> {
                         ? const SizedBox(
                             width: 24,
                             height: 24,
-                            child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              color: Colors.white,
+                            ),
                           )
                         : const Text(
                             'START GAME',
                             maxLines: 1,
                             softWrap: false,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 2.0),
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 2.0,
+                            ),
                           ),
                   ),
                 ),
@@ -1049,17 +1203,28 @@ class _LobbyScreenState extends State<LobbyScreen> {
                         OnlineChatWidget.showChatModal(
                           context,
                           _onlineService,
-                          _nameController.text.trim().isEmpty ? 'Player' : _nameController.text.trim(),
+                          _nameController.text.trim().isEmpty
+                              ? 'Player'
+                              : _nameController.text.trim(),
                         );
                       },
-                      icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18, color: Color(0xFF00E5FF)),
+                      icon: const Icon(
+                        Icons.chat_bubble_outline_rounded,
+                        size: 18,
+                        color: Color(0xFF00E5FF),
+                      ),
                       label: const Text(
                         'LIVE LOBBY CHAT',
-                        style: TextStyle(color: Color(0xFF00E5FF), fontWeight: FontWeight.w700),
+                        style: TextStyle(
+                          color: Color(0xFF00E5FF),
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                       style: OutlinedButton.styleFrom(
                         side: const BorderSide(color: Color(0xFF00E5FF)),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                     ),
                     if (_unreadChatCount > 0)
@@ -1067,9 +1232,14 @@ class _LobbyScreenState extends State<LobbyScreen> {
                         right: 6,
                         top: -6,
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
-                            gradient: const LinearGradient(colors: [Color(0xFFEC4899), Color(0xFF7C3AED)]),
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFFEC4899), Color(0xFF7C3AED)],
+                            ),
                             borderRadius: BorderRadius.circular(999),
                             border: Border.all(color: Colors.white, width: 1),
                           ),

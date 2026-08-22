@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:my_ludo/models/dice.dart';
 import 'package:my_ludo/models/game_state.dart';
 import 'package:my_ludo/services/game_service.dart';
+import 'package:my_ludo/services/online_service.dart';
 import 'package:my_ludo/models/player.dart';
 import 'package:my_ludo/utils/constants.dart';
 
@@ -125,9 +126,9 @@ void main() {
     });
 
     test('Classic board starts and home entries match the painted track', () {
-      expect(List.generate(4, state.startPosition), [0, 12, 25, 38]);
-      expect(List.generate(4, state.homeEntryPosition), [51, 11, 24, 37]);
-      expect(state.safeSpots, containsAll([0, 12, 25, 38]));
+      expect(List.generate(4, state.startPosition), [0, 13, 26, 39]);
+      expect(List.generate(4, state.homeEntryPosition), [51, 12, 25, 38]);
+      expect(state.safeSpots, containsAll([0, 13, 26, 39]));
     });
 
     test('A token on green route can be captured on its first unsafe cell', () {
@@ -158,7 +159,7 @@ void main() {
 
       expect(testState.validTokenMoves, contains(0));
       expect(testState.moveToken(0), isTrue);
-      expect(testState.tokenPositions[1][0], 13);
+      expect(testState.tokenPositions[1][0], 14);
       expect(testState.tokenPositions[0][0], posInBase);
     });
 
@@ -228,15 +229,15 @@ void main() {
         players: players,
         dice: MockDice([1]),
       );
-      testState.tokenPositions[0][0] = 32;
-      testState.tokenPositions[1][0] = 33;
+      testState.tokenPositions[0][0] = 33;
+      testState.tokenPositions[1][0] = 34;
 
       testState.rollDice();
 
-      expect(testState.safeSpots, containsAll([25, 33, 38, 46]));
+      expect(state.safeSpots, containsAll([26, 34, 39, 47]));
       expect(testState.validTokenMoves, contains(0));
       expect(testState.moveToken(0), isFalse);
-      expect(testState.tokenPositions[1][0], 33);
+      expect(testState.tokenPositions[1][0], 34);
     });
 
     test('An unsafe opponent blockade blocks a landing path', () {
@@ -556,5 +557,108 @@ void main() {
         expect(testState.tokenPositions[0][0], posInBase);
       },
     );
+
+    test('Team mode ends only after both teammates finish', () {
+      final players = [
+        const Player(
+          id: 'a1',
+          name: 'A1',
+          color: PlayerColor.red,
+          type: PlayerType.human,
+          teamId: 0,
+        ),
+        const Player(
+          id: 'a2',
+          name: 'A2',
+          color: PlayerColor.green,
+          type: PlayerType.human,
+          teamId: 0,
+        ),
+        const Player(
+          id: 'b1',
+          name: 'B1',
+          color: PlayerColor.yellow,
+          type: PlayerType.human,
+          teamId: 1,
+        ),
+        const Player(
+          id: 'b2',
+          name: 'B2',
+          color: PlayerColor.blue,
+          type: PlayerType.human,
+          teamId: 1,
+        ),
+      ];
+      final testState = GameState(
+        boardType: BoardType.classic4,
+        players: players,
+      );
+
+      for (var token = 0; token < tokensPerPlayer - 1; token++) {
+        testState.tokenPositions[0][token] = posHome;
+        testState.tokenPositions[1][token] = posHome;
+      }
+      testState.tokenPositions[0][tokensPerPlayer - 1] =
+          testState.boardType.trackLength +
+          testState.boardType.homeStretchLength -
+          1;
+      testState.currentPlayerIndex = 0;
+      testState.phase = GamePhase.moving;
+      testState.lastDiceRoll = 1;
+      testState.validTokenMoves = [tokensPerPlayer - 1];
+
+      expect(testState.moveToken(tokensPerPlayer - 1), isFalse);
+      expect(testState.phase, isNot(GamePhase.finished));
+
+      testState.tokenPositions[1][tokensPerPlayer - 1] =
+          testState.boardType.trackLength +
+          testState.boardType.homeStretchLength -
+          1;
+      testState.currentPlayerIndex = 1;
+      testState.phase = GamePhase.moving;
+      testState.lastDiceRoll = 1;
+      testState.validTokenMoves = [tokensPerPlayer - 1];
+      testState.moveToken(tokensPerPlayer - 1);
+      expect(testState.phase, GamePhase.finished);
+      expect(testState.winner, 1);
+    });
+
+    test('Reset increments the online revision', () {
+      final before = state.stateVersion;
+      state.reset();
+      expect(state.stateVersion, before + 1);
+    });
+
+    test('Room capacity is clamped to the selected board maximum', () {
+      final room = RoomData.fromJson({
+        'code': 'ABC123',
+        'hostId': 'host',
+        'boardType': BoardType.classic4.index,
+        'players': [],
+        'targetPlayerCount': 6,
+      });
+      expect(room.maxPlayers, 4);
+    });
+
+    test('Local-game factory rejects unsupported configurations', () {
+      expect(
+        () => GameService.createLocalGame(
+          boardType: BoardType.classic4,
+          humanPlayers: 1,
+          aiPlayers: 4,
+        ),
+        throwsArgumentError,
+      );
+      expect(
+        () => GameService.createLocalGame(
+          boardType: BoardType.classic4,
+          humanPlayers: 2,
+          aiPlayers: 2,
+          enableTeamUp: true,
+          humanColors: [PlayerColor.red, PlayerColor.red],
+        ),
+        throwsArgumentError,
+      );
+    });
   });
 }

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'firebase_options.dart';
 
@@ -21,10 +22,23 @@ void main() async {
   } catch (e) {
     debugPrint('Firebase init fallback: $e');
   }
-  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-  unawaited(NotificationBootstrap.init().catchError((e) {
-    debugPrint('NotificationBootstrap error: $e');
-  }));
+  try {
+    if (FirebaseAuth.instance.currentUser == null) {
+      await FirebaseAuth.instance.signInAnonymously();
+    }
+  } catch (e) {
+    debugPrint('Firebase auth fallback: $e');
+  }
+  try {
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  } catch (e) {
+    debugPrint('Firebase messaging fallback: $e');
+  }
+  unawaited(
+    NotificationBootstrap.init().catchError((e) {
+      debugPrint('NotificationBootstrap error: $e');
+    }),
+  );
   runApp(const MyLudoApp());
 }
 
@@ -45,9 +59,7 @@ class _MyLudoAppState extends State<MyLudoApp> {
       theme: AppTheme.darkTheme,
       home: const SplashScreen(),
       builder: (context, child) => AppNotificationBannerHost(
-        child: ResponsiveWrapper(
-          child: child ?? const SizedBox.shrink(),
-        ),
+        child: ResponsiveWrapper(child: child ?? const SizedBox.shrink()),
       ),
     );
   }

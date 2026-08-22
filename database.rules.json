@@ -1,0 +1,44 @@
+{
+  "rules": {
+    ".read": "auth != null",
+    ".write": false,
+    "rooms": {
+      "$roomId": {
+        ".read": "auth != null",
+        ".write": "auth != null && ((!data.exists() && newData.child('hostId').val() == auth.uid && newData.child('players').child('0').child('id').val() == auth.uid) || (data.exists() && data.child('hostId').val() == auth.uid && newData.child('hostId').val() == newData.child('players').child('0').child('id').val()))",
+        "players": {
+          ".read": "auth != null",
+          ".write": "auth != null && (data.parent().child('hostId').val() == auth.uid || (data.parent().child('status').val() == 0 && newData.val().length == data.val().length + 1 && newData.child(data.val().length).child('id').val() == auth.uid))",
+          ".validate": "newData.hasChildren() && newData.val() is list"
+        },
+        "status": {
+          ".write": "auth != null && data.parent().child('hostId').val() == auth.uid",
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 2"
+        },
+        "gameState": {
+          ".write": "auth != null && data.parent().child('hostId').val() == auth.uid",
+          ".validate": "newData.hasChildren(['players', 'tokenPositions', 'currentPlayerIndex', 'phase', 'stateVersion']) && newData.child('stateVersion').isNumber()"
+        },
+        "actions": {
+          "$actionId": {
+            ".read": "auth != null",
+            ".write": "auth != null && ((!data.exists() && newData.child('actorId').val() == auth.uid) || (data.exists() && data.parent().parent().child('hostId').val() == auth.uid))",
+            ".validate": "newData.hasChildren(['type', 'actorId', 'createdAt']) && newData.child('actorId').isString() && (newData.child('type').val() == 'roll' || newData.child('type').val() == 'move' || newData.child('type').val() == 'emoji')"
+          }
+        },
+        "presence": {
+          "$uid": {
+            ".read": "auth != null",
+            ".write": "auth != null && $uid == auth.uid"
+          }
+        }
+      }
+    },
+    "leaderboards": {
+      "$roomId": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      }
+    }
+  }
+}
