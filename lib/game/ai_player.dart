@@ -17,8 +17,9 @@ class AIPlayer {
 
     // Sometimes pick random (based on difficulty)
     if (_random.nextDouble() > difficulty.optimalRate) {
-      return state.validTokenMoves[
-          _random.nextInt(state.validTokenMoves.length)];
+      return state.validTokenMoves[_random.nextInt(
+        state.validTokenMoves.length,
+      )];
     }
 
     // Score each valid token move
@@ -37,7 +38,11 @@ class AIPlayer {
   }
 
   double _scoreMove(
-      GameState state, int playerIndex, int tokenIndex, int diceValue) {
+    GameState state,
+    int playerIndex,
+    int tokenIndex,
+    int diceValue,
+  ) {
     final pos = state.tokenPositions[playerIndex][tokenIndex];
     var score = 0.0;
 
@@ -56,7 +61,7 @@ class AIPlayer {
       final dist = state.distanceTraveled(playerIndex, tokenIndex);
       final newDist = dist + diceValue;
       final maxDist =
-          state.boardType.trackLength + state.boardType.homeStretchLength - 1;
+          state.boardType.trackLength + state.boardType.homeStretchLength;
       if (newDist == maxDist) {
         score += 100; // reaching home!
       }
@@ -64,11 +69,16 @@ class AIPlayer {
 
     // 3. Capture an opponent (high priority — grants extra turn)
     if (pos != posInBase) {
-      final newPos = _simulateNewPosition(state, playerIndex, tokenIndex, diceValue);
+      final newPos = _simulateNewPosition(
+        state,
+        playerIndex,
+        tokenIndex,
+        diceValue,
+      );
       if (newPos >= 0 && newPos < state.boardType.trackLength) {
         if (!state.safeSpots.contains(newPos)) {
           for (var p = 0; p < state.players.length; p++) {
-            if (p == playerIndex) continue;
+            if (!_isOpponent(state, playerIndex, p)) continue;
             for (var t = 0; t < tokensPerPlayer; t++) {
               if (state.tokenPositions[p][t] == newPos) {
                 score += 70; // capture!
@@ -83,14 +93,21 @@ class AIPlayer {
 
     // 4. Move to a safe spot
     if (pos != posInBase && pos != posHome) {
-      final newPos = _simulateNewPosition(state, playerIndex, tokenIndex, diceValue);
+      final newPos = _simulateNewPosition(
+        state,
+        playerIndex,
+        tokenIndex,
+        diceValue,
+      );
       if (newPos >= 0 && state.safeSpots.contains(newPos)) {
         score += 20;
       }
     }
 
     // 5. Avoid danger: if opponent is within 6 behind us, move away
-    if (pos != posInBase && pos != posHome && pos < state.boardType.trackLength) {
+    if (pos != posInBase &&
+        pos != posHome &&
+        pos < state.boardType.trackLength) {
       if (_isInDanger(state, playerIndex, pos)) {
         score += 25; // move out of danger
       }
@@ -116,27 +133,40 @@ class AIPlayer {
   }
 
   int _simulateNewPosition(
-      GameState state, int playerIndex, int tokenIndex, int diceValue) {
+    GameState state,
+    int playerIndex,
+    int tokenIndex,
+    int diceValue,
+  ) {
     final pos = state.tokenPositions[playerIndex][tokenIndex];
     if (pos == posInBase) return state.startPosition(playerIndex);
 
     final dist = state.distanceTraveled(playerIndex, tokenIndex);
     final newDist = dist + diceValue;
     if (newDist > state.boardType.trackLength - 1) {
-      return state.boardType.trackLength + (newDist - state.boardType.trackLength);
+      return state.boardType.trackLength +
+          (newDist - state.boardType.trackLength);
     }
     return (state.startPosition(playerIndex) + newDist) %
         state.boardType.trackLength;
   }
 
+  bool _isOpponent(GameState state, int playerIndex, int otherPlayerIndex) {
+    if (playerIndex == otherPlayerIndex) return false;
+    final team = state.players[playerIndex].teamId;
+    final otherTeam = state.players[otherPlayerIndex].teamId;
+    return team == null || otherTeam == null || team != otherTeam;
+  }
+
   bool _isInDanger(GameState state, int playerIndex, int pos) {
     for (var p = 0; p < state.players.length; p++) {
-      if (p == playerIndex) continue;
+      if (!_isOpponent(state, playerIndex, p)) continue;
       for (var t = 0; t < tokensPerPlayer; t++) {
         final oppPos = state.tokenPositions[p][t];
         if (oppPos < 0 || oppPos >= state.boardType.trackLength) continue;
         // Check if opponent is within 6 cells behind us
-        final diff = (pos - oppPos + state.boardType.trackLength) %
+        final diff =
+            (pos - oppPos + state.boardType.trackLength) %
             state.boardType.trackLength;
         if (diff > 0 && diff <= diceMax) {
           return true;
