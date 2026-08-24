@@ -58,41 +58,42 @@ class GameState extends ChangeNotifier {
   /// Repaint without claiming a gameplay mutation.
   void repaint() => notifyListeners();
 
-  /// Absolute board position for a player's start cell based on their index.
-  /// Color is cosmetic only — position is always index-based so any color choice
-  /// is valid without colliding with another player's start.
-  int startPosition(int playerIndex) {
-    if (playerIndex < 0 || playerIndex >= boardType.maxPlayers) return 0;
-    if (boardType == BoardType.classic4) {
-      // Matches the painted classic track: red, green, yellow, blue starts.
-      const starts = [0, 13, 26, 39];
-      return starts[playerIndex];
-    }
-    return playerIndex * boardType.cellsPerArm; // ponytail: color is cosmetic
+  /// Physical route slot for a player. Turn order remains list/index-based.
+  int playerPositionIndex(int playerIndex) {
+    if (playerIndex < 0 || playerIndex >= players.length) return 0;
+    final slot = boardType.availableColors.indexOf(players[playerIndex].color);
+    return slot >= 0 ? slot : playerIndex % boardType.maxPlayers;
   }
 
-  /// Absolute board position for a player's entry into home stretch
+  int _startPositionForSlot(int slot) {
+    if (slot < 0 || slot >= boardType.maxPlayers) return 0;
+    return slot * boardType.cellsPerArm;
+  }
+
+  /// Absolute board position for a player's color-defined start cell.
+  int startPosition(int playerIndex) =>
+      _startPositionForSlot(playerPositionIndex(playerIndex));
+
+  /// Absolute board position for a player's color-defined home entry.
   int homeEntryPosition(int playerIndex) {
+    final slot = playerPositionIndex(playerIndex);
     if (boardType == BoardType.classic4) {
-      // The painted arrows are the home-entry cells; the following boxes
-      // belong to the next player's approach and must not be counted here.
+      // The painted arrows are the home-entry cells. The adjacent approach
+      // boxes remain on the outer track and are counted normally.
       const entries = [50, 11, 24, 37];
-      return entries[playerIndex];
+      return entries[slot];
     }
-    final start = startPosition(playerIndex);
+    final start = _startPositionForSlot(slot);
     return (start + boardType.trackLength - 2) % boardType.trackLength;
   }
 
-  /// Safe spots on the board (star cells)
+  /// Safe spots on the board (start cells and star cells).
   Set<int> get safeSpots {
     final spots = <int>{};
-    // Standard 4 start positions and 4 star positions on the track
-    for (var i = 0; i < boardType.maxPlayers; i++) {
-      final start = startPosition(i);
-      spots.add(start); // all starting cells on board are safe
-      spots.add(
-        (start + 8) % boardType.trackLength,
-      ); // star cells 8 steps after start
+    for (var slot = 0; slot < boardType.maxPlayers; slot++) {
+      final start = _startPositionForSlot(slot);
+      spots.add(start);
+      spots.add((start + 8) % boardType.trackLength);
     }
     return spots;
   }

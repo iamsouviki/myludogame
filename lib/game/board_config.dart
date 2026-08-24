@@ -50,36 +50,12 @@ class BoardConfig {
   Offset get homePosition => center;
 
   /// Colors for each player position
-  List<PlayerColor> get playerColors {
-    if (boardType == BoardType.classic4) {
-      return [
-        PlayerColor.red,
-        PlayerColor.green,
-        PlayerColor.yellow,
-        PlayerColor.blue,
-      ];
-    } else {
-      return PlayerColor.values;
-    }
-  }
+  List<PlayerColor> get playerColors => boardType.availableColors;
 
-  /// Map a player's color to its classic board quadrant position index (0=Red, 1=Green, 2=Yellow, 3=Blue)
+  /// Map a player's color to its physical board route slot.
   int colorPositionIndex(PlayerColor color) {
-    if (boardType == BoardType.classic4) {
-      switch (color) {
-        case PlayerColor.red:
-          return 0;
-        case PlayerColor.green:
-          return 1;
-        case PlayerColor.yellow:
-          return 2;
-        case PlayerColor.blue:
-          return 3;
-        default:
-          return 0;
-      }
-    }
-    return color.index % 6;
+    final slot = boardType.availableColors.indexOf(color);
+    return slot >= 0 ? slot : 0;
   }
 
   Offset _gridToPixel(double gridX, double gridY) {
@@ -229,10 +205,15 @@ class BoardConfig {
   Offset _hex6HomeStretch(int playerIndex, int stepIntoHome) {
     final angle = playerIndex * pi / 3 - pi / 2;
     final radius = canvasSize.shortestSide * 0.42;
-    final t = (stepIntoHome + 1) / (boardType.homeStretchLength + 1);
+    // Home entry is near the outer end of this lane. Each step moves inward;
+    // step 5 is the center home point used for finished tokens.
+    final t =
+        (boardType.homeStretchLength - stepIntoHome) /
+        (boardType.homeStretchLength + 1) *
+        0.32;
     return Offset(
-      center.dx + cos(angle) * radius * t * 0.6,
-      center.dy + sin(angle) * radius * t * 0.6,
+      center.dx + cos(angle) * radius * t,
+      center.dy + sin(angle) * radius * t,
     );
   }
 

@@ -367,14 +367,7 @@ class GameService {
       );
     }
 
-    final allColors = boardType == BoardType.classic4
-        ? [
-            PlayerColor.red,
-            PlayerColor.green,
-            PlayerColor.yellow,
-            PlayerColor.blue,
-          ]
-        : PlayerColor.values;
+    final allColors = boardType.availableColors;
 
     final players = <Player>[];
     final assignedColors = <PlayerColor>[];
@@ -389,6 +382,11 @@ class GameService {
       final color = (humanColors != null && i < humanColors.length)
           ? humanColors[i]
           : allColors[i % allColors.length];
+      if (!allColors.contains(color)) {
+        throw ArgumentError(
+          '${color.label} is not available on the ${boardType.label} board.',
+        );
+      }
       if (assignedColors.contains(color)) {
         throw ArgumentError('Each player must have a unique color.');
       }

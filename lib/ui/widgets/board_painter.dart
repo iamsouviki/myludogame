@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../game/board_config.dart';
 import '../../models/game_state.dart';
+import '../../models/player.dart';
 import '../../utils/constants.dart';
 
 class BoardPainter extends CustomPainter {
@@ -44,47 +45,111 @@ class BoardPainter extends CustomPainter {
     // 1. Board Background (Clean Crisp White)
     canvas.drawRect(boardRect, Paint()..color = Colors.white);
 
-    // Use actual player colors by index (color is cosmetic, position is index-based)
-    final p0Color = state.players.isNotEmpty ? state.players[0].color : PlayerColor.red;
-    final p1Color = state.players.length > 1 ? state.players[1].color : PlayerColor.green;
-    final p2Color = state.players.length > 2 ? state.players[2].color : PlayerColor.yellow;
-    final p3Color = state.players.length > 3 ? state.players[3].color : PlayerColor.blue;
+    // Resolve physical board areas by color, while turn order stays player-list based.
+    final p0 = _playerAtRouteSlot(0);
+    final p1 = _playerAtRouteSlot(1);
+    final p2 = _playerAtRouteSlot(2);
+    final p3 = _playerAtRouteSlot(3);
+    final p0Color = p0 == null ? PlayerColor.red : state.players[p0].color;
+    final p1Color = p1 == null ? PlayerColor.green : state.players[p1].color;
+    final p2Color = p2 == null ? PlayerColor.yellow : state.players[p2].color;
+    final p3Color = p3 == null ? PlayerColor.blue : state.players[p3].color;
 
-    // 2. Draw 4 Corner Base Blocks with actual player colors
-    _drawClassicBase(canvas, boardOrigin, cellSize, 0, 0, p1Color, 1); // Top Left
-    _drawClassicBase(canvas, boardOrigin, cellSize, 9, 0, p2Color, 2); // Top Right
-    _drawClassicBase(canvas, boardOrigin, cellSize, 0, 9, p0Color, 0); // Bottom Left
-    _drawClassicBase(canvas, boardOrigin, cellSize, 9, 9, p3Color, 3); // Bottom Right
+    // 2. Draw 4 Corner Base Blocks with their route-slot occupants.
+    _drawClassicBase(
+      canvas,
+      boardOrigin,
+      cellSize,
+      0,
+      0,
+      p1Color,
+      p1,
+    ); // Top Left
+    _drawClassicBase(
+      canvas,
+      boardOrigin,
+      cellSize,
+      9,
+      0,
+      p2Color,
+      p2,
+    ); // Top Right
+    _drawClassicBase(
+      canvas,
+      boardOrigin,
+      cellSize,
+      0,
+      9,
+      p0Color,
+      p0,
+    ); // Bottom Left
+    _drawClassicBase(
+      canvas,
+      boardOrigin,
+      cellSize,
+      9,
+      9,
+      p3Color,
+      p3,
+    ); // Bottom Right
 
     // 3. Colored Start Cells & Entry Arrows
-    _drawEntryArrowsAndColoredStarts(canvas, boardOrigin, cellSize, p0Color, p1Color, p2Color, p3Color);
+    _drawEntryArrowsAndColoredStarts(
+      canvas,
+      boardOrigin,
+      cellSize,
+      p0Color,
+      p1Color,
+      p2Color,
+      p3Color,
+    );
 
     // 4. Colored Home Stretches
     // P0: Bottom arm going up (Col 7, Rows 9..13)
     for (var r = 9; r <= 13; r++) {
       canvas.drawRect(
-        Rect.fromLTWH(boardOrigin.dx + 7 * cellSize, boardOrigin.dy + r * cellSize, cellSize, cellSize),
+        Rect.fromLTWH(
+          boardOrigin.dx + 7 * cellSize,
+          boardOrigin.dy + r * cellSize,
+          cellSize,
+          cellSize,
+        ),
         Paint()..color = p0Color.color,
       );
     }
     // P1: Left arm going right (Row 7, Cols 1..5)
     for (var c = 1; c <= 5; c++) {
       canvas.drawRect(
-        Rect.fromLTWH(boardOrigin.dx + c * cellSize, boardOrigin.dy + 7 * cellSize, cellSize, cellSize),
+        Rect.fromLTWH(
+          boardOrigin.dx + c * cellSize,
+          boardOrigin.dy + 7 * cellSize,
+          cellSize,
+          cellSize,
+        ),
         Paint()..color = p1Color.color,
       );
     }
     // P2: Top arm going down (Col 7, Rows 1..5)
     for (var r = 1; r <= 5; r++) {
       canvas.drawRect(
-        Rect.fromLTWH(boardOrigin.dx + 7 * cellSize, boardOrigin.dy + r * cellSize, cellSize, cellSize),
+        Rect.fromLTWH(
+          boardOrigin.dx + 7 * cellSize,
+          boardOrigin.dy + r * cellSize,
+          cellSize,
+          cellSize,
+        ),
         Paint()..color = p2Color.color,
       );
     }
     // P3: Right arm going left (Row 7, Cols 9..13)
     for (var c = 9; c <= 13; c++) {
       canvas.drawRect(
-        Rect.fromLTWH(boardOrigin.dx + c * cellSize, boardOrigin.dy + 7 * cellSize, cellSize, cellSize),
+        Rect.fromLTWH(
+          boardOrigin.dx + c * cellSize,
+          boardOrigin.dy + 7 * cellSize,
+          cellSize,
+          cellSize,
+        ),
         Paint()..color = p3Color.color,
       );
     }
@@ -98,16 +163,52 @@ class BoardPainter extends CustomPainter {
     _drawTrackGridLines(canvas, boardOrigin, cellSize, gridLinePaint);
 
     // 6. Center Triangle Home Box
-    _drawCenterHome(canvas, boardOrigin, cellSize, p0Color, p1Color, p2Color, p3Color);
+    _drawCenterHome(
+      canvas,
+      boardOrigin,
+      cellSize,
+      p0Color,
+      p1Color,
+      p2Color,
+      p3Color,
+    );
 
     // 7. Safe Spot Outline Stars (use actual player colors)
-    _drawStarAtCell(canvas, boardOrigin, cellSize, 1, 6, p1Color.color);  // P1 safe spot
+    _drawStarAtCell(
+      canvas,
+      boardOrigin,
+      cellSize,
+      1,
+      6,
+      p1Color.color,
+    ); // P1 safe spot
     _drawStarAtCell(canvas, boardOrigin, cellSize, 2, 8, Colors.black87);
-    _drawStarAtCell(canvas, boardOrigin, cellSize, 8, 1, p2Color.color);  // P2 safe spot
+    _drawStarAtCell(
+      canvas,
+      boardOrigin,
+      cellSize,
+      8,
+      1,
+      p2Color.color,
+    ); // P2 safe spot
     _drawStarAtCell(canvas, boardOrigin, cellSize, 6, 2, Colors.black87);
-    _drawStarAtCell(canvas, boardOrigin, cellSize, 13, 8, p3Color.color); // P3 safe spot
+    _drawStarAtCell(
+      canvas,
+      boardOrigin,
+      cellSize,
+      13,
+      8,
+      p3Color.color,
+    ); // P3 safe spot
     _drawStarAtCell(canvas, boardOrigin, cellSize, 12, 6, Colors.black87);
-    _drawStarAtCell(canvas, boardOrigin, cellSize, 6, 13, p0Color.color);  // P0 safe spot
+    _drawStarAtCell(
+      canvas,
+      boardOrigin,
+      cellSize,
+      6,
+      13,
+      p0Color.color,
+    ); // P0 safe spot
     _drawStarAtCell(canvas, boardOrigin, cellSize, 8, 12, Colors.black87);
 
     // Outer Board Frame
@@ -121,12 +222,21 @@ class BoardPainter extends CustomPainter {
   }
 
   void _drawTrackGridLines(
-      Canvas canvas, Offset origin, double cellSize, Paint linePaint) {
+    Canvas canvas,
+    Offset origin,
+    double cellSize,
+    Paint linePaint,
+  ) {
     // Top arm (Cols 6..8, Rows 0..5)
     for (var col = 6; col <= 8; col++) {
       for (var row = 0; row <= 5; row++) {
         canvas.drawRect(
-          Rect.fromLTWH(origin.dx + col * cellSize, origin.dy + row * cellSize, cellSize, cellSize),
+          Rect.fromLTWH(
+            origin.dx + col * cellSize,
+            origin.dy + row * cellSize,
+            cellSize,
+            cellSize,
+          ),
           linePaint,
         );
       }
@@ -135,7 +245,12 @@ class BoardPainter extends CustomPainter {
     for (var col = 6; col <= 8; col++) {
       for (var row = 9; row <= 14; row++) {
         canvas.drawRect(
-          Rect.fromLTWH(origin.dx + col * cellSize, origin.dy + row * cellSize, cellSize, cellSize),
+          Rect.fromLTWH(
+            origin.dx + col * cellSize,
+            origin.dy + row * cellSize,
+            cellSize,
+            cellSize,
+          ),
           linePaint,
         );
       }
@@ -144,7 +259,12 @@ class BoardPainter extends CustomPainter {
     for (var col = 0; col <= 5; col++) {
       for (var row = 6; row <= 8; row++) {
         canvas.drawRect(
-          Rect.fromLTWH(origin.dx + col * cellSize, origin.dy + row * cellSize, cellSize, cellSize),
+          Rect.fromLTWH(
+            origin.dx + col * cellSize,
+            origin.dy + row * cellSize,
+            cellSize,
+            cellSize,
+          ),
           linePaint,
         );
       }
@@ -153,15 +273,34 @@ class BoardPainter extends CustomPainter {
     for (var col = 9; col <= 14; col++) {
       for (var row = 6; row <= 8; row++) {
         canvas.drawRect(
-          Rect.fromLTWH(origin.dx + col * cellSize, origin.dy + row * cellSize, cellSize, cellSize),
+          Rect.fromLTWH(
+            origin.dx + col * cellSize,
+            origin.dy + row * cellSize,
+            cellSize,
+            cellSize,
+          ),
           linePaint,
         );
       }
     }
   }
 
-  void _drawClassicBase(Canvas canvas, Offset origin, double cellSize,
-      int gridX, int gridY, PlayerColor playerColor, int playerIndex) {
+  int? _playerAtRouteSlot(int routeSlot) {
+    for (var i = 0; i < state.players.length; i++) {
+      if (state.playerPositionIndex(i) == routeSlot) return i;
+    }
+    return null;
+  }
+
+  void _drawClassicBase(
+    Canvas canvas,
+    Offset origin,
+    double cellSize,
+    int gridX,
+    int gridY,
+    PlayerColor playerColor,
+    int? playerIndex,
+  ) {
     final rect = Rect.fromLTWH(
       origin.dx + gridX * cellSize,
       origin.dy + gridY * cellSize,
@@ -170,11 +309,16 @@ class BoardPainter extends CustomPainter {
     );
 
     // Active Player Base Box Glow — match by playerIndex, not color
-    final isCurrentTurn = state.players.length > playerIndex &&
-        state.currentPlayerIndex == playerIndex && !state.isGameOver;
+    final isCurrentTurn =
+        playerIndex != null &&
+        state.currentPlayerIndex == playerIndex &&
+        !state.isGameOver;
     if (isCurrentTurn) {
       canvas.drawRRect(
-        RRect.fromRectAndRadius(rect.inflate(6), Radius.circular(cellSize * 0.5)),
+        RRect.fromRectAndRadius(
+          rect.inflate(6),
+          Radius.circular(cellSize * 0.5),
+        ),
         Paint()
           ..color = playerColor.color.withValues(alpha: 0.85)
           ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16),
@@ -194,7 +338,10 @@ class BoardPainter extends CustomPainter {
     );
 
     // Draw Player Name Banner — match by playerIndex
-    final matchingPlayer = state.players.length > playerIndex
+    final matchingPlayer =
+        playerIndex != null &&
+            playerIndex >= 0 &&
+            playerIndex < state.players.length
         ? state.players[playerIndex]
         : null;
     if (matchingPlayer != null) {
@@ -205,9 +352,7 @@ class BoardPainter extends CustomPainter {
             color: Colors.white,
             fontWeight: FontWeight.w800,
             fontSize: cellSize * 0.38,
-            shadows: const [
-              Shadow(color: Colors.black54, blurRadius: 4),
-            ],
+            shadows: const [Shadow(color: Colors.black54, blurRadius: 4)],
           ),
         ),
         textDirection: TextDirection.ltr,
@@ -271,10 +416,22 @@ class BoardPainter extends CustomPainter {
     final dotRadius = cellSize * 0.45;
 
     final positions = [
-      Offset(origin.dx + (gridX + 2.05) * cellSize, origin.dy + (gridY + 2.05) * cellSize),
-      Offset(origin.dx + (gridX + 3.95) * cellSize, origin.dy + (gridY + 2.05) * cellSize),
-      Offset(origin.dx + (gridX + 2.05) * cellSize, origin.dy + (gridY + 3.95) * cellSize),
-      Offset(origin.dx + (gridX + 3.95) * cellSize, origin.dy + (gridY + 3.95) * cellSize),
+      Offset(
+        origin.dx + (gridX + 2.05) * cellSize,
+        origin.dy + (gridY + 2.05) * cellSize,
+      ),
+      Offset(
+        origin.dx + (gridX + 3.95) * cellSize,
+        origin.dy + (gridY + 2.05) * cellSize,
+      ),
+      Offset(
+        origin.dx + (gridX + 2.05) * cellSize,
+        origin.dy + (gridY + 3.95) * cellSize,
+      ),
+      Offset(
+        origin.dx + (gridX + 3.95) * cellSize,
+        origin.dy + (gridY + 3.95) * cellSize,
+      ),
     ];
 
     for (final pos in positions) {
@@ -283,11 +440,22 @@ class BoardPainter extends CustomPainter {
   }
 
   void _drawEntryArrowsAndColoredStarts(
-      Canvas canvas, Offset origin, double cellSize,
-      PlayerColor p0, PlayerColor p1, PlayerColor p2, PlayerColor p3) {
+    Canvas canvas,
+    Offset origin,
+    double cellSize,
+    PlayerColor p0,
+    PlayerColor p1,
+    PlayerColor p2,
+    PlayerColor p3,
+  ) {
     // 1. P0 Start Cell (Col 6, Row 13)
     canvas.drawRect(
-      Rect.fromLTWH(origin.dx + 6 * cellSize, origin.dy + 13 * cellSize, cellSize, cellSize),
+      Rect.fromLTWH(
+        origin.dx + 6 * cellSize,
+        origin.dy + 13 * cellSize,
+        cellSize,
+        cellSize,
+      ),
       Paint()..color = p0.color,
     );
     // P0 Arrow at (Col 7, Row 14) pointing UP
@@ -301,7 +469,12 @@ class BoardPainter extends CustomPainter {
 
     // 2. P1 Start Cell (Col 1, Row 6)
     canvas.drawRect(
-      Rect.fromLTWH(origin.dx + 1 * cellSize, origin.dy + 6 * cellSize, cellSize, cellSize),
+      Rect.fromLTWH(
+        origin.dx + 1 * cellSize,
+        origin.dy + 6 * cellSize,
+        cellSize,
+        cellSize,
+      ),
       Paint()..color = p1.color,
     );
     // P1 Arrow at (Col 0, Row 7) pointing RIGHT
@@ -315,7 +488,12 @@ class BoardPainter extends CustomPainter {
 
     // 3. P2 Start Cell (Col 8, Row 1)
     canvas.drawRect(
-      Rect.fromLTWH(origin.dx + 8 * cellSize, origin.dy + 1 * cellSize, cellSize, cellSize),
+      Rect.fromLTWH(
+        origin.dx + 8 * cellSize,
+        origin.dy + 1 * cellSize,
+        cellSize,
+        cellSize,
+      ),
       Paint()..color = p2.color,
     );
     // P2 Arrow at (Col 7, Row 0) pointing DOWN
@@ -329,7 +507,12 @@ class BoardPainter extends CustomPainter {
 
     // 4. P3 Start Cell (Col 13, Row 8)
     canvas.drawRect(
-      Rect.fromLTWH(origin.dx + 13 * cellSize, origin.dy + 8 * cellSize, cellSize, cellSize),
+      Rect.fromLTWH(
+        origin.dx + 13 * cellSize,
+        origin.dy + 8 * cellSize,
+        cellSize,
+        cellSize,
+      ),
       Paint()..color = p3.color,
     );
     // P3 Arrow at (Col 14, Row 7) pointing LEFT
@@ -342,7 +525,13 @@ class BoardPainter extends CustomPainter {
     );
   }
 
-  void _drawArrow(Canvas canvas, Offset center, double size, Color color, double angle) {
+  void _drawArrow(
+    Canvas canvas,
+    Offset center,
+    double size,
+    Color color,
+    double angle,
+  ) {
     canvas.save();
     canvas.translate(center.dx, center.dy);
     canvas.rotate(angle);
@@ -358,9 +547,19 @@ class BoardPainter extends CustomPainter {
     canvas.restore();
   }
 
-  void _drawCenterHome(Canvas canvas, Offset origin, double cellSize,
-      PlayerColor p0Color, PlayerColor p1Color, PlayerColor p2Color, PlayerColor p3Color) {
-    final center = Offset(origin.dx + 7.5 * cellSize, origin.dy + 7.5 * cellSize);
+  void _drawCenterHome(
+    Canvas canvas,
+    Offset origin,
+    double cellSize,
+    PlayerColor p0Color,
+    PlayerColor p1Color,
+    PlayerColor p2Color,
+    PlayerColor p3Color,
+  ) {
+    final center = Offset(
+      origin.dx + 7.5 * cellSize,
+      origin.dy + 7.5 * cellSize,
+    );
     final boxRect = Rect.fromLTWH(
       origin.dx + 6 * cellSize,
       origin.dy + 6 * cellSize,
@@ -412,12 +611,27 @@ class BoardPainter extends CustomPainter {
     );
   }
 
-  void _drawStarAtCell(Canvas canvas, Offset origin, double cellSize, int gridX, int gridY, Color color) {
-    final center = Offset(origin.dx + (gridX + 0.5) * cellSize, origin.dy + (gridY + 0.5) * cellSize);
+  void _drawStarAtCell(
+    Canvas canvas,
+    Offset origin,
+    double cellSize,
+    int gridX,
+    int gridY,
+    Color color,
+  ) {
+    final center = Offset(
+      origin.dx + (gridX + 0.5) * cellSize,
+      origin.dy + (gridY + 0.5) * cellSize,
+    );
     _drawClassicStar(canvas, center, cellSize * 0.32, color);
   }
 
-  void _drawClassicStar(Canvas canvas, Offset center, double size, Color color) {
+  void _drawClassicStar(
+    Canvas canvas,
+    Offset center,
+    double size,
+    Color color,
+  ) {
     final path = Path();
     for (var i = 0; i < 5; i++) {
       final outerAngle = (i * 72 - 90) * pi / 180;
@@ -485,41 +699,47 @@ class BoardPainter extends CustomPainter {
       final pos = config.trackCellPosition(i);
       final cellRadius = config.cellSize * 0.42;
 
-      Paint? specialPaint;
-      if (state.safeSpots.contains(i)) {
-        for (var p = 0; p < state.players.length; p++) {
-          if (state.startPosition(p) == i) {
-            specialPaint = Paint()..color = state.players[p].color.color;
-            break;
-          }
+      Player? startPlayer;
+      for (var p = 0; p < state.players.length; p++) {
+        if (state.startPosition(p) == i) {
+          startPlayer = state.players[p];
+          break;
         }
       }
+      final specialPaint = startPlayer == null
+          ? null
+          : (Paint()..color = startPlayer.color.color);
 
       canvas.drawCircle(pos, cellRadius, specialPaint ?? trackCellBg);
       canvas.drawCircle(pos, cellRadius, trackBorder);
 
-      if (state.safeSpots.contains(i)) {
+      if (state.safeSpots.contains(i) && startPlayer == null) {
         _drawClassicStar(canvas, pos, cellRadius * 0.55, Colors.black87);
       }
     }
 
     for (var p = 0; p < state.players.length; p++) {
-      // ponytail: use p directly — homeStretchPosition is index-based
-      final color = state.players[p].color.color;
+      final routeSlot = state.playerPositionIndex(p);
+      final player = state.players[p];
+      final color = player.color.color;
 
       for (var s = 0; s < state.boardType.homeStretchLength; s++) {
-        final pos = config.homeStretchPosition(p, s);
+        final pos = config.homeStretchPosition(routeSlot, s);
         final r = config.cellSize * 0.38;
         canvas.drawCircle(pos, r, Paint()..color = color);
         canvas.drawCircle(pos, r, trackBorder);
       }
 
-      final baseAngle = p * pi / 3 - pi / 2 + pi / 6;
+      final baseAngle = routeSlot * pi / 3 - pi / 2 + pi / 6;
       final baseCenter = Offset(
         config.center.dx + cos(baseAngle) * radius * 0.75,
         config.center.dy + sin(baseAngle) * radius * 0.75,
       );
-      canvas.drawCircle(baseCenter, config.cellSize * 2.5, Paint()..color = color);
+      canvas.drawCircle(
+        baseCenter,
+        config.cellSize * 2.5,
+        Paint()..color = color,
+      );
       canvas.drawCircle(
         baseCenter,
         config.cellSize * 2.5,
@@ -532,6 +752,25 @@ class BoardPainter extends CustomPainter {
         baseCenter,
         config.cellSize * 1.8,
         Paint()..color = Colors.white,
+      );
+
+      final textPainter = TextPainter(
+        text: TextSpan(
+          text: player.name,
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: config.cellSize * 0.36,
+            fontWeight: FontWeight.w800,
+            shadows: const [Shadow(color: Colors.black54, blurRadius: 3)],
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+        maxLines: 1,
+        ellipsis: '…',
+      )..layout(maxWidth: config.cellSize * 4.5);
+      textPainter.paint(
+        canvas,
+        baseCenter + Offset(-textPainter.width / 2, -config.cellSize * 3.1),
       );
     }
   }

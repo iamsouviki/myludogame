@@ -638,15 +638,17 @@ class OnlineService {
       targetPlayerCount: targetPlayerCount,
       isTeamUp: isTeamUp,
     );
+    if (preferredColor != null &&
+        !boardType.availableColors.contains(preferredColor)) {
+      throw ArgumentError(
+        '${preferredColor.label} is not available on the ${boardType.label} board.',
+      );
+    }
     final code = RoomCodeGenerator.generate();
     final player = Player(
       id: localPlayerId!,
       name: playerName,
-      color:
-          preferredColor ??
-          (boardType == BoardType.classic4
-              ? PlayerColor.red
-              : PlayerColor.values[0]),
+      color: preferredColor ?? boardType.availableColors.first,
       type: PlayerType.human,
       avatarIndex: avatarIndex,
       teamId: (isTeamUp && targetPlayerCount == 4) ? 0 : null,
@@ -752,23 +754,14 @@ class OnlineService {
       return JoinRoomResult(error: 'Room "$cleanCode" is already full!');
     }
 
-    final allColors = room.boardType == BoardType.classic4
-        ? [
-            PlayerColor.red,
-            PlayerColor.green,
-            PlayerColor.yellow,
-            PlayerColor.blue,
-          ]
-        : PlayerColor.values;
+    final allColors = room.boardType.availableColors;
     final usedColors = room.players.map((p) => p.color).toSet();
-    if (preferredColor != null && usedColors.contains(preferredColor)) {
-      return JoinRoomResult(
-        error:
-            'Color "${preferredColor.label}" is already selected by another player! Please choose a different color.',
-      );
-    }
     final availableColor =
-        preferredColor ?? allColors.firstWhere((c) => !usedColors.contains(c));
+        preferredColor != null &&
+            allColors.contains(preferredColor) &&
+            !usedColors.contains(preferredColor)
+        ? preferredColor
+        : allColors.firstWhere((c) => !usedColors.contains(c));
     final playerIndex = room.players.length;
     final player = Player(
       id: localPlayerId!,
@@ -851,14 +844,7 @@ class OnlineService {
         room.targetPlayerCount < 4) {
       return false;
     }
-    final colors = room.boardType == BoardType.classic4
-        ? [
-            PlayerColor.red,
-            PlayerColor.green,
-            PlayerColor.yellow,
-            PlayerColor.blue,
-          ]
-        : PlayerColor.values;
+    final colors = room.boardType.availableColors;
     final used = room.players.map((p) => p.color).toSet();
     final players = [...room.players];
     var botNumber = 1;

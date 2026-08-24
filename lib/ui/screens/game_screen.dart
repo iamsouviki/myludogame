@@ -89,8 +89,9 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     if (widget.localPlayerId == null) return 0;
     final index = state.players.indexWhere((p) => p.id == widget.localPlayerId);
     if (index < 0) return 0;
-    // ponytail: rotation is index-based so player's base is always facing them at bottom-left
-    return -index * pi / 2;
+    final routeSlot = state.playerPositionIndex(index);
+    final step = state.boardType == BoardType.classic4 ? pi / 2 : pi / 3;
+    return -routeSlot * step;
   }
 
   @override
@@ -752,7 +753,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     final defaultTokenSize = config.cellSize * 0.7;
 
     for (var p = 0; p < state.players.length; p++) {
-      // ponytail: use playerIndex directly — basePosition/homeStretchPosition are index-based
+      final routeSlot = state.playerPositionIndex(p);
       for (var t = 0; t < tokensPerPlayer; t++) {
         final pos = state.tokenPositions[p][t];
         Offset pixelPos;
@@ -760,7 +761,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
         double tokenSize = defaultTokenSize;
 
         if (pos == posHome) {
-          final homeCenter = config.homeStretchPosition(p, 5);
+          final homeCenter = config.homeStretchPosition(routeSlot, 5);
           final row = t ~/ 2;
           final col = t % 2;
           pixelPos =
@@ -771,11 +772,11 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
               );
           tokenSize = config.cellSize * 0.48;
         } else if (pos == posInBase) {
-          pixelPos = config.basePosition(p, t);
+          pixelPos = config.basePosition(routeSlot, t);
           isInBase = true;
         } else if (pos >= state.boardType.trackLength) {
           final stepsIntoHome = pos - state.boardType.trackLength;
-          pixelPos = config.homeStretchPosition(p, stepsIntoHome);
+          pixelPos = config.homeStretchPosition(routeSlot, stepsIntoHome);
         } else {
           pixelPos = config.trackCellPosition(pos);
 
