@@ -629,7 +629,7 @@ void main() {
         service.start();
         service.rollDice();
         service.selectToken(0);
-        await Future<void>.delayed(const Duration(milliseconds: 650));
+        await Future<void>.delayed(const Duration(milliseconds: 2100));
 
         expect(testState.tokenPositions[0][0], 1);
         expect(testState.tokenPositions[1][0], posInBase);
@@ -799,6 +799,101 @@ void main() {
         expect(testState.tokenPositions[0][0], posInBase);
       },
     );
+
+    test(
+      'A completed player loses extra-roll and the next active player rolls',
+      () {
+        final players = [
+          for (var i = 0; i < 3; i++)
+            Player(
+              id: 'p$i',
+              name: 'Player $i',
+              color: BoardType.classic4.availableColors[i],
+              type: PlayerType.human,
+            ),
+        ];
+        final testState = GameState(
+          boardType: BoardType.classic4,
+          players: players,
+        );
+        for (var token = 0; token < tokensPerPlayer - 1; token++) {
+          testState.tokenPositions[0][token] = posHome;
+        }
+        testState.tokenPositions[0][tokensPerPlayer - 1] =
+            testState.boardType.trackLength +
+            testState.boardType.homeStretchLength -
+            1;
+        testState.currentPlayerIndex = 0;
+        testState.phase = GamePhase.moving;
+        testState.lastDiceRoll = 1;
+        testState.validTokenMoves = [tokensPerPlayer - 1];
+
+        testState.moveToken(tokensPerPlayer - 1);
+
+        expect(testState.hasPlayerFinished(0), isTrue);
+        expect(testState.getsExtraRoll, isFalse);
+        expect(testState.finishOrder, [0]);
+        expect(testState.currentPlayerIndex, 1);
+        expect(testState.phase, GamePhase.rolling);
+      },
+    );
+
+    test('Turn rotation skips finished players when only two remain', () {
+      final players = [
+        for (var i = 0; i < 3; i++)
+          Player(
+            id: 'p$i',
+            name: 'Player $i',
+            color: BoardType.classic4.availableColors[i],
+            type: PlayerType.human,
+          ),
+      ];
+      final testState = GameState(
+        boardType: BoardType.classic4,
+        players: players,
+      );
+      testState.tokenPositions[2] = List.filled(tokensPerPlayer, posHome);
+      testState.finishOrder = [2];
+      testState.currentPlayerIndex = 1;
+
+      testState.advanceTurn();
+
+      expect(testState.currentPlayerIndex, 0);
+      expect(testState.phase, GamePhase.rolling);
+    });
+
+    test('The final active player receives the last rank', () {
+      final players = [
+        for (var i = 0; i < 3; i++)
+          Player(
+            id: 'p$i',
+            name: 'Player $i',
+            color: BoardType.classic4.availableColors[i],
+            type: PlayerType.human,
+          ),
+      ];
+      final testState = GameState(
+        boardType: BoardType.classic4,
+        players: players,
+      );
+      testState.finishOrder = [1, 2];
+      for (var token = 0; token < tokensPerPlayer - 1; token++) {
+        testState.tokenPositions[0][token] = posHome;
+      }
+      testState.tokenPositions[0][tokensPerPlayer - 1] =
+          testState.boardType.trackLength +
+          testState.boardType.homeStretchLength -
+          1;
+      testState.currentPlayerIndex = 0;
+      testState.phase = GamePhase.moving;
+      testState.lastDiceRoll = 1;
+      testState.validTokenMoves = [tokensPerPlayer - 1];
+
+      testState.moveToken(tokensPerPlayer - 1);
+
+      expect(testState.phase, GamePhase.finished);
+      expect(testState.finishOrder, [1, 2, 0]);
+    });
 
     test('Team mode ends only after both teammates finish', () {
       final players = [

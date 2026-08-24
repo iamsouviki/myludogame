@@ -21,10 +21,10 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  BoardType _boardType = BoardType.classic4;
+  final BoardType _boardType = BoardType.classic4;
 
   // VS Computer state
-  int _vsCompMatchSize = 4; // 2, 4, or 6
+  int _vsCompMatchSize = 4; // 2 or 4 players while Star 6 is disabled
   AIDifficulty _vsCompDifficulty = AIDifficulty.medium;
   final TextEditingController _vsCompNameController = TextEditingController(
     text: 'Player 1',
@@ -72,42 +72,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  List<int> _matchSizesForBoard(BoardType boardType) =>
-      boardType == BoardType.classic4 ? [2, 4] : [2, 4, 6];
-
-  void _normalizePassPlayColors() {
-    final used = <PlayerColor>{};
-    final palette = _boardType.availableColors;
-    for (var i = 0; i < _passPlayColors.length && i < palette.length; i++) {
-      var color = _passPlayColors[i];
-      if (!palette.contains(color) || used.contains(color)) {
-        color = palette.firstWhere((candidate) => !used.contains(candidate));
-        _passPlayColors[i] = color;
-      }
-      used.add(color);
-    }
-  }
-
-  void _setBoardType(StateSetter setModalState, BoardType boardType) {
-    setModalState(() {
-      _boardType = boardType;
-      final sizes = _matchSizesForBoard(boardType);
-      if (!sizes.contains(_vsCompMatchSize)) {
-        _vsCompMatchSize = sizes.last;
-      }
-      if (!sizes.contains(_passPlayMatchSize)) {
-        _passPlayMatchSize = sizes.last;
-      }
-      _passPlayHumans = _passPlayHumans.clamp(2, _passPlayMatchSize);
-      if (boardType != BoardType.classic4) {
-        _passPlayEnableTeamUp = false;
-      }
-      _vsCompColor = boardType.availableColors.contains(_vsCompColor)
-          ? _vsCompColor
-          : boardType.availableColors.first;
-      _normalizePassPlayColors();
-    });
-  }
+  List<int> _matchSizesForBoard(BoardType boardType) => [2, 4];
 
   void _selectPassPlayColor(
     StateSetter setModalState,
@@ -259,12 +224,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         ],
                       ),
                       const SizedBox(height: 16),
-                      _buildBoardTypeSelector(
-                        selected: _boardType,
-                        onSelected: (boardType) =>
-                            _setBoardType(setModalState, boardType),
-                      ),
-                      const SizedBox(height: 12),
                       _buildMatchSizeSelector(
                         selectedSize: _vsCompMatchSize,
                         sizes: _matchSizesForBoard(_boardType),
@@ -455,12 +414,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         ],
                       ),
                       const SizedBox(height: 16),
-                      _buildBoardTypeSelector(
-                        selected: _boardType,
-                        onSelected: (boardType) =>
-                            _setBoardType(setModalState, boardType),
-                      ),
-                      const SizedBox(height: 12),
                       _buildMatchSizeSelector(
                         selectedSize: _passPlayMatchSize,
                         sizes: _matchSizesForBoard(_boardType),
@@ -913,7 +866,7 @@ class _HomeScreenState extends State<HomeScreen> {
           isCompact: isCompact,
           icon: Icons.smart_toy_rounded,
           title: 'VS COMPUTER',
-          subtitle: 'Single Player vs Bots (2, 4, or 6 Players)',
+          subtitle: 'Single Player vs Bots (2 or 4 Players)',
           gradient: const LinearGradient(
             colors: [Color(0xFF8B5CF6), Color(0xFF6366F1)],
           ),
@@ -926,7 +879,7 @@ class _HomeScreenState extends State<HomeScreen> {
           isCompact: isCompact,
           icon: Icons.people_alt_rounded,
           title: 'PASS & PLAY',
-          subtitle: 'Local Friends, Bots, 2v2 Teams & Star 6',
+          subtitle: 'Local Friends, Bots & 2v2 Teams',
           gradient: AppTheme.primaryGradient,
           glowColor: const Color(0xFFEC4899),
           onTap: _showPassAndPlayModal,
@@ -1025,25 +978,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         ],
                       ),
                       const SizedBox(height: 16),
-                      _buildBoardTypeSelector(
-                        selected: selectedBoardType,
-                        onSelected: (boardType) => setModalState(() {
-                          selectedBoardType = boardType;
-                          final sizes = _matchSizesForBoard(boardType);
-                          if (!sizes.contains(matchSize)) {
-                            matchSize = sizes.last;
-                          }
-                          if (!boardType.availableColors.contains(
-                            selectedColor,
-                          )) {
-                            selectedColor = boardType.availableColors.first;
-                          }
-                          if (boardType != BoardType.classic4) {
-                            enableTeamUp = false;
-                          }
-                        }),
-                      ),
-                      const SizedBox(height: 12),
 
                       // Avatar Selector
                       _buildModalAvatarPicker(
@@ -1655,6 +1589,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // ── Shared Reusable Config Widgets ──
 
+  // ignore: unused_element
   Widget _buildBoardTypeSelector({
     required BoardType selected,
     required ValueChanged<BoardType> onSelected,

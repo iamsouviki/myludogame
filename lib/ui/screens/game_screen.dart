@@ -832,8 +832,12 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
         tokens.add(
           AnimatedPositioned(
             key: ValueKey('token_${p}_$t'),
-            duration: const Duration(milliseconds: 120),
-            curve: Curves.linear,
+            duration: widget.service.isCaptureAnimating
+                ? const Duration(milliseconds: 38)
+                : const Duration(milliseconds: 155),
+            curve: widget.service.isCaptureAnimating
+                ? Curves.linear
+                : Curves.easeOutCubic,
             left: pixelPos.dx - tokenSize / 2,
             top: pixelPos.dy - tokenSize / 2,
             child: TokenWidget(
@@ -882,6 +886,10 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
             ? Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  if (state.finishOrder.isNotEmpty) ...[
+                    _buildFinishRankStrip(compact: true),
+                    const SizedBox(height: 6),
+                  ],
                   Row(
                     children: [
                       PlayerAvatarWidget(
@@ -946,6 +954,10 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
             : Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  if (state.finishOrder.isNotEmpty) ...[
+                    _buildFinishRankStrip(),
+                    const SizedBox(height: 10),
+                  ],
                   // Active player avatar & Status header
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -1357,6 +1369,78 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFinishRankStrip({bool compact = false}) {
+    String ordinal(int rank) {
+      final n = rank + 1;
+      if (n % 100 >= 11 && n % 100 <= 13) return '${n}th';
+      switch (n % 10) {
+        case 1:
+          return '${n}st';
+        case 2:
+          return '${n}nd';
+        case 3:
+          return '${n}rd';
+        default:
+          return '${n}th';
+      }
+    }
+
+    return SizedBox(
+      height: compact ? 28 : 34,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: state.finishOrder.asMap().entries.map((entry) {
+            final playerIndex = entry.value;
+            if (playerIndex < 0 || playerIndex >= state.players.length) {
+              return const SizedBox.shrink();
+            }
+            final player = state.players[playerIndex];
+            return Container(
+              margin: const EdgeInsets.symmetric(horizontal: 3),
+              padding: EdgeInsets.symmetric(
+                horizontal: compact ? 7 : 9,
+                vertical: compact ? 4 : 6,
+              ),
+              decoration: BoxDecoration(
+                color: player.color.color.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(
+                  color: player.color.color.withValues(alpha: 0.55),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    ordinal(entry.key),
+                    style: TextStyle(
+                      color: player.color.color,
+                      fontSize: compact ? 10 : 11,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    player.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: compact ? 10 : 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
         ),
       ),
     );

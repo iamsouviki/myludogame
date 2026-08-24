@@ -32,7 +32,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
   BoardType _boardType = BoardType.classic4;
   PlayerColor _selectedColor = PlayerColor.red;
   int _selectedAvatarIndex = 0;
-  int _onlineMatchSize = 4; // 2, 4, or 6 depending on board
+  int _onlineMatchSize = 4; // 2 or 4 players while Star 6 is disabled
   bool _onlineEnableTeamUp = false;
   int _activeTab = 0; // 0 for Create Room, 1 for Join Room
   RoomData? _room;
@@ -314,8 +314,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
     );
   }
 
-  List<int> get _availableMatchSizes =>
-      _boardType == BoardType.classic4 ? [2, 4] : [2, 4, 6];
+  List<int> get _availableMatchSizes => [2, 4];
 
   Set<PlayerColor> get _availableColors =>
       BoardType.hex6.availableColors.toSet();
@@ -594,11 +593,6 @@ class _LobbyScreenState extends State<LobbyScreen> {
                   ],
                 ),
               ),
-
-              if (_activeTab == 0) ...[
-                _buildBoardTypeSelector(),
-                const SizedBox(height: 12),
-              ],
 
               // Segment Switcher (Create Room vs Join Room)
               Container(
@@ -914,6 +908,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
     );
   }
 
+  // ignore: unused_element
   Widget _buildBoardTypeSelector() {
     return Container(
       padding: const EdgeInsets.all(12),

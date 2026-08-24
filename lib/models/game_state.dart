@@ -135,6 +135,18 @@ class GameState extends ChangeNotifier {
 
   /// Roll the dice (Ludo King rules)
   int rollDice() {
+    // Normalize older/restored snapshots that still point at a finished player.
+    if (hasPlayerFinished(currentPlayerIndex)) {
+      _nextTurn();
+      if (hasPlayerFinished(currentPlayerIndex)) {
+        phase = GamePhase.finished;
+      } else {
+        phase = GamePhase.rolling;
+      }
+      _markChanged();
+      return 0;
+    }
+
     final rolled = _dice.roll();
     lastDiceRoll = rolled;
     getsExtraRoll = false; // reset before evaluating
@@ -293,8 +305,9 @@ class GameState extends ChangeNotifier {
             }
           } else {
             winner ??= playerIndex;
-            // Ranking mode ends when all but 1 player have finished.
-            if (finishOrder.length >= players.length - 1) {
+            // Keep the final active player in the rotation so every player
+            // receives a rank instead of ending one position early.
+            if (finishOrder.length >= players.length) {
               getsExtraRoll = false;
               for (var i = 0; i < players.length; i++) {
                 if (!finishOrder.contains(i)) finishOrder.add(i);
@@ -302,6 +315,8 @@ class GameState extends ChangeNotifier {
               phase = GamePhase.finished;
             }
           }
+          // A completed player must not keep the six/capture extra-roll.
+          if (hasPlayerFinished(playerIndex)) getsExtraRoll = false;
         }
       } else {
         tokenPositions[playerIndex][tokenIndex] =

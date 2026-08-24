@@ -36,9 +36,10 @@ class _DiceWidgetState extends State<DiceWidget>
       vsync: this,
     );
 
-    _rotation = Tween<double>(begin: 0, end: 6 * 3.14159).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.decelerate),
-    );
+    _rotation = Tween<double>(
+      begin: 0,
+      end: 6 * 3.14159,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.decelerate));
 
     _scale = TweenSequence<double>([
       TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.3), weight: 30),
@@ -75,7 +76,9 @@ class _DiceWidgetState extends State<DiceWidget>
   @override
   void didUpdateWidget(DiceWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.value != oldWidget.value && widget.value != null) {
+    if (widget.value != oldWidget.value &&
+        widget.value != null &&
+        !_controller.isAnimating) {
       _controller.forward(from: 0);
     }
   }
@@ -107,7 +110,9 @@ class _DiceWidgetState extends State<DiceWidget>
           return Transform.scale(
             scale: _controller.isAnimating ? _scale.value : 1.0,
             child: Transform.rotate(
-              angle: _controller.isAnimating ? _rotation.value + _shake.value : 0,
+              angle: _controller.isAnimating
+                  ? _rotation.value + _shake.value
+                  : 0,
               child: child,
             ),
           );
@@ -123,10 +128,7 @@ class _DiceWidgetState extends State<DiceWidget>
               colors: [playerColor, darkShade],
             ),
             borderRadius: BorderRadius.circular(widget.size * 0.28),
-            border: Border.all(
-              color: lightBorder,
-              width: 2.5,
-            ),
+            border: Border.all(color: lightBorder, width: 2.5),
             boxShadow: [
               BoxShadow(
                 color: playerColor.withValues(alpha: 0.55),
@@ -179,7 +181,10 @@ class _DiceFacePainter extends CustomPainter {
       case 1:
         dots.add(Offset(cx, cy));
       case 2:
-        dots.addAll([Offset(cx - offset, cy - offset), Offset(cx + offset, cy + offset)]);
+        dots.addAll([
+          Offset(cx - offset, cy - offset),
+          Offset(cx + offset, cy + offset),
+        ]);
       case 3:
         dots.addAll([
           Offset(cx - offset, cy + offset),
