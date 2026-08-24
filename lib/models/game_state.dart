@@ -74,7 +74,9 @@ class GameState extends ChangeNotifier {
   /// Absolute board position for a player's entry into home stretch
   int homeEntryPosition(int playerIndex) {
     if (boardType == BoardType.classic4) {
-      const entries = [51, 12, 25, 38];
+      // The painted arrows are the home-entry cells; the following boxes
+      // belong to the next player's approach and must not be counted here.
+      const entries = [50, 11, 24, 37];
       return entries[playerIndex];
     }
     final start = startPosition(playerIndex);
