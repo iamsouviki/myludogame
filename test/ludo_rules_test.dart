@@ -127,8 +127,55 @@ void main() {
 
     test('Classic board starts and home entries match the painted track', () {
       expect(List.generate(4, state.startPosition), [0, 13, 26, 39]);
-      expect(List.generate(4, state.homeEntryPosition), [51, 12, 25, 38]);
+      expect(List.generate(4, state.homeEntryPosition), [50, 11, 24, 37]);
       expect(state.safeSpots, containsAll([0, 13, 26, 39]));
+    });
+
+    test('Each classic player enters home from the painted arrow cell', () {
+      for (var playerIndex = 0; playerIndex < 4; playerIndex++) {
+        final testState = GameState(
+          boardType: BoardType.classic4,
+          players: state.players,
+          dice: MockDice([1]),
+        );
+        testState.currentPlayerIndex = playerIndex;
+        testState.tokenPositions[playerIndex][0] = testState.homeEntryPosition(
+          playerIndex,
+        );
+
+        testState.rollDice();
+
+        expect(testState.validTokenMoves, contains(0));
+        expect(testState.moveToken(0), isFalse);
+        expect(
+          testState.tokenPositions[playerIndex][0],
+          BoardType.classic4.trackLength,
+          reason: 'player $playerIndex must enter home from its arrow cell',
+        );
+      }
+    });
+
+    test('A classic player does not count the box before its home arrow', () {
+      for (var playerIndex = 0; playerIndex < 4; playerIndex++) {
+        final testState = GameState(
+          boardType: BoardType.classic4,
+          players: state.players,
+          dice: MockDice([2]),
+        );
+        testState.currentPlayerIndex = playerIndex;
+        testState.tokenPositions[playerIndex][0] =
+            testState.homeEntryPosition(playerIndex) - 1;
+
+        testState.rollDice();
+
+        expect(testState.validTokenMoves, contains(0));
+        expect(testState.moveToken(0), isFalse);
+        expect(
+          testState.tokenPositions[playerIndex][0],
+          BoardType.classic4.trackLength,
+          reason: 'player $playerIndex must not count the approach box',
+        );
+      }
     });
 
     test('A token on green route can be captured on its first unsafe cell', () {

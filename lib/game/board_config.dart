@@ -104,33 +104,33 @@ class BoardConfig {
     [6, 13], [6, 12], [6, 11], [6, 10], [6, 9],
     // Left arm top row going left (cells 5-10)
     [5, 8], [4, 8], [3, 8], [2, 8], [1, 8], [0, 8],
-    // Turn (cell 11)
+    // Green home-entry arrow (cell 11)
     [0, 7],
-    // Green pre-entry (cell 12): [0, 6]
+    // Green approach box (not part of the green home transition)
     [0, 6],
     // Left arm bottom row going right (cells 13-17)
     [1, 6], [2, 6], [3, 6], [4, 6], [5, 6],
     // Top arm left col going up (cells 18-23)
     [6, 5], [6, 4], [6, 3], [6, 2], [6, 1], [6, 0],
-    // Turn (cell 24)
+    // Yellow home-entry arrow (cell 24)
     [7, 0],
-    // Yellow pre-entry (cell 25): [8, 0]
+    // Yellow approach box (not part of the yellow home transition)
     [8, 0],
     // Top arm right col going down (cells 26-30)
     [8, 1], [8, 2], [8, 3], [8, 4], [8, 5],
     // Right arm top row going right (cells 31-36)
     [9, 6], [10, 6], [11, 6], [12, 6], [13, 6], [14, 6],
-    // Turn (cell 37)
+    // Blue home-entry arrow (cell 37)
     [14, 7],
-    // Blue pre-entry (cell 38): [14, 8]
+    // Blue approach box (not part of the blue home transition)
     [14, 8],
     // Right arm bottom row going left (cells 39-43)
     [13, 8], [12, 8], [11, 8], [10, 8], [9, 8],
     // Bottom arm right col going down (cells 44-49)
     [8, 9], [8, 10], [8, 11], [8, 12], [8, 13], [8, 14],
-    // Turn (cell 50)
+    // Red home-entry arrow (cell 50)
     [7, 14],
-    // Red pre-entry cell (cell 51)
+    // Red approach box (not part of the red home transition)
     [6, 14],
   ];
 
