@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:my_ludo/game/board_config.dart';
 import 'package:my_ludo/models/dice.dart';
 import 'package:my_ludo/models/game_state.dart';
+import 'package:my_ludo/models/six_player_rules.dart';
 import 'package:my_ludo/services/game_service.dart';
 import 'package:my_ludo/services/online_service.dart';
 import 'package:my_ludo/models/player.dart';
@@ -1078,6 +1079,62 @@ void main() {
         'targetPlayerCount': 6,
       });
       expect(room.maxPlayers, 4);
+    });
+
+    test('Star 6 ends after five players finish', () {
+      final players = [
+        for (var i = 0; i < BoardType.hex6.maxPlayers; i++)
+          Player(
+            id: 'star_$i',
+            name: 'Star $i',
+            color: BoardType.hex6.availableColors[i],
+            type: PlayerType.human,
+          ),
+      ];
+      final testState = GameState(boardType: BoardType.hex6, players: players);
+      testState.finishOrder = [0, 1, 2, 3];
+      testState.winner = 0;
+      for (var token = 0; token < tokensPerPlayer - 1; token++) {
+        testState.tokenPositions[4][token] = posHome;
+      }
+      testState.tokenPositions[4][tokensPerPlayer - 1] =
+          testState.boardType.trackLength +
+          testState.boardType.homeStretchLength -
+          1;
+      testState.currentPlayerIndex = 4;
+      testState.phase = GamePhase.moving;
+      testState.lastDiceRoll = 1;
+      testState.validTokenMoves = [tokensPerPlayer - 1];
+
+      testState.moveToken(tokensPerPlayer - 1);
+
+      expect(testState.phase, GamePhase.finished);
+      expect(testState.finishOrder, [0, 1, 2, 3, 4, 5]);
+      expect(testState.hasPlayerFinished(5), isFalse);
+    });
+
+    test('Star 6 Pass & Play uses isolated six-player rules', () {
+      final service = GameService.createLocalGame(
+        boardType: BoardType.hex6,
+        humanPlayers: 6,
+        aiPlayers: 0,
+        humanNames: [
+          'Player 1',
+          'Player 2',
+          'Player 3',
+          'Player 4',
+          'Player 5',
+          'Player 6',
+        ],
+        humanColors: BoardType.hex6.availableColors,
+      );
+
+      expect(service.state.boardType, BoardType.hex6);
+      expect(service.state.players, hasLength(6));
+      expect(SixPlayerRules.finishersBeforeGameEnds(6), 5);
+      expect(SixPlayerRules.appliesTo(BoardType.classic4), isFalse);
+      expect(SixPlayerRules.appliesTo(BoardType.hex6), isTrue);
+      service.dispose();
     });
 
     test('Local-game factory rejects unsupported configurations', () {

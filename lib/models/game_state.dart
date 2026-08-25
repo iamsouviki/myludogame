@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../utils/constants.dart';
 import 'player.dart';
 import 'dice.dart';
+import 'six_player_rules.dart';
 
 // Ludo King standard rules
 
@@ -313,7 +314,10 @@ class GameState extends ChangeNotifier {
             winner ??= playerIndex;
             // In free-for-all, the first player wins and the game ends when
             // only one unfinished player remains.
-            if (finishOrder.length >= players.length - 1) {
+            final finishThreshold = SixPlayerRules.appliesTo(boardType)
+                ? SixPlayerRules.finishersBeforeGameEnds(players.length)
+                : players.length - 1;
+            if (finishOrder.length >= finishThreshold) {
               getsExtraRoll = false;
               for (var i = 0; i < players.length; i++) {
                 if (!finishOrder.contains(i)) finishOrder.add(i);
