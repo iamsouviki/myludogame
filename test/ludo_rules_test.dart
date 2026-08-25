@@ -355,6 +355,15 @@ void main() {
       for (var slot = 0; slot < 6; slot++) {
         final corners = config.hex6BaseCorners(slot);
         expect(corners.length, 3);
+        final outward = corners.first - config.hex6BaseCenter(slot);
+        final routeDirection =
+            config.trackCellPosition(slot * BoardType.hex6.cellsPerArm) -
+            config.center;
+        expect(
+          outward.dx * routeDirection.dx + outward.dy * routeDirection.dy,
+          greaterThan(0),
+          reason: 'Star 6 room $slot must point away from the center',
+        );
         expect(
           {
             for (var token = 0; token < tokensPerPlayer; token++)

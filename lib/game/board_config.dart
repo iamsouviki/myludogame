@@ -258,21 +258,21 @@ class BoardConfig {
         tangent * ((col - 0.5) * cellSize * 1.35);
   }
 
-  /// The six-player base polygon points inward toward the center.
+  /// The six-player base polygon points outward from the center.
   List<Offset> hex6BaseCorners(int routeSlot, {double scale = 1}) {
     final angle = routeSlot * pi / 3 - pi / 2;
     final radial = Offset(cos(angle), sin(angle));
     final tangent = Offset(-sin(angle), cos(angle));
     final base = hex6BaseCenter(routeSlot);
-    final tip = base - radial * cellSize * 2.15 * scale;
-    final farLeft =
-        base +
-        radial * cellSize * 1.15 * scale -
+    final tip = base + radial * cellSize * 1.35 * scale;
+    final nearLeft =
+        base -
+        radial * cellSize * 0.6 * scale -
         tangent * cellSize * 2.15 * scale;
-    final farRight =
-        base +
-        radial * cellSize * 1.15 * scale +
+    final nearRight =
+        base -
+        radial * cellSize * 0.6 * scale +
         tangent * cellSize * 2.15 * scale;
-    return [tip, farRight, farLeft];
+    return [tip, nearRight, nearLeft];
   }
 }
