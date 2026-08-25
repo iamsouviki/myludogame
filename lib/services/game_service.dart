@@ -113,18 +113,9 @@ class GameService {
       _turnTimer?.cancel();
       _turnTimer = Timer(const Duration(milliseconds: 1200), () {
         if (_disposed || state.isGameOver) return;
-        // Ludo King: If you roll a 6 but have no valid moves, you still get the extra roll.
-        // However, to prevent infinite loops if the state gets stuck, we ensure
-        // the turn advances if no tokens are even on the board or reachable.
-        if (state.getsExtraRoll &&
-            state.consecutiveSixes < maxConsecutiveSixes) {
-          state.phase = GamePhase.rolling;
-          state.lastDiceRoll = null;
-          state.validTokenMoves = [];
-          state.notifyChange();
-        } else {
-          state.advanceTurn();
-        }
+        // A six only grants a bonus when at least one token can legally move.
+        // A blocked home-row/home-stretch position therefore passes the turn.
+        state.advanceTurn();
         // ponytail: sync after turn state change so remote player gets the update
         onMoveComplete?.call();
         _tryAITurn();
@@ -335,18 +326,11 @@ class GameService {
         state.validTokenMoves.isNotEmpty) {
       return;
     }
-    if (state.getsExtraRoll && state.consecutiveSixes < maxConsecutiveSixes) {
-      state.phase = GamePhase.rolling;
-      state.lastDiceRoll = null;
-      state.validTokenMoves = [];
-      state.notifyChange();
-      onMoveComplete?.call();
-      _tryAITurn();
-    } else {
-      state.advanceTurn();
-      onMoveComplete?.call();
-      _tryAITurn();
-    }
+    // A six only grants a bonus when at least one token can legally move.
+    // With no valid move, pass the turn for both human and AI players.
+    state.advanceTurn();
+    onMoveComplete?.call();
+    _tryAITurn();
   }
 
   void _executeAITurn() {

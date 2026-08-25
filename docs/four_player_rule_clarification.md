@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document records my understanding of the three bugs and rule changes described in the latest request. No gameplay code changes are made by this document.
+This document records the confirmed gameplay and UI requirements for the classic four-player mode.
 
 ## 1. Completed-player position must be prominent
 
@@ -28,7 +28,20 @@ Therefore, a player can move tokens after the first and second six, but never af
 
 This rule applies consistently to local/offline and authoritative online gameplay.
 
-## 3. A completed player must not receive a bonus turn
+## 3. A six with no legal move does not grant a bonus roll
+
+If a player rolls a six but none of that player’s tokens can legally move six spaces, the six is consumed and the turn passes to the next eligible player. This applies to every distribution of tokens between the player’s colored home row and the central finished-home area:
+
+| Tokens on the colored home row | Tokens already in central home | Expected behavior after rolling 6 |
+|---:|---:|---|
+| 4 | 0 | No bonus roll; pass the turn. |
+| 3 | 1 | No bonus roll; pass the turn. |
+| 2 | 2 | No bonus roll; pass the turn. |
+| 1 | 3 | No bonus roll; pass the turn. |
+
+A six grants another roll only when at least one token has a valid move for that six. A player with no legal move must not remain in the rolling phase waiting for another roll because of the six.
+
+## 4. A completed player must not receive a bonus turn
 
 Once all four tokens of a player are in the home/finished area, that player is complete and must be skipped for future turns. In particular, the player must not receive another roll merely because:
 
