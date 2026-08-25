@@ -29,10 +29,10 @@ class _LobbyScreenState extends State<LobbyScreen> {
   late final OnlineService _onlineService;
   final _nameController = TextEditingController(text: 'Player');
   final _codeController = TextEditingController();
-  final BoardType _boardType = BoardType.classic4;
+  BoardType _boardType = BoardType.classic4;
   PlayerColor _selectedColor = PlayerColor.red;
   int _selectedAvatarIndex = 0;
-  int _onlineMatchSize = 4;
+  int _onlineMatchSize = 4; // 2 or 4 players while Star 6 is disabled
   bool _onlineEnableTeamUp = false;
   int _activeTab = 0; // 0 for Create Room, 1 for Join Room
   RoomData? _room;
@@ -52,6 +52,10 @@ class _LobbyScreenState extends State<LobbyScreen> {
     super.initState();
     _onlineService = widget.onlineService ?? OnlineService();
     _room = widget.initialRoom;
+    if (_room != null) {
+      _boardType = _room!.boardType;
+      _onlineMatchSize = _room!.targetPlayerCount;
+    }
     _roomSubscription = _onlineService.roomStream.listen((room) {
       if (mounted) {
         setState(() => _room = room);
@@ -310,6 +314,27 @@ class _LobbyScreenState extends State<LobbyScreen> {
     );
   }
 
+  List<int> get _availableMatchSizes => [2, 4];
+
+  Set<PlayerColor> get _availableColors =>
+      BoardType.hex6.availableColors.toSet();
+
+  void _selectBoardType(BoardType boardType) {
+    setState(() {
+      _boardType = boardType;
+      final sizes = _availableMatchSizes;
+      if (!sizes.contains(_onlineMatchSize)) {
+        _onlineMatchSize = sizes.last;
+      }
+      if (!boardType.availableColors.contains(_selectedColor)) {
+        _selectedColor = boardType.availableColors.first;
+      }
+      if (boardType != BoardType.classic4) {
+        _onlineEnableTeamUp = false;
+      }
+    });
+  }
+
   Set<PlayerColor> get _takenColors {
     if (_room == null) return {};
     final localId = _onlineService.localPlayerId;
@@ -506,47 +531,54 @@ class _LobbyScreenState extends State<LobbyScreen> {
                                   Icons.arrow_drop_down_rounded,
                                   color: Colors.white70,
                                 ),
-                                items: PlayerColor.values.map((color) {
-                                  final isTaken = _takenColors.contains(color);
-                                  return DropdownMenuItem<PlayerColor>(
-                                    value: isTaken ? null : color,
-                                    enabled: !isTaken,
-                                    child: Row(
-                                      children: [
-                                        Container(
-                                          width: 14,
-                                          height: 14,
-                                          decoration: BoxDecoration(
-                                            shape: BoxShape.circle,
-                                            color: isTaken
-                                                ? Colors.grey
-                                                : color.color,
-                                            border: Border.all(
-                                              color: isTaken
-                                                  ? Colors.grey
-                                                  : Colors.white38,
+                                items:
+                                    (_activeTab == 0
+                                            ? _boardType.availableColors
+                                            : _availableColors)
+                                        .map((color) {
+                                          final isTaken = _takenColors.contains(
+                                            color,
+                                          );
+                                          return DropdownMenuItem<PlayerColor>(
+                                            value: isTaken ? null : color,
+                                            enabled: !isTaken,
+                                            child: Row(
+                                              children: [
+                                                Container(
+                                                  width: 14,
+                                                  height: 14,
+                                                  decoration: BoxDecoration(
+                                                    shape: BoxShape.circle,
+                                                    color: isTaken
+                                                        ? Colors.grey
+                                                        : color.color,
+                                                    border: Border.all(
+                                                      color: isTaken
+                                                          ? Colors.grey
+                                                          : Colors.white38,
+                                                    ),
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 8),
+                                                Text(
+                                                  isTaken
+                                                      ? '${color.label} (Taken)'
+                                                      : color.label,
+                                                  style: TextStyle(
+                                                    color: isTaken
+                                                        ? Colors.white38
+                                                        : Colors.white,
+                                                    fontSize: 13,
+                                                    fontWeight: isTaken
+                                                        ? FontWeight.w400
+                                                        : FontWeight.w600,
+                                                  ),
+                                                ),
+                                              ],
                                             ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          isTaken
-                                              ? '${color.label} (Taken)'
-                                              : color.label,
-                                          style: TextStyle(
-                                            color: isTaken
-                                                ? Colors.white38
-                                                : Colors.white,
-                                            fontSize: 13,
-                                            fontWeight: isTaken
-                                                ? FontWeight.w400
-                                                : FontWeight.w600,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                }).toList(),
+                                          );
+                                        })
+                                        .toList(),
                                 onChanged: (val) {
                                   if (val != null) {
                                     setState(() => _selectedColor = val);
@@ -647,7 +679,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                       ),
                       const SizedBox(height: 8),
                       Row(
-                        children: [2, 4].map((size) {
+                        children: _availableMatchSizes.map((size) {
                           final selected = _onlineMatchSize == size;
                           return Expanded(
                             child: Padding(
@@ -690,7 +722,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
                           );
                         }).toList(),
                       ),
-                      if (_onlineMatchSize == 4) ...[
+                      if (_onlineMatchSize == 4 &&
+                          _boardType == BoardType.classic4) ...[
                         const SizedBox(height: 10),
                         Row(
                           children: [
@@ -871,6 +904,69 @@ class _LobbyScreenState extends State<LobbyScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  // ignore: unused_element
+  Widget _buildBoardTypeSelector() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: AppTheme.glassCard(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Select Board',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: BoardType.values.map((boardType) {
+              final selected = _boardType == boardType;
+              return Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: GestureDetector(
+                    onTap: () => _selectBoardType(boardType),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(
+                        gradient: selected ? AppTheme.primaryGradient : null,
+                        color: selected ? null : AppTheme.bg3,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: selected
+                              ? AppTheme.accentLight
+                              : AppTheme.border,
+                        ),
+                      ),
+                      child: Text(
+                        boardType == BoardType.classic4
+                            ? 'Classic 4'
+                            : 'Star 6',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: selected
+                              ? Colors.white
+                              : AppTheme.textSecondary,
+                          fontSize: 12,
+                          fontWeight: selected
+                              ? FontWeight.w800
+                              : FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
       ),
     );
   }

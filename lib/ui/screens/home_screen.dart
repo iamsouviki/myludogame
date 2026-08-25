@@ -24,7 +24,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final BoardType _boardType = BoardType.classic4;
 
   // VS Computer state
-  int _vsCompMatchSize = 4; // 2 or 4
+  int _vsCompMatchSize = 4; // 2 or 4 players while Star 6 is disabled
   AIDifficulty _vsCompDifficulty = AIDifficulty.medium;
   final TextEditingController _vsCompNameController = TextEditingController(
     text: 'Player 1',
@@ -33,7 +33,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Pass & Play state
   int _passPlayMatchSize = 4; // 2 or 4
-  int _passPlayHumans = 2; // 2..4 for 4P match
+  int _passPlayHumans = 2; // 2..match size
   bool _passPlayEnableTeamUp = false; // 2v2 team mode
   AIDifficulty _passPlayDifficulty = AIDifficulty.medium;
 
@@ -42,6 +42,8 @@ class _HomeScreenState extends State<HomeScreen> {
     TextEditingController(text: 'Player 2'),
     TextEditingController(text: 'Player 3'),
     TextEditingController(text: 'Player 4'),
+    TextEditingController(text: 'Player 5'),
+    TextEditingController(text: 'Player 6'),
   ];
 
   final List<PlayerColor> _passPlayColors = [
@@ -49,6 +51,8 @@ class _HomeScreenState extends State<HomeScreen> {
     PlayerColor.green,
     PlayerColor.yellow,
     PlayerColor.blue,
+    PlayerColor.orange,
+    PlayerColor.purple,
   ];
 
   GameState? _savedGame;
@@ -67,6 +71,8 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     super.dispose();
   }
+
+  List<int> _matchSizesForBoard(BoardType boardType) => [2, 4];
 
   void _selectPassPlayColor(
     StateSetter setModalState,
@@ -100,7 +106,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _startPassAndPlayGame() {
     final totalInMatch = _passPlayMatchSize;
-    final humanCount = totalInMatch == 2 ? 2 : _passPlayHumans.clamp(2, 4);
+    final humanCount = _passPlayHumans.clamp(2, totalInMatch).toInt();
     final aiCount = totalInMatch - humanCount;
 
     final names = _passPlayNameControllers
@@ -218,9 +224,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         ],
                       ),
                       const SizedBox(height: 16),
-                      // 2P / 4P Selection
                       _buildMatchSizeSelector(
                         selectedSize: _vsCompMatchSize,
+                        sizes: _matchSizesForBoard(_boardType),
                         onSelected: (size) =>
                             setModalState(() => _vsCompMatchSize = size),
                       ),
@@ -274,6 +280,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             Expanded(
                               child: _buildColorDropdown(
                                 currentColor: _vsCompColor,
+                                colors: _boardType.availableColors,
                                 onChanged: (color) =>
                                     setModalState(() => _vsCompColor = color),
                               ),
@@ -347,7 +354,7 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (context, setModalState) {
-            final is4P = _passPlayMatchSize == 4;
+            final isConfigurableMatch = _passPlayMatchSize > 2;
 
             return Dialog(
               backgroundColor: Colors.transparent,
@@ -407,17 +414,18 @@ class _HomeScreenState extends State<HomeScreen> {
                         ],
                       ),
                       const SizedBox(height: 16),
-                      // 2P / 4P Selection
                       _buildMatchSizeSelector(
                         selectedSize: _passPlayMatchSize,
+                        sizes: _matchSizesForBoard(_boardType),
                         onSelected: (size) => setModalState(() {
                           _passPlayMatchSize = size;
+                          _passPlayHumans = _passPlayHumans.clamp(2, size);
                           if (size == 2) _passPlayHumans = 2;
                         }),
                       ),
                       const SizedBox(height: 12),
                       // Humans & Bots Stepper (for 4P mode)
-                      if (is4P) ...[
+                      if (isConfigurableMatch) ...[
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: AppTheme.glassCard(),
@@ -461,13 +469,14 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ),
                                   _stepperBtn(
                                     icon: Icons.add_rounded,
-                                    enabled: _passPlayHumans < 4,
+                                    enabled:
+                                        _passPlayHumans < _passPlayMatchSize,
                                     onTap: () =>
                                         setModalState(() => _passPlayHumans++),
                                   ),
                                 ],
                               ),
-                              if (4 - _passPlayHumans > 0) ...[
+                              if (_passPlayMatchSize - _passPlayHumans > 0) ...[
                                 const Padding(
                                   padding: EdgeInsets.symmetric(vertical: 4),
                                   child: Divider(
@@ -493,7 +502,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                       ),
                                     ),
                                     Text(
-                                      '${4 - _passPlayHumans} Bots',
+                                      '${_passPlayMatchSize - _passPlayHumans} Bots',
                                       style: TextStyle(
                                         color: AppTheme.accentLight,
                                         fontWeight: FontWeight.w700,
@@ -509,7 +518,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         const SizedBox(height: 12),
                       ],
                       // Team Up (2v2) Switch
-                      if (is4P) ...[
+                      if (isConfigurableMatch &&
+                          _boardType == BoardType.classic4) ...[
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 12,
@@ -574,7 +584,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
-                                  'Player Names & 20 Colors',
+                                  'Player Names & Colors',
                                   style: TextStyle(
                                     color: AppTheme.textPrimary,
                                     fontSize: 13,
@@ -586,7 +596,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             const SizedBox(height: 8),
                             Column(
                               children: List.generate(
-                                is4P ? _passPlayHumans : 2,
+                                isConfigurableMatch ? _passPlayHumans : 2,
                                 (i) {
                                   final currentColor = _passPlayColors[i];
 
@@ -644,6 +654,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                         Expanded(
                                           child: _buildColorDropdown(
                                             currentColor: currentColor,
+                                            colors: _boardType.availableColors,
                                             onChanged: (color) =>
                                                 _selectPassPlayColor(
                                                   setModalState,
@@ -661,7 +672,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           ],
                         ),
                       ),
-                      if (is4P && (4 - _passPlayHumans > 0)) ...[
+                      if (isConfigurableMatch &&
+                          (_passPlayMatchSize - _passPlayHumans > 0)) ...[
                         const SizedBox(height: 12),
                         _buildDifficultySelector(
                           selected: _passPlayDifficulty,
@@ -896,7 +908,8 @@ class _HomeScreenState extends State<HomeScreen> {
         final onlineService = OnlineService();
         int activeTab = 0;
         int avatarIndex = 0;
-        PlayerColor selectedColor = PlayerColor.red;
+        BoardType selectedBoardType = _boardType;
+        PlayerColor selectedColor = selectedBoardType.availableColors.first;
         int matchSize = 4;
         bool enableTeamUp = false;
         bool isSubmitting = false;
@@ -1025,6 +1038,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             Expanded(
                               child: _buildColorDropdown(
                                 currentColor: selectedColor,
+                                colors: selectedBoardType.availableColors,
                                 onChanged: isSubmitting
                                     ? (_) {}
                                     : (color) => setModalState(
@@ -1116,6 +1130,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         // CREATE ROOM TAB CONTENT
                         _buildMatchSizeSelector(
                           selectedSize: matchSize,
+                          sizes: _matchSizesForBoard(selectedBoardType),
                           onSelected: isSubmitting
                               ? (_) {}
                               : (size) => setModalState(() => matchSize = size),
@@ -1169,7 +1184,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                       final room = await onlineService
                                           .createRoom(
                                             playerName: name,
-                                            boardType: _boardType,
+                                            boardType: selectedBoardType,
                                             preferredColor: selectedColor,
                                             avatarIndex: avatarIndex,
                                             targetPlayerCount: matchSize,
@@ -1574,8 +1589,76 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // ── Shared Reusable Config Widgets ──
 
+  // ignore: unused_element
+  Widget _buildBoardTypeSelector({
+    required BoardType selected,
+    required ValueChanged<BoardType> onSelected,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: AppTheme.glassCard(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Select Board',
+            style: TextStyle(
+              color: AppTheme.textPrimary,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: BoardType.values.map((boardType) {
+              final isSelected = selected == boardType;
+              return Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: GestureDetector(
+                    onTap: () => onSelected(boardType),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(
+                        gradient: isSelected ? AppTheme.primaryGradient : null,
+                        color: isSelected ? null : AppTheme.bg3,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isSelected
+                              ? AppTheme.accentLight
+                              : AppTheme.border,
+                        ),
+                      ),
+                      child: Text(
+                        boardType == BoardType.classic4
+                            ? 'Classic 4'
+                            : 'Star 6',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: isSelected
+                              ? Colors.white
+                              : AppTheme.textSecondary,
+                          fontWeight: isSelected
+                              ? FontWeight.w800
+                              : FontWeight.w600,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildMatchSizeSelector({
     required int selectedSize,
+    required List<int> sizes,
     required ValueChanged<int> onSelected,
   }) {
     return Container(
@@ -1594,7 +1677,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 8),
           Row(
-            children: [2, 4].map((size) {
+            children: sizes.map((size) {
               final isSelected = selectedSize == size;
               return Expanded(
                 child: Padding(
@@ -1640,8 +1723,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildColorDropdown({
     required PlayerColor currentColor,
+    List<PlayerColor>? colors,
     required ValueChanged<PlayerColor> onChanged,
   }) {
+    final palette = colors ?? PlayerColor.values;
+    final safeCurrentColor = palette.contains(currentColor)
+        ? currentColor
+        : palette.first;
     return Container(
       height: 38,
       padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -1652,7 +1740,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<PlayerColor>(
-          value: currentColor,
+          value: safeCurrentColor,
           isExpanded: true,
           menuMaxHeight: 260,
           dropdownColor: AppTheme.surface,
@@ -1660,7 +1748,7 @@ class _HomeScreenState extends State<HomeScreen> {
             Icons.arrow_drop_down_rounded,
             color: Colors.white70,
           ),
-          items: PlayerColor.values.map((color) {
+          items: palette.map((color) {
             return DropdownMenuItem<PlayerColor>(
               value: color,
               child: Row(

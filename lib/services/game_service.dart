@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 
@@ -18,9 +19,12 @@ class GameService {
   bool runAI;
 
   Timer? _turnTimer;
+  Timer? _moveAnimationTimer;
+  Timer? _captureAnimationTimer;
   bool _disposed = false;
   bool _isMovingStep = false;
   bool get isAnimating => _isMovingStep;
+  bool get isCaptureAnimating => _captureAnimationTimer?.isActive ?? false;
 
   /// Callback for capture events
   VoidCallback? onCapture;
@@ -86,6 +90,12 @@ class GameService {
   void rollDice() {
     if (state.phase != GamePhase.rolling || _isMovingStep) return;
     if (state.isCurrentPlayerAI) return;
+    if (state.hasPlayerFinished(state.currentPlayerIndex)) {
+      state.advanceTurn();
+      onMoveComplete?.call();
+      _tryAITurn();
+      return;
+    }
 
     SoundService.playDiceRollSound();
     final value = state.rollDice();
@@ -152,6 +162,10 @@ class GameService {
       return;
     }
 
+    _moveAnimationTimer?.cancel();
+    _captureAnimationTimer?.cancel();
+    _moveAnimationTimer = null;
+    _captureAnimationTimer = null;
     _isMovingStep = true;
     final playerIndex = state.currentPlayerIndex;
     final diceValue = state.lastDiceRoll!;
@@ -165,9 +179,12 @@ class GameService {
     } else {
       // Step-by-step tile traversal with sound ("pig, pig, pig...")
       var stepCount = 0;
-      Timer.periodic(const Duration(milliseconds: 240), (timer) {
+      _moveAnimationTimer = Timer.periodic(const Duration(milliseconds: 180), (
+        timer,
+      ) {
         if (_disposed || state.isGameOver) {
           timer.cancel();
+          _moveAnimationTimer = null;
           _isMovingStep = false;
           return;
         }
@@ -178,6 +195,7 @@ class GameService {
 
         if (stepCount >= diceValue) {
           timer.cancel();
+          _moveAnimationTimer = null;
           _checkAndFinishMove(playerIndex, tokenIndex);
         }
       });
@@ -195,17 +213,7 @@ class GameService {
       state.getsExtraRoll = true;
       SoundService.playCaptureSound();
 
-      // Keep the visual capture pause bounded. Walking a captured token backward
-      // along the track can take seconds and leaves the turn unavailable.
-      Timer(const Duration(milliseconds: 280), () {
-        if (_disposed) {
-          _isMovingStep = false;
-          return;
-        }
-        state.sendCapturedTokensHome(capturedOpponents);
-        _isMovingStep = false;
-        _finishMoveTurn(true);
-      });
+      _animateCapturedTokensHome(capturedOpponents);
     } else {
       final captured = state.checkFinalCapture(playerIndex, tokenIndex);
       _isMovingStep = false;
@@ -213,9 +221,55 @@ class GameService {
     }
   }
 
+  void _animateCapturedTokensHome(List<Point<int>> capturedTokens) {
+    _captureAnimationTimer?.cancel();
+    if (capturedTokens.isEmpty) {
+      _isMovingStep = false;
+      _finishMoveTurn(true);
+      return;
+    }
+
+    _captureAnimationTimer = Timer.periodic(const Duration(milliseconds: 45), (
+      timer,
+    ) {
+      if (_disposed || state.isGameOver) {
+        timer.cancel();
+        _captureAnimationTimer = null;
+        _isMovingStep = false;
+        return;
+      }
+
+      var moved = false;
+      for (final captured in capturedTokens) {
+        final playerIndex = captured.x;
+        final tokenIndex = captured.y;
+        if (playerIndex < 0 ||
+            playerIndex >= state.tokenPositions.length ||
+            tokenIndex < 0 ||
+            tokenIndex >= state.tokenPositions[playerIndex].length) {
+          continue;
+        }
+        if (state.tokenPositions[playerIndex][tokenIndex] != posInBase) {
+          state.reverseTokenStep(playerIndex, tokenIndex);
+          moved = true;
+        }
+      }
+
+      if (!moved) {
+        timer.cancel();
+        _captureAnimationTimer = null;
+        _isMovingStep = false;
+        _finishMoveTurn(true);
+      }
+    });
+  }
+
   void _finishMoveTurn(bool captured) {
     if (captured) onCapture?.call();
-    if (state.hasPlayerFinished(state.currentPlayerIndex)) {
+    final playerFinished = state.hasPlayerFinished(state.currentPlayerIndex);
+    if (playerFinished) {
+      // A player who has completed all four tokens never receives a bonus roll.
+      state.getsExtraRoll = false;
       SoundService.playVictorySound();
       onHome?.call();
     }
@@ -225,7 +279,7 @@ class GameService {
 
     if (!state.isGameOver) {
       // Ludo King: extra turn if rolled 6 OR captured (boolean, no stacking)
-      if (state.getsExtraRoll) {
+      if (state.getsExtraRoll && !playerFinished) {
         state.getsExtraRoll = false;
         state.phase = GamePhase.rolling;
         state.lastDiceRoll = null;
@@ -337,6 +391,8 @@ class GameService {
   void dispose() {
     _disposed = true;
     _turnTimer?.cancel();
+    _moveAnimationTimer?.cancel();
+    _captureAnimationTimer?.cancel();
     state.removeListener(_onStateChanged);
   }
 
@@ -367,14 +423,7 @@ class GameService {
       );
     }
 
-    final allColors = boardType == BoardType.classic4
-        ? [
-            PlayerColor.red,
-            PlayerColor.green,
-            PlayerColor.yellow,
-            PlayerColor.blue,
-          ]
-        : PlayerColor.values;
+    final allColors = boardType.availableColors;
 
     final players = <Player>[];
     final assignedColors = <PlayerColor>[];
@@ -389,6 +438,11 @@ class GameService {
       final color = (humanColors != null && i < humanColors.length)
           ? humanColors[i]
           : allColors[i % allColors.length];
+      if (!allColors.contains(color)) {
+        throw ArgumentError(
+          '${color.label} is not available on the ${boardType.label} board.',
+        );
+      }
       if (assignedColors.contains(color)) {
         throw ArgumentError('Each player must have a unique color.');
       }

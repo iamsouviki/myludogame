@@ -1,4 +1,7 @@
+import 'dart:ui';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:my_ludo/game/board_config.dart';
 import 'package:my_ludo/models/dice.dart';
 import 'package:my_ludo/models/game_state.dart';
 import 'package:my_ludo/services/game_service.dart';
@@ -177,6 +180,198 @@ void main() {
         );
       }
     });
+
+    test('Six-player routes follow colors rather than player-list order', () {
+      final players = [
+        const Player(
+          id: 'orange',
+          name: 'Orange',
+          color: PlayerColor.orange,
+          type: PlayerType.human,
+        ),
+        const Player(
+          id: 'red',
+          name: 'Red',
+          color: PlayerColor.red,
+          type: PlayerType.human,
+        ),
+        const Player(
+          id: 'purple',
+          name: 'Purple',
+          color: PlayerColor.purple,
+          type: PlayerType.human,
+        ),
+        const Player(
+          id: 'green',
+          name: 'Green',
+          color: PlayerColor.green,
+          type: PlayerType.human,
+        ),
+        const Player(
+          id: 'blue',
+          name: 'Blue',
+          color: PlayerColor.blue,
+          type: PlayerType.human,
+        ),
+        const Player(
+          id: 'yellow',
+          name: 'Yellow',
+          color: PlayerColor.yellow,
+          type: PlayerType.human,
+        ),
+      ];
+      final testState = GameState(
+        boardType: BoardType.hex6,
+        players: players,
+        dice: MockDice([6]),
+      );
+
+      expect(List.generate(6, testState.playerPositionIndex), [
+        4,
+        0,
+        5,
+        1,
+        3,
+        2,
+      ]);
+      expect(List.generate(6, testState.startPosition), [
+        52,
+        0,
+        65,
+        13,
+        39,
+        26,
+      ]);
+      expect(
+        testState.safeSpots,
+        containsAll([0, 13, 26, 39, 52, 65, 8, 21, 34, 47, 60, 73]),
+      );
+
+      testState.currentPlayerIndex = 0;
+      testState.rollDice();
+      expect(testState.validTokenMoves, [0, 1, 2, 3]);
+      expect(testState.moveToken(0), isFalse);
+      expect(testState.tokenPositions[0][0], 52);
+    });
+
+    test('Six-player home entries are one step before each player start', () {
+      final players = BoardType.hex6.availableColors
+          .asMap()
+          .entries
+          .map(
+            (entry) => Player(
+              id: 'p${entry.key}',
+              name: entry.value.label,
+              color: entry.value,
+              type: PlayerType.human,
+            ),
+          )
+          .toList();
+      final testState = GameState(
+        boardType: BoardType.hex6,
+        players: players,
+        dice: MockDice(List.filled(6, 1)),
+      );
+
+      for (var playerIndex = 0; playerIndex < players.length; playerIndex++) {
+        testState.currentPlayerIndex = playerIndex;
+        testState.tokenPositions[playerIndex][0] = testState.homeEntryPosition(
+          playerIndex,
+        );
+        testState.rollDice();
+        expect(testState.validTokenMoves, contains(0));
+        expect(testState.moveToken(0), isFalse);
+        expect(
+          testState.tokenPositions[playerIndex][0],
+          BoardType.hex6.trackLength,
+        );
+        testState.phase = GamePhase.rolling;
+      }
+    });
+
+    test('Six-player home lanes move inward for every route slot', () {
+      final config = BoardConfig(
+        boardType: BoardType.hex6,
+        canvasSize: const Size(200, 200),
+      );
+
+      for (var routeSlot = 0; routeSlot < 6; routeSlot++) {
+        final entry = config.homeStretchPosition(routeSlot, 0);
+        final lastLaneCell = config.homeStretchPosition(routeSlot, 4);
+        final home = config.homeStretchPosition(routeSlot, 5);
+
+        expect(
+          (entry - config.center).distance,
+          greaterThan((lastLaneCell - config.center).distance),
+        );
+        expect(
+          (lastLaneCell - config.center).distance,
+          greaterThan((home - config.center).distance),
+        );
+        expect(home, config.center);
+      }
+
+      final bases = [
+        for (var routeSlot = 0; routeSlot < 6; routeSlot++)
+          config.basePosition(routeSlot, 0),
+      ];
+      expect(bases.toSet().length, 6);
+    });
+
+    test('Six-player room keeps six-seat capacity through serialization', () {
+      final players = BoardType.hex6.availableColors
+          .asMap()
+          .entries
+          .map(
+            (entry) => Player(
+              id: 'p${entry.key}',
+              name: entry.value.label,
+              color: entry.value,
+              type: PlayerType.human,
+            ),
+          )
+          .toList();
+      final room = RoomData(
+        code: 'ABC123',
+        hostId: players.first.id,
+        boardType: BoardType.hex6,
+        players: players,
+        targetPlayerCount: 6,
+      );
+      final restored = RoomData.fromJson(room.toJson());
+
+      expect(room.maxPlayers, 6);
+      expect(room.isFull, isTrue);
+      expect(restored.maxPlayers, 6);
+      expect(
+        restored.players.map((player) => player.color),
+        BoardType.hex6.availableColors,
+      );
+    });
+
+    test(
+      'Six-player local factory fills the six physical colors exactly once',
+      () {
+        final service = GameService.createLocalGame(
+          boardType: BoardType.hex6,
+          humanPlayers: 1,
+          aiPlayers: 5,
+          humanColors: [PlayerColor.orange],
+        );
+
+        expect(service.state.players.length, 6);
+        expect(
+          service.state.players.map((player) => player.color).toSet().length,
+          6,
+        );
+        expect(
+          service.state.players
+              .map((player) => player.color)
+              .every(BoardType.hex6.availableColors.contains),
+          isTrue,
+        );
+      },
+    );
 
     test('A token on green route can be captured on its first unsafe cell', () {
       final players = [
@@ -434,7 +629,7 @@ void main() {
         service.start();
         service.rollDice();
         service.selectToken(0);
-        await Future<void>.delayed(const Duration(milliseconds: 650));
+        await Future<void>.delayed(const Duration(milliseconds: 2100));
 
         expect(testState.tokenPositions[0][0], 1);
         expect(testState.tokenPositions[1][0], posInBase);
@@ -604,6 +799,101 @@ void main() {
         expect(testState.tokenPositions[0][0], posInBase);
       },
     );
+
+    test(
+      'A completed player loses extra-roll and the next active player rolls',
+      () {
+        final players = [
+          for (var i = 0; i < 3; i++)
+            Player(
+              id: 'p$i',
+              name: 'Player $i',
+              color: BoardType.classic4.availableColors[i],
+              type: PlayerType.human,
+            ),
+        ];
+        final testState = GameState(
+          boardType: BoardType.classic4,
+          players: players,
+        );
+        for (var token = 0; token < tokensPerPlayer - 1; token++) {
+          testState.tokenPositions[0][token] = posHome;
+        }
+        testState.tokenPositions[0][tokensPerPlayer - 1] =
+            testState.boardType.trackLength +
+            testState.boardType.homeStretchLength -
+            1;
+        testState.currentPlayerIndex = 0;
+        testState.phase = GamePhase.moving;
+        testState.lastDiceRoll = 1;
+        testState.validTokenMoves = [tokensPerPlayer - 1];
+
+        testState.moveToken(tokensPerPlayer - 1);
+
+        expect(testState.hasPlayerFinished(0), isTrue);
+        expect(testState.getsExtraRoll, isFalse);
+        expect(testState.finishOrder, [0]);
+        expect(testState.currentPlayerIndex, 1);
+        expect(testState.phase, GamePhase.rolling);
+      },
+    );
+
+    test('Turn rotation skips finished players when only two remain', () {
+      final players = [
+        for (var i = 0; i < 3; i++)
+          Player(
+            id: 'p$i',
+            name: 'Player $i',
+            color: BoardType.classic4.availableColors[i],
+            type: PlayerType.human,
+          ),
+      ];
+      final testState = GameState(
+        boardType: BoardType.classic4,
+        players: players,
+      );
+      testState.tokenPositions[2] = List.filled(tokensPerPlayer, posHome);
+      testState.finishOrder = [2];
+      testState.currentPlayerIndex = 1;
+
+      testState.advanceTurn();
+
+      expect(testState.currentPlayerIndex, 0);
+      expect(testState.phase, GamePhase.rolling);
+    });
+
+    test('The final active player receives the last rank', () {
+      final players = [
+        for (var i = 0; i < 3; i++)
+          Player(
+            id: 'p$i',
+            name: 'Player $i',
+            color: BoardType.classic4.availableColors[i],
+            type: PlayerType.human,
+          ),
+      ];
+      final testState = GameState(
+        boardType: BoardType.classic4,
+        players: players,
+      );
+      testState.finishOrder = [1, 2];
+      for (var token = 0; token < tokensPerPlayer - 1; token++) {
+        testState.tokenPositions[0][token] = posHome;
+      }
+      testState.tokenPositions[0][tokensPerPlayer - 1] =
+          testState.boardType.trackLength +
+          testState.boardType.homeStretchLength -
+          1;
+      testState.currentPlayerIndex = 0;
+      testState.phase = GamePhase.moving;
+      testState.lastDiceRoll = 1;
+      testState.validTokenMoves = [tokensPerPlayer - 1];
+
+      testState.moveToken(tokensPerPlayer - 1);
+
+      expect(testState.phase, GamePhase.finished);
+      expect(testState.finishOrder, [1, 2, 0]);
+    });
 
     test('Team mode ends only after both teammates finish', () {
       final players = [
