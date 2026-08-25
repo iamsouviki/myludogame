@@ -492,9 +492,13 @@ class GameState extends ChangeNotifier {
     getsExtraRoll = false;
     lastDiceRoll = null;
     validTokenMoves = [];
+    activeEmoji = null;
+    activeEmojiPlayerIndex = null;
+    activeEmojiAt = null;
   }
 
   /// Reset game
+
   void reset() {
     tokenPositions = List.generate(
       players.length,

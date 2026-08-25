@@ -547,21 +547,26 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildNarrowLayout(BoxConstraints constraints) {
-    // ponytail: height-aware layout for small phones
-    final isCompact = constraints.maxHeight < 700;
-    final controlPanelHeight = isCompact ? 160.0 : 220.0;
-    final maxAvailableWidth = constraints.maxWidth - 24;
-    final maxAvailableHeight = constraints.maxHeight - controlPanelHeight - 60;
-    final boardSize = min(
-      maxAvailableWidth,
-      maxAvailableHeight,
-    ).clamp(200.0, 600.0);
+    // ponytail: let Flutter measure the real control-panel height instead of
+    // guessing it, so the board can never occupy the panel's space.
+    final isCompact = constraints.maxHeight < 820;
+    final maxBoardWidth = constraints.maxWidth - 24;
 
     return Column(
       children: [
         _buildTopBar(),
         if (!isCompact) const SizedBox(height: 8),
-        Expanded(child: Center(child: _buildBoard(boardSize))),
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, boardConstraints) {
+              final boardSize = min(
+                maxBoardWidth,
+                boardConstraints.maxHeight,
+              ).clamp(200.0, 600.0);
+              return Center(child: _buildBoard(boardSize));
+            },
+          ),
+        ),
         _buildControlPanel(isCompact: isCompact),
         SizedBox(height: isCompact ? 4 : 8),
       ],

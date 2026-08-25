@@ -58,6 +58,19 @@ void main() {
       state = GameState(boardType: BoardType.classic4, players: players);
     });
 
+    test('Advancing a turn clears the active emoji', () {
+      expect(state.setTurnEmoji('🔥'), isTrue);
+      expect(state.activeEmoji, '🔥');
+      expect(state.activeEmojiPlayerIndex, 0);
+
+      state.advanceTurn();
+
+      expect(state.activeEmoji, isNull);
+      expect(state.activeEmojiPlayerIndex, isNull);
+      expect(state.activeEmojiAt, isNull);
+      expect(state.currentPlayerIndex, 1);
+    });
+
     test('Single 6 grants extra turn', () {
       final mockDice = MockDice([6]);
       final testState = GameState(
