@@ -903,9 +903,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
               size: tokenSize,
               isHighlighted: isHighlighted,
               isInBase: isInBase,
-              pawnAsset: state.boardType == BoardType.hex6
-                  ? _star6PawnAsset(state.players[p].color)
-                  : null,
+              pawnAsset: _pawnAssetForColor(state.players[p].color),
               onTap: isHighlighted ? () => _onTokenTap(t) : null,
             ),
           ),
@@ -1453,7 +1451,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     }
   }
 
-  String _star6PawnAsset(PlayerColor color) {
+  String _pawnAssetForColor(PlayerColor color) {
     return switch (color) {
       PlayerColor.red => 'assets/images/tokens/star6_red_pawn.png',
       PlayerColor.green => 'assets/images/tokens/star6_green_pawn.png',

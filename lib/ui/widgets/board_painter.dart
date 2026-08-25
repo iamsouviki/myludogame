@@ -719,20 +719,7 @@ class BoardPainter extends CustomPainter {
   }
 
   void _paintHex6(Canvas canvas, Size size) {
-    final boardBounds = Rect.fromCenter(
-      center: config.center,
-      width: config.cellSize * 17.7,
-      height: config.cellSize * 17.7,
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        boardBounds,
-        Radius.circular(config.cellSize * 1.2),
-      ),
-      Paint()
-        ..color = const Color(0xFF0B1220)
-        ..style = PaintingStyle.fill,
-    );
+    _drawHex6BoardShell(canvas);
 
     final gridPaint = Paint()
       ..color = const Color(0xFF172033)
@@ -853,6 +840,32 @@ class BoardPainter extends CustomPainter {
     return path..close();
   }
 
+  void _drawHex6BoardShell(Canvas canvas) {
+    final outerRadius = config.cellSize * 8.78;
+    final valleyRadius = config.cellSize * 6.25;
+    final points = <Offset>[];
+    for (var index = 0; index < 12; index++) {
+      final angle = index * pi / 6 - pi / 2;
+      final radius = index.isEven ? outerRadius : valleyRadius;
+      points.add(config.center + Offset(cos(angle), sin(angle)) * radius);
+    }
+    final shell = _polygonPath(points);
+    canvas.drawPath(
+      shell.shift(const Offset(0, 5)),
+      Paint()
+        ..color = Colors.black.withValues(alpha: 0.35)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
+    );
+    canvas.drawPath(shell, Paint()..color = const Color(0xFFF8FAFC));
+    canvas.drawPath(
+      shell,
+      Paint()
+        ..color = const Color(0xFF0F172A)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.5,
+    );
+  }
+
   void _drawHex6Center(Canvas canvas) {
     final centerRadius = config.cellSize * 2.0;
     for (var slot = 0; slot < 6; slot++) {
@@ -882,19 +895,37 @@ class BoardPainter extends CustomPainter {
       );
     }
 
-    canvas.drawCircle(
-      config.center,
-      config.cellSize * 0.72,
-      Paint()..color = const Color(0xFF24152D),
+    final dieOuter = RRect.fromRectAndRadius(
+      Rect.fromCenter(
+        center: config.center,
+        width: config.cellSize * 1.65,
+        height: config.cellSize * 1.65,
+      ),
+      Radius.circular(config.cellSize * 0.22),
     );
-    canvas.drawCircle(
-      config.center,
-      config.cellSize * 0.72,
-      Paint()
-        ..color = const Color(0xFF0F172A)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2,
+    canvas.drawRRect(dieOuter, Paint()..color = const Color(0xFF111827));
+    final dieFace = RRect.fromRectAndRadius(
+      dieOuter.outerRect.deflate(config.cellSize * 0.14),
+      Radius.circular(config.cellSize * 0.16),
     );
+    canvas.drawRRect(dieFace, Paint()..color = Colors.white);
+
+    final pipRadius = config.cellSize * 0.105;
+    final pipOffset = config.cellSize * 0.34;
+    for (final offset in <Offset>[
+      Offset(-pipOffset, -pipOffset),
+      Offset(0, -pipOffset),
+      Offset(pipOffset, -pipOffset),
+      Offset(-pipOffset, pipOffset),
+      Offset(0, pipOffset),
+      Offset(pipOffset, pipOffset),
+    ]) {
+      canvas.drawCircle(
+        config.center + offset,
+        pipRadius,
+        Paint()..color = Colors.black87,
+      );
+    }
   }
 
   void _drawHex6Arrow(Canvas canvas, Offset center, int slot, Color color) {
