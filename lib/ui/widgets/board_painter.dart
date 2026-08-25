@@ -722,56 +722,22 @@ class BoardPainter extends CustomPainter {
     _drawHex6BoardShell(canvas);
 
     final gridPaint = Paint()
-      ..color = const Color(0xFF172033)
+      ..color = const Color(0xFF1F2937)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.1;
+      ..strokeWidth = 1.25;
 
-    // Draw the two six-cell lanes that make up each of the six rotated arms.
-    for (var cell = 0; cell < state.boardType.trackLength; cell++) {
-      final slot = (cell ~/ state.boardType.cellsPerArm) % 6;
-      final ownerIndex = _playerAtRouteSlot(slot);
-      final ownerColor = ownerIndex == null
-          ? BoardType.hex6.availableColors[slot].color
-          : state.players[ownerIndex].color.color;
-      final isStart = cell % state.boardType.cellsPerArm == 0;
-      final corners = config.hex6TrackCellCorners(cell);
-      final path = _polygonPath(corners);
-      canvas.drawPath(
-        path,
-        Paint()..color = isStart ? ownerColor : Colors.white,
-      );
-      canvas.drawPath(path, gridPaint);
-
-      if (state.safeSpots.contains(cell) && !isStart) {
-        _drawClassicStar(
-          canvas,
-          config.trackCellPosition(cell),
-          config.cellSize * 0.27,
-          ownerColor.withValues(alpha: 0.95),
-        );
-      }
-    }
-
-    // Paint five inward-facing colored home cells per player.
     for (var slot = 0; slot < 6; slot++) {
       final ownerIndex = _playerAtRouteSlot(slot);
       final color = ownerIndex == null
           ? BoardType.hex6.availableColors[slot].color
           : state.players[ownerIndex].color.color;
-      for (var step = 0; step < state.boardType.homeStretchLength; step++) {
-        final path = _polygonPath(config.hex6HomeCellCorners(slot, step));
-        canvas.drawPath(path, Paint()..color = color);
-        canvas.drawPath(path, gridPaint);
-      }
-
-      final arrowCenter = config.homeStretchPosition(slot, 0);
-      _drawHex6Arrow(canvas, arrowCenter, slot, color);
+      _drawHex6Arm(canvas, slot, color, gridPaint);
     }
 
     _drawHex6Center(canvas);
 
-    // Draw each player’s original triangular room after the lanes so its edge
-    // remains readable and the four pawn sockets stay inside the white inset.
+    // Each base is the HTML base-pod: a colored center-facing triangle with a
+    // white circular four-token hub and a small label tab at its outer edge.
     for (var slot = 0; slot < 6; slot++) {
       final ownerIndex = _playerAtRouteSlot(slot);
       final playerColor = ownerIndex == null
@@ -781,52 +747,45 @@ class BoardPainter extends CustomPainter {
       canvas.drawPath(
         basePath,
         Paint()
-          ..color = Colors.black.withValues(alpha: 0.32)
+          ..color = Colors.black.withValues(alpha: 0.24)
           ..style = PaintingStyle.fill,
       );
       canvas.drawPath(basePath, Paint()..color = playerColor.color);
       canvas.drawPath(
         basePath,
         Paint()
-          ..color = const Color(0xFF0F172A)
+          ..color = const Color(0xFF222222)
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 2,
+          ..strokeWidth = 1.4,
       );
 
       final baseCenter = config.hex6BaseCenter(slot);
-      final basePlateRadius = config.cellSize * 1.45;
+      final plateRadius = config.cellSize * 1.55;
       canvas.drawCircle(
         baseCenter + const Offset(0, 3),
-        basePlateRadius,
+        plateRadius,
         Paint()
-          ..color = Colors.black.withValues(alpha: 0.18)
+          ..color = Colors.black.withValues(alpha: 0.16)
           ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
       );
+      canvas.drawCircle(baseCenter, plateRadius, Paint()..color = Colors.white);
       canvas.drawCircle(
         baseCenter,
-        basePlateRadius,
-        Paint()..color = Colors.white,
-      );
-      canvas.drawCircle(
-        baseCenter,
-        basePlateRadius,
+        plateRadius,
         Paint()
-          ..color = const Color(0xFF0F172A)
+          ..color = const Color(0xFF222222)
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.2,
+          ..strokeWidth = 1.4,
       );
 
-      // The colored socket diameter matches the 0.86-cell Star 6 pawn widget.
-      final socketPaint = Paint()
-        ..color = playerColor.color
-        ..style = PaintingStyle.fill;
+      final socketPaint = Paint()..color = playerColor.color;
       for (var token = 0; token < tokensPerPlayer; token++) {
         final socket = config.basePosition(slot, token);
         canvas.drawCircle(socket, config.cellSize * 0.43, socketPaint);
         canvas.drawCircle(socket, config.cellSize * 0.43, gridPaint);
       }
 
-      final radialAngle = slot * pi / 3 - pi / 2;
+      final radialAngle = slot * pi / 3 - pi / 3;
       final labelPainter = TextPainter(
         text: TextSpan(
           text: ownerIndex == null
@@ -834,7 +793,7 @@ class BoardPainter extends CustomPainter {
               : state.players[ownerIndex].name,
           style: TextStyle(
             color: Colors.white,
-            fontSize: config.cellSize * 0.34,
+            fontSize: config.cellSize * 0.31,
             fontWeight: FontWeight.w900,
             shadows: const [Shadow(color: Colors.black87, blurRadius: 3)],
           ),
@@ -842,15 +801,48 @@ class BoardPainter extends CustomPainter {
         textDirection: TextDirection.ltr,
         maxLines: 1,
         ellipsis: '…',
-      )..layout(maxWidth: config.cellSize * 4.2);
+      )..layout(maxWidth: config.cellSize * 4.0);
       final labelCenter =
-          config.hex6BaseCenter(slot) +
-          Offset(cos(radialAngle), sin(radialAngle)) * config.cellSize * 1.25;
+          baseCenter +
+          Offset(cos(radialAngle), sin(radialAngle)) * config.cellSize * 1.55;
       labelPainter.paint(
         canvas,
         labelCenter - Offset(labelPainter.width / 2, labelPainter.height / 2),
       );
     }
+  }
+
+  void _drawHex6Arm(Canvas canvas, int slot, Color color, Paint gridPaint) {
+    for (
+      var cellInArm = 0;
+      cellInArm < state.boardType.cellsPerArm;
+      cellInArm++
+    ) {
+      final cell = slot * state.boardType.cellsPerArm + cellInArm;
+      final path = _polygonPath(config.hex6TrackCellCorners(cell));
+      final fill = cellInArm == 0 ? color : Colors.white;
+      canvas.drawPath(path, Paint()..color = fill);
+      canvas.drawPath(path, gridPaint);
+
+      if (state.safeSpots.contains(cell)) {
+        _drawClassicStar(
+          canvas,
+          config.trackCellPosition(cell),
+          config.cellSize * 0.27,
+          color.withValues(alpha: 0.95),
+        );
+      }
+    }
+
+    // The middle column is the player’s five-cell colored home lane.
+    for (var step = 0; step < state.boardType.homeStretchLength; step++) {
+      final path = _polygonPath(config.hex6HomeCellCorners(slot, step));
+      canvas.drawPath(path, Paint()..color = color);
+      canvas.drawPath(path, gridPaint);
+    }
+
+    final arrow = config.hex6ArmGridCellPosition(slot, 0, 1);
+    _drawHex6Arrow(canvas, arrow, slot, color);
   }
 
   Path _polygonPath(List<Offset> points) {

@@ -355,14 +355,13 @@ void main() {
       for (var slot = 0; slot < 6; slot++) {
         final corners = config.hex6BaseCorners(slot);
         expect(corners.length, 3);
-        final outward = corners.first - config.hex6BaseCenter(slot);
-        final routeDirection =
-            config.trackCellPosition(slot * BoardType.hex6.cellsPerArm) -
-            config.center;
+        final tipFromBase = corners.first - config.hex6BaseCenter(slot);
+        final inwardDirection = config.center - config.hex6BaseCenter(slot);
         expect(
-          outward.dx * routeDirection.dx + outward.dy * routeDirection.dy,
+          tipFromBase.dx * inwardDirection.dx +
+              tipFromBase.dy * inwardDirection.dy,
           greaterThan(0),
-          reason: 'Star 6 room $slot must point away from the center',
+          reason: 'Star 6 room $slot must point toward the center',
         );
         expect(
           {
