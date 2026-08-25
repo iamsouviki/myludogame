@@ -411,8 +411,8 @@ class BoardPainter extends CustomPainter {
         ..strokeWidth = 1.5,
     );
 
-    // 4 Colored Base Circles for Tokens (Exact match with BoardConfig base calculation)
-    final dotRadius = cellSize * 0.45;
+    // 4 colored pawn sockets match the 0.70-cell 3D pawn footprint.
+    final dotRadius = cellSize * 0.35;
 
     final positions = [
       Offset(
@@ -778,7 +778,6 @@ class BoardPainter extends CustomPainter {
           ? BoardType.hex6.availableColors[slot]
           : state.players[ownerIndex].color;
       final basePath = _polygonPath(config.hex6BaseCorners(slot));
-      final insetPath = _polygonPath(config.hex6BaseCorners(slot, scale: 0.78));
       canvas.drawPath(
         basePath,
         Paint()
@@ -793,16 +792,38 @@ class BoardPainter extends CustomPainter {
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2,
       );
-      canvas.drawPath(insetPath, Paint()..color = Colors.white);
-      canvas.drawPath(insetPath, gridPaint);
 
+      final baseCenter = config.hex6BaseCenter(slot);
+      final basePlateRadius = config.cellSize * 1.45;
+      canvas.drawCircle(
+        baseCenter + const Offset(0, 3),
+        basePlateRadius,
+        Paint()
+          ..color = Colors.black.withValues(alpha: 0.18)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+      );
+      canvas.drawCircle(
+        baseCenter,
+        basePlateRadius,
+        Paint()..color = Colors.white,
+      );
+      canvas.drawCircle(
+        baseCenter,
+        basePlateRadius,
+        Paint()
+          ..color = const Color(0xFF0F172A)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.2,
+      );
+
+      // The colored socket diameter matches the 0.86-cell Star 6 pawn widget.
       final socketPaint = Paint()
-        ..color = playerColor.lightColor
+        ..color = playerColor.color
         ..style = PaintingStyle.fill;
       for (var token = 0; token < tokensPerPlayer; token++) {
         final socket = config.basePosition(slot, token);
-        canvas.drawCircle(socket, config.cellSize * 0.52, socketPaint);
-        canvas.drawCircle(socket, config.cellSize * 0.52, gridPaint);
+        canvas.drawCircle(socket, config.cellSize * 0.43, socketPaint);
+        canvas.drawCircle(socket, config.cellSize * 0.43, gridPaint);
       }
 
       final radialAngle = slot * pi / 3 - pi / 2;
@@ -841,14 +862,15 @@ class BoardPainter extends CustomPainter {
   }
 
   void _drawHex6BoardShell(Canvas canvas) {
-    final outerRadius = config.cellSize * 8.78;
-    final valleyRadius = config.cellSize * 6.25;
-    final points = <Offset>[];
-    for (var index = 0; index < 12; index++) {
-      final angle = index * pi / 6 - pi / 2;
-      final radius = index.isEven ? outerRadius : valleyRadius;
-      points.add(config.center + Offset(cos(angle), sin(angle)) * radius);
-    }
+    // A compact regular hexagon keeps the board body continuous, like the
+    // supplied six-player references, while colored rooms form the six tips.
+    final outerRadius = config.cellSize * 8.85;
+    final points = [
+      for (var index = 0; index < 6; index++)
+        config.center +
+            Offset(cos(index * pi / 3 - pi / 2), sin(index * pi / 3 - pi / 2)) *
+                outerRadius,
+    ];
     final shell = _polygonPath(points);
     canvas.drawPath(
       shell.shift(const Offset(0, 5)),

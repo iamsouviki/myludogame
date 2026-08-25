@@ -244,7 +244,7 @@ class BoardConfig {
   }
 
   Offset hex6BaseCenter(int routeSlot) =>
-      _hex6RadialPoint(routeSlot, cellSize * 7.35, 0);
+      _hex6RadialPoint(routeSlot, cellSize * 7.1, 0);
 
   Offset _hex6BasePosition(int routeSlot, int tokenIndex) {
     final angle = routeSlot * pi / 3 - pi / 2;
@@ -264,14 +264,14 @@ class BoardConfig {
     final radial = Offset(cos(angle), sin(angle));
     final tangent = Offset(-sin(angle), cos(angle));
     final base = hex6BaseCenter(routeSlot);
-    final tip = base + radial * cellSize * 1.35 * scale;
+    final tip = base + radial * cellSize * 1.75 * scale;
     final nearLeft =
         base -
-        radial * cellSize * 0.6 * scale -
+        radial * cellSize * 0.85 * scale -
         tangent * cellSize * 2.15 * scale;
     final nearRight =
         base -
-        radial * cellSize * 0.6 * scale +
+        radial * cellSize * 0.85 * scale +
         tangent * cellSize * 2.15 * scale;
     return [tip, nearRight, nearLeft];
   }
