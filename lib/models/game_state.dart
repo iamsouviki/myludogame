@@ -173,6 +173,10 @@ class GameState extends ChangeNotifier {
     // Find valid moves
     validTokenMoves = _findValidMoves(currentPlayerIndex, rolled);
 
+    // A six grants a bonus only when at least one token can legally move.
+    // Keep this in the model so offline and online snapshots agree immediately.
+    if (validTokenMoves.isEmpty) getsExtraRoll = false;
+
     // ponytail: phase is ALWAYS moving after rolling so dice cannot be tapped again
     // until turn finishes or advances
     phase = GamePhase.moving;

@@ -103,10 +103,14 @@ void main() {
 
       testState.rollDice();
       testState.moveToken(0);
+      expect(testState.tokenPositions[0][0], 0);
       testState.rollDice();
       testState.moveToken(0);
+      expect(testState.tokenPositions[0][0], 6);
       testState.rollDice();
 
+      // The third six is cancelled before movement; the second-six position remains.
+      expect(testState.tokenPositions[0][0], 6);
       expect(testState.consecutiveSixes, 0);
       expect(testState.getsExtraRoll, false);
       expect(testState.currentPlayerIndex, 1);
@@ -894,6 +898,93 @@ void main() {
       expect(testState.phase, GamePhase.finished);
       expect(testState.finishOrder, [1, 2, 0]);
     });
+
+    test('Completing all tokens with a six does not grant another turn', () {
+      final testState = GameState(
+        boardType: BoardType.classic4,
+        players: state.players,
+        dice: MockDice([6]),
+      );
+      for (var token = 0; token < tokensPerPlayer - 1; token++) {
+        testState.tokenPositions[0][token] = posHome;
+      }
+      testState.tokenPositions[0][tokensPerPlayer - 1] = testState
+          .homeEntryPosition(0);
+      testState.currentPlayerIndex = 0;
+      testState.phase = GamePhase.rolling;
+
+      testState.rollDice();
+      expect(testState.validTokenMoves, [tokensPerPlayer - 1]);
+      testState.moveToken(tokensPerPlayer - 1);
+
+      expect(testState.hasPlayerFinished(0), isTrue);
+      expect(testState.finishOrder, [0]);
+      expect(testState.getsExtraRoll, isFalse);
+      expect(testState.currentPlayerIndex, 1);
+      expect(testState.phase, GamePhase.rolling);
+    });
+
+    test('A restored completed player is normalized before rolling', () {
+      final testState = GameState(
+        boardType: BoardType.classic4,
+        players: state.players,
+        dice: MockDice([6]),
+      );
+      testState.tokenPositions[0] = List.filled(tokensPerPlayer, posHome);
+      testState.currentPlayerIndex = 0;
+      testState.phase = GamePhase.rolling;
+
+      expect(testState.rollDice(), 0);
+      expect(testState.currentPlayerIndex, 1);
+      expect(testState.phase, GamePhase.rolling);
+      expect(testState.lastDiceRoll, isNull);
+    });
+
+    test(
+      'A six with no legal move passes for every home-row/home distribution',
+      () async {
+        for (var playerIndex = 0; playerIndex < 4; playerIndex++) {
+          for (
+            var rowTokenCount = 1;
+            rowTokenCount <= tokensPerPlayer;
+            rowTokenCount++
+          ) {
+            final testState = GameState(
+              boardType: BoardType.classic4,
+              players: state.players,
+              dice: MockDice([6]),
+            );
+            final blockedRowPosition =
+                testState.boardType.trackLength +
+                testState.boardType.homeStretchLength -
+                2;
+            for (var token = 0; token < tokensPerPlayer; token++) {
+              testState.tokenPositions[playerIndex][token] =
+                  token < rowTokenCount ? blockedRowPosition : posHome;
+            }
+            testState.currentPlayerIndex = playerIndex;
+            testState.phase = GamePhase.rolling;
+            final service = GameService(
+              state: testState,
+              runAI: true,
+              displayDelay: Duration.zero,
+            );
+
+            service.start();
+            testState.rollDice();
+            expect(testState.validTokenMoves, isEmpty);
+            expect(testState.getsExtraRoll, isFalse);
+            service.recoverNoMoveTurn();
+            await Future<void>.delayed(Duration.zero);
+
+            expect(testState.currentPlayerIndex, (playerIndex + 1) % 4);
+            expect(testState.phase, GamePhase.rolling);
+            expect(testState.getsExtraRoll, isFalse);
+            service.dispose();
+          }
+        }
+      },
+    );
 
     test('Team mode ends only after both teammates finish', () {
       final players = [
