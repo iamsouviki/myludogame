@@ -866,21 +866,13 @@ void main() {
       expect(testState.phase, GamePhase.rolling);
     });
 
-    test('The final active player receives the last rank', () {
-      final players = [
-        for (var i = 0; i < 3; i++)
-          Player(
-            id: 'p$i',
-            name: 'Player $i',
-            color: BoardType.classic4.availableColors[i],
-            type: PlayerType.human,
-          ),
-      ];
+    test('Game ends when three of four players finish', () {
       final testState = GameState(
         boardType: BoardType.classic4,
-        players: players,
+        players: state.players,
       );
       testState.finishOrder = [1, 2];
+      testState.winner = 1;
       for (var token = 0; token < tokensPerPlayer - 1; token++) {
         testState.tokenPositions[0][token] = posHome;
       }
@@ -896,7 +888,14 @@ void main() {
       testState.moveToken(tokensPerPlayer - 1);
 
       expect(testState.phase, GamePhase.finished);
-      expect(testState.finishOrder, [1, 2, 0]);
+      expect(testState.winner, 1);
+      expect(testState.finishOrder, [1, 2, 0, 3]);
+      expect(testState.hasPlayerFinished(3), isFalse);
+
+      // The remaining player is recorded as last place but cannot roll.
+      testState.currentPlayerIndex = 3;
+      expect(testState.rollDice(), 0);
+      expect(testState.phase, GamePhase.finished);
     });
 
     test('Completing all tokens with a six does not grant another turn', () {
