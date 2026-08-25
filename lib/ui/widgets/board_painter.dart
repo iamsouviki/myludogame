@@ -434,8 +434,65 @@ class BoardPainter extends CustomPainter {
       ),
     ];
 
-    for (final pos in positions) {
-      canvas.drawCircle(pos, dotRadius, Paint()..color = playerColor.color);
+    final finishIndex = playerIndex == null
+        ? -1
+        : state.finishOrder.indexOf(playerIndex);
+    final isFinished =
+        finishIndex >= 0 && state.hasPlayerFinished(playerIndex!);
+    if (!isFinished) {
+      for (final pos in positions) {
+        canvas.drawCircle(pos, dotRadius, Paint()..color = playerColor.color);
+      }
+    }
+
+    if (isFinished) {
+      final rankText = _ordinal(finishIndex + 1);
+      final rankPainter = TextPainter(
+        text: TextSpan(
+          text: rankText,
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: cellSize * 0.72,
+            fontWeight: FontWeight.w900,
+            shadows: const [Shadow(color: Colors.black87, blurRadius: 5)],
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      final rankCenter = Offset(
+        origin.dx + (gridX + 3) * cellSize,
+        origin.dy + (gridY + 3) * cellSize,
+      );
+      final badgeRect = RRect.fromRectAndRadius(
+        Rect.fromCenter(
+          center: rankCenter,
+          width: rankPainter.width + cellSize * 0.36,
+          height: rankPainter.height + cellSize * 0.16,
+        ),
+        Radius.circular(cellSize * 0.24),
+      );
+      canvas.drawRRect(
+        badgeRect,
+        Paint()..color = Colors.black.withValues(alpha: 0.68),
+      );
+      rankPainter.paint(
+        canvas,
+        rankCenter - Offset(rankPainter.width / 2, rankPainter.height / 2),
+      );
+    }
+  }
+
+  String _ordinal(int number) {
+    if (number % 100 >= 11 && number % 100 <= 13) return '${number}th';
+    switch (number % 10) {
+      case 1:
+        return '${number}st';
+      case 2:
+        return '${number}nd';
+      case 3:
+        return '${number}rd';
+      default:
+        return '${number}th';
     }
   }
 
