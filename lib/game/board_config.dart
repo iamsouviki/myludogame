@@ -16,7 +16,8 @@ class BoardConfig {
   BoardConfig({required this.boardType, required this.canvasSize}) {
     center = Offset(canvasSize.width / 2, canvasSize.height / 2);
     final minDim = canvasSize.shortestSide;
-    cellSize = minDim / (boardType == BoardType.classic4 ? 15 : 17);
+    // Star 6 needs a little more radial breathing room for six triangular bases.
+    cellSize = minDim / (boardType == BoardType.classic4 ? 15 : 18);
   }
 
   /// Get the pixel position of a main-track cell
@@ -168,71 +169,110 @@ class BoardConfig {
 
   // ─── 6-Player Hex/Star Board ───
 
+  // The six-player board is a rotational grid: each arm is a 13-cell U-shaped
+  // lane, with one canonical arm repeated every 60 degrees.
+  double get _hex6OuterRadius => cellSize * 6.55;
+  double get _hex6InnerRadius => cellSize * 0.75;
+
+  Offset _hex6RadialPoint(
+    int routeSlot,
+    double distance,
+    double tangentOffset,
+  ) {
+    final angle = routeSlot * pi / 3 - pi / 2;
+    final radial = Offset(cos(angle), sin(angle));
+    final tangent = Offset(-sin(angle), cos(angle));
+    return center + radial * distance + tangent * tangentOffset;
+  }
+
   Offset _hex6TrackPosition(int cellIndex) {
-    final arm = cellIndex ~/ 13;
+    final arm = (cellIndex ~/ 13) % 6;
     final cellInArm = cellIndex % 13;
-    final angle = arm * pi / 3 - pi / 2;
+    final halfCell = cellSize / 2;
 
-    final radius = canvasSize.shortestSide * 0.42;
-
-    if (cellInArm <= 5) {
-      final t = (cellInArm + 1) / 7.0;
-      final perpAngle = angle + pi / 2;
-      final offset = cellSize * 0.7;
-      return Offset(
-        center.dx + cos(angle) * radius * t - cos(perpAngle) * offset,
-        center.dy + sin(angle) * radius * t - sin(perpAngle) * offset,
-      );
-    } else if (cellInArm == 6) {
-      final t = 1.0;
-      return Offset(
-        center.dx + cos(angle) * radius * t,
-        center.dy + sin(angle) * radius * t,
-      );
-    } else {
-      final nextAngle = ((arm + 1) % 6) * pi / 3 - pi / 2;
-      final backCell = cellInArm - 7;
-      final t = 1.0 - (backCell + 1) / 7.0;
-      final perpAngle = nextAngle - pi / 2;
-      final offset = cellSize * 0.7;
-      return Offset(
-        center.dx + cos(nextAngle) * radius * t - cos(perpAngle) * offset,
-        center.dy + sin(nextAngle) * radius * t - sin(perpAngle) * offset,
-      );
+    if (cellInArm < 6) {
+      final distance = _hex6OuterRadius - (cellInArm + 0.5) * cellSize;
+      return _hex6RadialPoint(arm, distance, -halfCell);
     }
+    if (cellInArm == 6) {
+      return _hex6RadialPoint(arm, _hex6InnerRadius, 0);
+    }
+
+    final distance = _hex6InnerRadius + (cellInArm - 6.5) * cellSize;
+    return _hex6RadialPoint(arm, distance, halfCell);
+  }
+
+  /// Corners for a Star 6 track cell, aligned to its radial arm.
+  List<Offset> hex6TrackCellCorners(int cellIndex) {
+    final arm = (cellIndex ~/ 13) % 6;
+    final angle = arm * pi / 3 - pi / 2;
+    final radial = Offset(cos(angle), sin(angle));
+    final tangent = Offset(-sin(angle), cos(angle));
+    final centerPoint = _hex6TrackPosition(cellIndex);
+    final half = cellSize / 2;
+
+    return [
+      centerPoint + radial * half + tangent * half,
+      centerPoint - radial * half + tangent * half,
+      centerPoint - radial * half - tangent * half,
+      centerPoint + radial * half - tangent * half,
+    ];
   }
 
   Offset _hex6HomeStretch(int playerIndex, int stepIntoHome) {
-    final angle = playerIndex * pi / 3 - pi / 2;
-    final radius = canvasSize.shortestSide * 0.42;
-    // Home entry is near the outer end of this lane. Each step moves inward;
-    // step 5 is the center home point used for finished tokens.
-    final t =
-        (boardType.homeStretchLength - stepIntoHome) /
-        (boardType.homeStretchLength + 1) *
-        0.32;
-    return Offset(
-      center.dx + cos(angle) * radius * t,
-      center.dy + sin(angle) * radius * t,
-    );
+    final clampedStep = stepIntoHome
+        .clamp(0, boardType.homeStretchLength)
+        .toDouble();
+    final distance =
+        (boardType.homeStretchLength - clampedStep) * cellSize * 0.9;
+    return _hex6RadialPoint(playerIndex, distance, 0);
   }
 
-  Offset _hex6BasePosition(int playerIndex, int tokenIndex) {
-    final angle = playerIndex * pi / 3 - pi / 2 + pi / 6;
-    final radius = canvasSize.shortestSide * 0.35;
+  List<Offset> hex6HomeCellCorners(int playerIndex, int stepIntoHome) {
+    final angle = playerIndex * pi / 3 - pi / 2;
+    final radial = Offset(cos(angle), sin(angle));
+    final tangent = Offset(-sin(angle), cos(angle));
+    final centerPoint = _hex6HomeStretch(playerIndex, stepIntoHome);
+    final half = cellSize / 2;
+
+    return [
+      centerPoint + radial * half + tangent * half,
+      centerPoint - radial * half + tangent * half,
+      centerPoint - radial * half - tangent * half,
+      centerPoint + radial * half - tangent * half,
+    ];
+  }
+
+  Offset hex6BaseCenter(int routeSlot) =>
+      _hex6RadialPoint(routeSlot, cellSize * 7.1, 0);
+
+  Offset _hex6BasePosition(int routeSlot, int tokenIndex) {
+    final angle = routeSlot * pi / 3 - pi / 2;
+    final radial = Offset(cos(angle), sin(angle));
+    final tangent = Offset(-sin(angle), cos(angle));
     final row = tokenIndex ~/ 2;
     final col = tokenIndex % 2;
-    final perpAngle = angle + pi / 2;
 
-    return Offset(
-      center.dx +
-          cos(angle) * radius +
-          cos(perpAngle) * (col - 0.5) * cellSize * 1.5 +
-          cos(angle) * (row - 0.5) * cellSize * 1.5,
-      center.dy +
-          sin(angle) * radius +
-          sin(perpAngle) * (col - 0.5) * cellSize * 1.5 +
-          sin(angle) * (row - 0.5) * cellSize * 1.5,
-    );
+    return hex6BaseCenter(routeSlot) +
+        radial * ((row - 0.5) * cellSize * 0.85) +
+        tangent * ((col - 0.5) * cellSize * 1.35);
+  }
+
+  /// The six-player base polygon points outward from the center.
+  List<Offset> hex6BaseCorners(int routeSlot, {double scale = 1}) {
+    final angle = routeSlot * pi / 3 - pi / 2;
+    final radial = Offset(cos(angle), sin(angle));
+    final tangent = Offset(-sin(angle), cos(angle));
+    final base = hex6BaseCenter(routeSlot);
+    final tip = base + radial * cellSize * 1.75 * scale;
+    final nearLeft =
+        base -
+        radial * cellSize * 0.85 * scale -
+        tangent * cellSize * 2.15 * scale;
+    final nearRight =
+        base -
+        radial * cellSize * 0.85 * scale +
+        tangent * cellSize * 2.15 * scale;
+    return [tip, nearRight, nearLeft];
   }
 }

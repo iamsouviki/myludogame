@@ -35,7 +35,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Pass & Play state
   BoardType _passPlayBoardType = BoardType.classic4;
-  int _passPlayMatchSize = 4; // Classic: 2/4, Star 6: 2/4/6
+  int _passPlayMatchSize = 4; // Classic: 2/4
   int _passPlayHumans = 2; // 2..match size
   bool _passPlayEnableTeamUp = false; // 2v2 team mode
   AIDifficulty _passPlayDifficulty = AIDifficulty.medium;
@@ -952,7 +952,7 @@ class _HomeScreenState extends State<HomeScreen> {
           icon: Icons.people_alt_rounded,
           imageAsset: 'assets/images/menu_pass_play.png',
           title: 'PASS & PLAY',
-          subtitle: 'Local Friends, Bots, Classic 4 & Star 6',
+          subtitle: 'Local Friends, Bots & Classic 4',
           gradient: AppTheme.primaryGradient,
           glowColor: const Color(0xFFEC4899),
           onTap: _showPassAndPlayModal,
@@ -1695,7 +1695,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 8),
           Row(
-            children: BoardType.values.map((boardType) {
+            children: const [BoardType.classic4].map((boardType) {
               final isSelected = selected == boardType;
               return Expanded(
                 child: Padding(
@@ -1716,9 +1716,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
                       child: Text(
-                        boardType == BoardType.classic4
-                            ? 'Classic 4'
-                            : 'Star 6',
+                        'Classic 4',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: isSelected

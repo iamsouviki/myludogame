@@ -926,7 +926,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
           ),
           const SizedBox(height: 8),
           Row(
-            children: BoardType.values.map((boardType) {
+            children: const [BoardType.classic4].map((boardType) {
               final selected = _boardType == boardType;
               return Expanded(
                 child: Padding(
@@ -946,9 +946,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                         ),
                       ),
                       child: Text(
-                        boardType == BoardType.classic4
-                            ? 'Classic 4'
-                            : 'Star 6',
+                        'Classic 4',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: selected

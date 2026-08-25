@@ -802,7 +802,9 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
   List<Widget> _buildTokens(BoardConfig config) {
     final tokens = <Widget>[];
-    final defaultTokenSize = config.cellSize * 0.7;
+    final defaultTokenSize = state.boardType == BoardType.hex6
+        ? config.cellSize * 0.86
+        : config.cellSize * 0.7;
 
     for (var p = 0; p < state.players.length; p++) {
       final routeSlot = state.playerPositionIndex(p);
@@ -822,7 +824,9 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                 (col - 0.5) * (config.cellSize * 0.28),
                 (row - 0.5) * (config.cellSize * 0.28),
               );
-          tokenSize = config.cellSize * 0.48;
+          tokenSize = state.boardType == BoardType.hex6
+              ? config.cellSize * 0.62
+              : config.cellSize * 0.48;
         } else if (pos == posInBase) {
           pixelPos = config.basePosition(routeSlot, t);
           isInBase = true;
@@ -859,7 +863,9 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
           if (!isRepresentative) continue;
 
           if (distinctPlayerTokens.length > 1) {
-            tokenSize = config.cellSize * 0.48;
+            tokenSize = state.boardType == BoardType.hex6
+                ? config.cellSize * 0.62
+                : config.cellSize * 0.48;
             final myColorIndex = distinctPlayerTokens.indexWhere(
               (ref) => ref.playerIndex == p,
             );
@@ -897,6 +903,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
               size: tokenSize,
               isHighlighted: isHighlighted,
               isInBase: isInBase,
+              pawnAsset: _pawnAssetForColor(state.players[p].color),
               onTap: isHighlighted ? () => _onTokenTap(t) : null,
             ),
           ),
@@ -1442,6 +1449,18 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       default:
         return 'assets/images/ranks/rank_sixth.png';
     }
+  }
+
+  String _pawnAssetForColor(PlayerColor color) {
+    return switch (color) {
+      PlayerColor.red => 'assets/images/tokens/star6_red_pawn.png',
+      PlayerColor.green => 'assets/images/tokens/star6_green_pawn.png',
+      PlayerColor.yellow => 'assets/images/tokens/star6_yellow_pawn.png',
+      PlayerColor.blue => 'assets/images/tokens/star6_blue_pawn.png',
+      PlayerColor.orange => 'assets/images/tokens/star6_orange_pawn.png',
+      PlayerColor.purple => 'assets/images/tokens/star6_purple_pawn.png',
+      _ => 'assets/images/tokens/star6_red_pawn.png',
+    };
   }
 
   Widget _buildFinishRankStrip({bool compact = false}) {

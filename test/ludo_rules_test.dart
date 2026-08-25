@@ -336,6 +336,51 @@ void main() {
       expect(bases.toSet().length, 6);
     });
 
+    test('Star 6 geometry repeats six cleanly rotated sectors', () {
+      final config = BoardConfig(
+        boardType: BoardType.hex6,
+        canvasSize: const Size(360, 360),
+      );
+
+      final startCells = [
+        for (var slot = 0; slot < 6; slot++)
+          config.trackCellPosition(slot * BoardType.hex6.cellsPerArm),
+      ];
+      final baseCenters = [
+        for (var slot = 0; slot < 6; slot++) config.hex6BaseCenter(slot),
+      ];
+
+      expect(startCells.toSet().length, 6);
+      expect(baseCenters.toSet().length, 6);
+      for (var slot = 0; slot < 6; slot++) {
+        final corners = config.hex6BaseCorners(slot);
+        expect(corners.length, 3);
+        final outward = corners.first - config.hex6BaseCenter(slot);
+        final routeDirection =
+            config.trackCellPosition(slot * BoardType.hex6.cellsPerArm) -
+            config.center;
+        expect(
+          outward.dx * routeDirection.dx + outward.dy * routeDirection.dy,
+          greaterThan(0),
+          reason: 'Star 6 room $slot must point away from the center',
+        );
+        expect(
+          {
+            for (var token = 0; token < tokensPerPlayer; token++)
+              config.basePosition(slot, token),
+          }.length,
+          tokensPerPlayer,
+        );
+
+        final entryDistance =
+            (config.homeStretchPosition(slot, 0) - config.center).distance;
+        final homeDistance =
+            (config.homeStretchPosition(slot, 5) - config.center).distance;
+        expect(entryDistance, greaterThan(homeDistance));
+        expect(homeDistance, 0);
+      }
+    });
+
     test('Six-player room keeps six-seat capacity through serialization', () {
       final players = BoardType.hex6.availableColors
           .asMap()
