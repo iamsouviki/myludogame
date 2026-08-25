@@ -12,7 +12,7 @@ For example, if Player 2 is the first player to complete all four tokens, the gr
 
 > 1st
 
-The display should remain associated with that player’s color and name. Later completed players should show `2nd`, `3rd`, and `4th` in the same prominent location. The existing game rules, token positions, and active-player controls must continue to work.
+The display should remain associated with that player’s color and name. Later completed players should show `2nd` and `3rd` in the same prominent location. In a four-player free-for-all, the fourth player is the last remaining player rather than a completed player; that player is recorded as last place in the end-of-game ranking but must not receive another roll. The existing game rules, token positions, and active-player controls must continue to work.
 
 ## 2. Consecutive six rule
 
@@ -41,7 +41,7 @@ If a player rolls a six but none of that player’s tokens can legally move six 
 
 A six grants another roll only when at least one token has a valid move for that six. A player with no legal move must not remain in the rolling phase waiting for another roll because of the six.
 
-## 4. A completed player must not receive a bonus turn
+## 4. Completed players and the final remaining player
 
 Once all four tokens of a player are in the home/finished area, that player is complete and must be skipped for future turns. In particular, the player must not receive another roll merely because:
 
@@ -49,13 +49,13 @@ Once all four tokens of a player are in the home/finished area, that player is c
 - the completion move itself was made with a six; or
 - the completion move also captured an opponent token.
 
-After the player’s completion is recorded, the turn must move to the next unfinished player. If only two unfinished players remain, they must continue alternating normally without the completed player being selected.
+After the player’s completion is recorded, the turn must move to the next unfinished player. If only two unfinished players remain, they must continue alternating normally without the completed player being selected. When three of four players have finished, the game ends immediately; the remaining fourth player is recorded as last place and is not given another dice roll.
 
 ## Acceptance checks
 
 The implementation will be considered correct when the following are true:
 
-1. A completed player’s own board area visibly shows a large ordinal label such as `1st`, `2nd`, `3rd`, or `4th`.
+1. Each player who completes all four tokens has a large ordinal label in their own board area; in a four-player game these completed ranks are `1st`, `2nd`, and `3rd` before the game ends.
 2. First six: move and receive another roll.
 3. Second six: move and receive another roll.
 4. Third six: no third token move and no additional roll; the turn advances.
@@ -64,4 +64,4 @@ The implementation will be considered correct when the following are true:
 
 ## Confirmation requested
 
-Please confirm that this interpretation is correct before implementation, especially the intended third-six behavior: **the first two sixes may move tokens, while the third consecutive six is cancelled and ends the turn**.
+The confirmed implementation rule is: **the first two sixes may move tokens, the third consecutive six is cancelled, and the game ends as soon as three of four players have finished.**

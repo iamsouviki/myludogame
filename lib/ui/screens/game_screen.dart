@@ -547,21 +547,26 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildNarrowLayout(BoxConstraints constraints) {
-    // ponytail: height-aware layout for small phones
-    final isCompact = constraints.maxHeight < 700;
-    final controlPanelHeight = isCompact ? 160.0 : 220.0;
-    final maxAvailableWidth = constraints.maxWidth - 24;
-    final maxAvailableHeight = constraints.maxHeight - controlPanelHeight - 60;
-    final boardSize = min(
-      maxAvailableWidth,
-      maxAvailableHeight,
-    ).clamp(200.0, 600.0);
+    // ponytail: let Flutter measure the real control-panel height instead of
+    // guessing it, so the board can never occupy the panel's space.
+    final isCompact = constraints.maxHeight < 820;
+    final maxBoardWidth = constraints.maxWidth - 24;
 
     return Column(
       children: [
         _buildTopBar(),
         if (!isCompact) const SizedBox(height: 8),
-        Expanded(child: Center(child: _buildBoard(boardSize))),
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, boardConstraints) {
+              final boardSize = min(
+                maxBoardWidth,
+                boardConstraints.maxHeight,
+              ).clamp(200.0, 600.0);
+              return Center(child: _buildBoard(boardSize));
+            },
+          ),
+        ),
         _buildControlPanel(isCompact: isCompact),
         SizedBox(height: isCompact ? 4 : 8),
       ],
@@ -742,10 +747,57 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
               painter: BoardPainter(state: state, config: config),
             ),
             ..._buildTokens(config),
+            ..._buildFinishBadges(config),
           ],
         ),
       ),
     );
+  }
+
+  List<Widget> _buildFinishBadges(BoardConfig config) {
+    final badges = <Widget>[];
+    for (
+      var playerIndex = 0;
+      playerIndex < state.players.length;
+      playerIndex++
+    ) {
+      final rank = state.finishOrder.indexOf(playerIndex);
+      if (rank < 0) continue;
+      final isCompleted = state.hasPlayerFinished(playerIndex);
+      final isLastPlayer = state.isGameOver && !isCompleted;
+      if (!isCompleted && !isLastPlayer) continue;
+
+      final first = config.basePosition(
+        state.playerPositionIndex(playerIndex),
+        0,
+      );
+      final last = config.basePosition(
+        state.playerPositionIndex(playerIndex),
+        3,
+      );
+      final center = Offset((first.dx + last.dx) / 2, (first.dy + last.dy) / 2);
+      final badgeSize =
+          config.cellSize *
+          (state.boardType == BoardType.classic4 ? 1.75 : 1.35);
+      badges.add(
+        Positioned(
+          left: center.dx - badgeSize / 2,
+          top: center.dy - badgeSize / 2,
+          width: badgeSize,
+          height: badgeSize,
+          child: IgnorePointer(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(badgeSize * 0.2),
+              child: Image.asset(
+                _rankAssetFor(rank, isLastPlayer: isLastPlayer),
+                fit: BoxFit.cover,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+    return badges;
   }
 
   List<Widget> _buildTokens(BoardConfig config) {
@@ -1374,6 +1426,24 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     );
   }
 
+  String _rankAssetFor(int rank, {required bool isLastPlayer}) {
+    if (isLastPlayer) return 'assets/images/ranks/last_player.png';
+    switch (rank) {
+      case 0:
+        return 'assets/images/ranks/rank_first.png';
+      case 1:
+        return 'assets/images/ranks/rank_second.png';
+      case 2:
+        return 'assets/images/ranks/rank_third.png';
+      case 3:
+        return 'assets/images/ranks/rank_fourth.png';
+      case 4:
+        return 'assets/images/ranks/rank_fifth.png';
+      default:
+        return 'assets/images/ranks/rank_sixth.png';
+    }
+  }
+
   Widget _buildFinishRankStrip({bool compact = false}) {
     String ordinal(int rank) {
       final n = rank + 1;
@@ -1402,6 +1472,8 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
               return const SizedBox.shrink();
             }
             final player = state.players[playerIndex];
+            final isLastPlayer =
+                state.isGameOver && !state.hasPlayerFinished(playerIndex);
             return Container(
               margin: const EdgeInsets.symmetric(horizontal: 3),
               padding: EdgeInsets.symmetric(
@@ -1418,6 +1490,16 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(compact ? 7 : 9),
+                    child: Image.asset(
+                      _rankAssetFor(entry.key, isLastPlayer: isLastPlayer),
+                      width: compact ? 20 : 26,
+                      height: compact ? 20 : 26,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  const SizedBox(width: 5),
                   Text(
                     ordinal(entry.key),
                     style: TextStyle(
@@ -1589,9 +1671,9 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
             mainAxisSize: MainAxisSize.min,
             children: [
               Image.asset(
-                'assets/images/victory_crown.png',
+                _rankAssetFor(0, isLastPlayer: false),
                 height: 120,
-                fit: BoxFit.contain,
+                fit: BoxFit.cover,
               ),
               const SizedBox(height: 12),
               Text(
@@ -1634,10 +1716,22 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                   children: List.generate(state.finishOrder.length, (rank) {
                     final pIdx = state.finishOrder[rank];
                     final player = state.players[pIdx];
+                    final isLastPlayer =
+                        state.isGameOver && !state.hasPlayerFinished(pIdx);
                     return Padding(
                       padding: const EdgeInsets.symmetric(vertical: 4),
                       child: Row(
                         children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(9),
+                            child: Image.asset(
+                              _rankAssetFor(rank, isLastPlayer: isLastPlayer),
+                              width: 30,
+                              height: 30,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
                           Text(
                             '#${rank + 1}',
                             style: TextStyle(

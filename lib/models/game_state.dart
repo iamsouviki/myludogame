@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../utils/constants.dart';
 import 'player.dart';
 import 'dice.dart';
+import 'six_player_rules.dart';
 
 // Ludo King standard rules
 
@@ -135,6 +136,8 @@ class GameState extends ChangeNotifier {
 
   /// Roll the dice (Ludo King rules)
   int rollDice() {
+    if (phase != GamePhase.rolling) return 0;
+
     // Normalize older/restored snapshots that still point at a finished player.
     if (hasPlayerFinished(currentPlayerIndex)) {
       _nextTurn();
@@ -309,9 +312,12 @@ class GameState extends ChangeNotifier {
             }
           } else {
             winner ??= playerIndex;
-            // Keep the final active player in the rotation so every player
-            // receives a rank instead of ending one position early.
-            if (finishOrder.length >= players.length) {
+            // In free-for-all, the first player wins and the game ends when
+            // only one unfinished player remains.
+            final finishThreshold = SixPlayerRules.appliesTo(boardType)
+                ? SixPlayerRules.finishersBeforeGameEnds(players.length)
+                : players.length - 1;
+            if (finishOrder.length >= finishThreshold) {
               getsExtraRoll = false;
               for (var i = 0; i < players.length; i++) {
                 if (!finishOrder.contains(i)) finishOrder.add(i);
@@ -490,9 +496,13 @@ class GameState extends ChangeNotifier {
     getsExtraRoll = false;
     lastDiceRoll = null;
     validTokenMoves = [];
+    activeEmoji = null;
+    activeEmojiPlayerIndex = null;
+    activeEmojiAt = null;
   }
 
   /// Reset game
+
   void reset() {
     tokenPositions = List.generate(
       players.length,

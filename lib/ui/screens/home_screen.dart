@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../services/game_service.dart';
@@ -23,8 +25,8 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final BoardType _boardType = BoardType.classic4;
 
-  // VS Computer state
-  int _vsCompMatchSize = 4; // 2 or 4 players while Star 6 is disabled
+  // VS Computer state: classic board only for now.
+  int _vsCompMatchSize = 4; // 2 or 4 players
   AIDifficulty _vsCompDifficulty = AIDifficulty.medium;
   final TextEditingController _vsCompNameController = TextEditingController(
     text: 'Player 1',
@@ -32,7 +34,8 @@ class _HomeScreenState extends State<HomeScreen> {
   PlayerColor _vsCompColor = PlayerColor.red;
 
   // Pass & Play state
-  int _passPlayMatchSize = 4; // 2 or 4
+  BoardType _passPlayBoardType = BoardType.classic4;
+  int _passPlayMatchSize = 4; // Classic: 2/4, Star 6: 2/4/6
   int _passPlayHumans = 2; // 2..match size
   bool _passPlayEnableTeamUp = false; // 2v2 team mode
   AIDifficulty _passPlayDifficulty = AIDifficulty.medium;
@@ -72,7 +75,9 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  List<int> _matchSizesForBoard(BoardType boardType) => [2, 4];
+  List<int> _matchSizesForBoard(BoardType boardType) {
+    return boardType == BoardType.hex6 ? [2, 4, 6] : [2, 4];
+  }
 
   void _selectPassPlayColor(
     StateSetter setModalState,
@@ -116,7 +121,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final colors = _passPlayColors.take(humanCount).toList();
 
     final service = GameService.createLocalGame(
-      boardType: _boardType,
+      boardType: _passPlayBoardType,
       humanPlayers: humanCount,
       aiPlayers: aiCount,
       aiDifficulty: _passPlayDifficulty,
@@ -414,9 +419,29 @@ class _HomeScreenState extends State<HomeScreen> {
                         ],
                       ),
                       const SizedBox(height: 16),
+                      _buildBoardTypeSelector(
+                        selected: _passPlayBoardType,
+                        onSelected: (boardType) => setModalState(() {
+                          _passPlayBoardType = boardType;
+                          final maxPlayers = boardType.maxPlayers;
+                          if (boardType == BoardType.hex6) {
+                            _passPlayMatchSize = 6;
+                            _passPlayHumans = 6;
+                          } else {
+                            _passPlayMatchSize = 4;
+                          }
+                          _passPlayHumans = _passPlayHumans
+                              .clamp(2, _passPlayMatchSize)
+                              .toInt();
+                          if (maxPlayers < _passPlayHumans) {
+                            _passPlayHumans = maxPlayers;
+                          }
+                        }),
+                      ),
+                      const SizedBox(height: 12),
                       _buildMatchSizeSelector(
                         selectedSize: _passPlayMatchSize,
-                        sizes: _matchSizesForBoard(_boardType),
+                        sizes: _matchSizesForBoard(_passPlayBoardType),
                         onSelected: (size) => setModalState(() {
                           _passPlayMatchSize = size;
                           _passPlayHumans = _passPlayHumans.clamp(2, size);
@@ -424,7 +449,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         }),
                       ),
                       const SizedBox(height: 12),
-                      // Humans & Bots Stepper (for 4P mode)
+                      // Humans & Bots Stepper
                       if (isConfigurableMatch) ...[
                         Container(
                           padding: const EdgeInsets.all(12),
@@ -519,7 +544,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ],
                       // Team Up (2v2) Switch
                       if (isConfigurableMatch &&
-                          _boardType == BoardType.classic4) ...[
+                          _passPlayBoardType == BoardType.classic4) ...[
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 12,
@@ -654,7 +679,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                         Expanded(
                                           child: _buildColorDropdown(
                                             currentColor: currentColor,
-                                            colors: _boardType.availableColors,
+                                            colors: _passPlayBoardType
+                                                .availableColors,
                                             onChanged: (color) =>
                                                 _selectPassPlayColor(
                                                   setModalState,
@@ -743,25 +769,40 @@ class _HomeScreenState extends State<HomeScreen> {
     final isCompact = screenHeight < 680;
 
     return Scaffold(
-      body: Container(
-        decoration: AppTheme.artisticBackground(),
-        child: SafeArea(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 440),
-              child: Padding(
-                padding: EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: isCompact ? 12 : 24,
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _buildHero(isCompact),
-                    _buildThreeMainButtons(isCompact),
-                  ],
-                ),
-              ),
+      backgroundColor: AppTheme.bg1,
+      body: SizedBox.expand(
+        child: Container(
+          decoration: AppTheme.artisticBackground(),
+          child: SafeArea(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final contentWidth = math.min(constraints.maxWidth - 32, 520.0);
+                final verticalPadding = isCompact ? 12.0 : 20.0;
+                return SingleChildScrollView(
+                  padding: EdgeInsets.symmetric(vertical: verticalPadding),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: constraints.maxHeight - verticalPadding * 2,
+                    ),
+                    child: Center(
+                      child: SizedBox(
+                        width: contentWidth,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              _buildHero(isCompact),
+                              SizedBox(height: isCompact ? 16 : 24),
+                              _buildThreeMainButtons(isCompact),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
           ),
         ),
@@ -828,14 +869,43 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
-        Image.asset(
-          'assets/images/ludo_banner_logo.png',
-          height: isCompact ? 110 : 150,
-          fit: BoxFit.contain,
+        Container(
+          width: isCompact ? 126 : 156,
+          height: isCompact ? 126 : 156,
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(36),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF00E5FF).withValues(alpha: 0.2),
+                blurRadius: 28,
+                spreadRadius: 2,
+              ),
+              BoxShadow(
+                color: const Color(0xFFEC4899).withValues(alpha: 0.14),
+                blurRadius: 38,
+                spreadRadius: 3,
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(30),
+            child: Image.asset(
+              'assets/images/ludoverse_watermark_icon.png',
+              fit: BoxFit.cover,
+            ),
+          ),
         ),
+        const SizedBox(height: 10),
         const Text(
-          'MY LUDO',
-          style: TextStyle(fontSize: 1, color: Colors.transparent),
+          'LUDOVERSE',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 4,
+            shadows: [Shadow(color: Color(0xFF00E5FF), blurRadius: 12)],
+          ),
         ),
       ],
     );
@@ -865,6 +935,8 @@ class _HomeScreenState extends State<HomeScreen> {
         _buildMenuButtonCard(
           isCompact: isCompact,
           icon: Icons.smart_toy_rounded,
+          imageAsset: 'assets/images/menu_vs_computer.png',
+
           title: 'VS COMPUTER',
           subtitle: 'Single Player vs Bots (2 or 4 Players)',
           gradient: const LinearGradient(
@@ -878,8 +950,9 @@ class _HomeScreenState extends State<HomeScreen> {
         _buildMenuButtonCard(
           isCompact: isCompact,
           icon: Icons.people_alt_rounded,
+          imageAsset: 'assets/images/menu_pass_play.png',
           title: 'PASS & PLAY',
-          subtitle: 'Local Friends, Bots & 2v2 Teams',
+          subtitle: 'Local Friends, Bots, Classic 4 & Star 6',
           gradient: AppTheme.primaryGradient,
           glowColor: const Color(0xFFEC4899),
           onTap: _showPassAndPlayModal,
@@ -889,6 +962,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _buildMenuButtonCard(
           isCompact: isCompact,
           icon: Icons.public_rounded,
+          imageAsset: 'assets/images/menu_online.png',
           title: 'PLAY ONLINE',
           subtitle: 'Multiplayer Rooms & Live Chat',
           isOutline: true,
@@ -1495,6 +1569,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildMenuButtonCard({
     required bool isCompact,
     required IconData icon,
+    String? imageAsset,
     required String title,
     required String subtitle,
     required VoidCallback onTap,
@@ -1528,15 +1603,25 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(10),
+                  width: 46,
+                  height: 46,
+                  padding: const EdgeInsets.all(3),
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.15),
-                    shape: BoxShape.circle,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.22),
+                    ),
                   ),
-                  child: Icon(
-                    icon,
-                    color: isOutline ? borderColor : Colors.white,
-                    size: 24,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(11),
+                    child: imageAsset != null
+                        ? Image.asset(imageAsset, fit: BoxFit.cover)
+                        : Icon(
+                            icon,
+                            color: isOutline ? borderColor : Colors.white,
+                            size: 24,
+                          ),
                   ),
                 ),
                 const SizedBox(width: 14),
