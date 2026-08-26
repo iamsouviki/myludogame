@@ -327,12 +327,15 @@ class BoardConfig {
     final angle = routeSlot * pi / 3 + pi / 2;
     final radial = Offset(cos(angle), sin(angle));
     final tangent = Offset(-sin(angle), cos(angle));
-    final row = tokenIndex ~/ 2;
-    final col = tokenIndex % 2;
-
-    return hex6BaseCenter(routeSlot) +
-        radial * ((row - 0.5) * cellSize * 0.95) +
-        tangent * ((col - 0.5) * cellSize * 1.35);
+    // Reference formation: two pawns across the outer row, one centered
+    // beneath them, and one centered closest to the room tip.
+    final offsets = [
+      (radial * 0.72 - tangent * 0.66) * cellSize,
+      (radial * 0.72 + tangent * 0.66) * cellSize,
+      radial * 0.02 * cellSize,
+      -radial * 0.76 * cellSize,
+    ];
+    return hex6BaseCenter(routeSlot) + offsets[tokenIndex];
   }
 
   /// The six-player base polygon is an equilateral triangle fitting between adjacent straight arms.

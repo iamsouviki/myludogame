@@ -363,13 +363,32 @@ void main() {
           greaterThan(0),
           reason: 'Star 6 room $slot must point toward the center',
         );
-        expect(
-          {
-            for (var token = 0; token < tokensPerPlayer; token++)
-              config.basePosition(slot, token),
-          }.length,
-          tokensPerPlayer,
-        );
+        final baseCenter = config.hex6BaseCenter(slot);
+        final inward = config.center - baseCenter;
+        final tangent = Offset(-inward.dy, inward.dx);
+        final sockets = [
+          for (var token = 0; token < tokensPerPlayer; token++)
+            config.basePosition(slot, token),
+        ];
+        expect(sockets.toSet().length, tokensPerPlayer);
+
+        double projection(Offset point, Offset axis) {
+          final delta = point - baseCenter;
+          return delta.dx * axis.dx + delta.dy * axis.dy;
+        }
+
+        final inwardProjections = [
+          for (final socket in sockets) projection(socket, inward),
+        ];
+        final tangentProjections = [
+          for (final socket in sockets) projection(socket, tangent),
+        ];
+        expect(inwardProjections[0], closeTo(inwardProjections[1], 0.001));
+        expect(inwardProjections[0], lessThan(inwardProjections[2]));
+        expect(inwardProjections[2], lessThan(inwardProjections[3]));
+        expect(tangentProjections[0], closeTo(-tangentProjections[1], 0.001));
+        expect(tangentProjections[2], closeTo(0, 0.001));
+        expect(tangentProjections[3], closeTo(0, 0.001));
 
         final entryDistance =
             (config.homeStretchPosition(slot, 0) - config.center).distance;
