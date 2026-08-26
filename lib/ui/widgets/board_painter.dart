@@ -858,9 +858,9 @@ class BoardPainter extends CustomPainter {
       canvas.drawPath(path, Paint()..color = fill);
       canvas.drawPath(path, gridPaint);
 
-      // The reference star is fixed to the left side lane on row 2. The
-      // opening cell remains an arrow-only white cell.
-      if (cellInArm == 10) {
+      // The reference has two stars per arm: the starting star on the
+      // outer row-1 right cell and the safe star on the row-2 left lane.
+      if (cellInArm == 2 || cellInArm == 10) {
         _drawClassicStar(
           canvas,
           config.trackCellPosition(cell),
