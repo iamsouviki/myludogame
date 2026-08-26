@@ -167,28 +167,52 @@ class BoardConfig {
     return _gridToPixel(baseGridX + offsetX, baseGridY + offsetY);
   }
 
-  // ─── 6-Player Hex/Star Board ───
+  // ─── 6-Player Hex/Star Board (Exact Reference Geometry) ───
+  // Center is a regular flat-topped hexagon with side length = 3 * cellSize.
+  // Radius from center to each hexagon vertex R = 3 * cellSize.
+  // Inradius from center to each edge midpoint r = 3 * cellSize * cos(30 deg) = 3 * sqrt(3)/2 * cellSize.
+  // Attached to each of the 6 edges of this hexagon is a straight 3x6 grid of SQUARE cells (3 columns x 6 rows).
+  // Between the outer straight sides of adjacent arms are equilateral triangular base pods.
+  // Because the center hexagon's 6 edges are of length 3 * cellSize and angle 120 deg, adjacent arms radiate at 60 deg with zero gap and zero overlap.
 
-  // The six-player board mirrors the supplied HTML: a 3x6 arm repeated every
-  // 60 degrees. The outer columns plus the outer row form 13 logical route
-  // cells; the middle column is the five-cell colored home lane.
-  double get _hex6OuterRadius => cellSize * 8.0;
-
-  Offset _hex6RadialPoint(
-    int routeSlot,
-    double distance,
-    double tangentOffset,
-  ) {
-    final angle = routeSlot * pi / 3 - pi / 2;
-    final radial = Offset(cos(angle), sin(angle));
-    final tangent = Offset(-sin(angle), cos(angle));
-    return center + radial * distance + tangent * tangentOffset;
-  }
+  double get _hex6Inradius => 3.0 * cellSize * (sqrt(3) / 2.0); // distance from center to edge of center hexagon
 
   Offset hex6ArmGridCellPosition(int routeSlot, int row, int column) {
-    final distance = _hex6OuterRadius - (row + 0.5) * cellSize;
-    final tangentOffset = (column - 1) * cellSize;
-    return _hex6RadialPoint(routeSlot, distance, tangentOffset);
+    // Reference orientation:
+    // Slot 0 (Blue) arm goes down-right (pi/3)
+    // Slot 1 (Yellow) arm goes down-left (2*pi/3)
+    // Slot 2 (Purple) arm goes left (pi)
+    // Slot 3 (Red) arm goes up-left (4*pi/3)
+    // Slot 4 (Green) arm goes up-right (5*pi/3)
+    // Slot 5 (Orange) arm goes right (0)
+    final armAngle = routeSlot * pi / 3 + pi / 3;
+    final radial = Offset(cos(armAngle), sin(armAngle));
+    final tangent = Offset(-sin(armAngle), cos(armAngle));
+
+    // Distance from center along arm axis:
+    // Inner edge of arm touches center hexagon at _hex6Inradius.
+    // Row 5 is innermost (distance = _hex6Inradius + 0.5 * cellSize),
+    // Row 0 is outermost (distance = _hex6Inradius + 5.5 * cellSize).
+    final d = _hex6Inradius + (5.5 - row) * cellSize;
+    // Tangent offset across the 3 columns (column 0 = left (-cellSize), 1 = center (0), 2 = right (+cellSize)):
+    final t = (column - 1) * cellSize;
+
+    return center + radial * d + tangent * t;
+  }
+
+  List<Offset> hex6ArmGridCellCorners(int routeSlot, int row, int column) {
+    final centerPoint = hex6ArmGridCellPosition(routeSlot, row, column);
+    final armAngle = routeSlot * pi / 3 + pi / 3;
+    final radial = Offset(cos(armAngle), sin(armAngle));
+    final tangent = Offset(-sin(armAngle), cos(armAngle));
+    final half = cellSize / 2.0;
+
+    return [
+      centerPoint + radial * half - tangent * half,
+      centerPoint + radial * half + tangent * half,
+      centerPoint - radial * half + tangent * half,
+      centerPoint - radial * half - tangent * half,
+    ];
   }
 
   Offset _hex6TrackPosition(int cellIndex) {
@@ -229,21 +253,43 @@ class BoardConfig {
     return hex6ArmGridCellPosition(arm, row, column);
   }
 
-  /// Corners for a Star 6 track cell, aligned to its radial arm.
+  /// Corners for a Star 6 track cell (exact square cell).
   List<Offset> hex6TrackCellCorners(int cellIndex) {
     final arm = (cellIndex ~/ 13) % 6;
-    final angle = arm * pi / 3 - pi / 2;
-    final radial = Offset(cos(angle), sin(angle));
-    final tangent = Offset(-sin(angle), cos(angle));
-    final centerPoint = _hex6TrackPosition(cellIndex);
-    final half = cellSize / 2;
-
-    return [
-      centerPoint + radial * half + tangent * half,
-      centerPoint - radial * half + tangent * half,
-      centerPoint - radial * half - tangent * half,
-      centerPoint + radial * half - tangent * half,
-    ];
+    final cellInArm = cellIndex % 13;
+    final column = switch (cellInArm) {
+      0 => 1,
+      1 => 2,
+      2 => 2,
+      3 => 2,
+      4 => 2,
+      5 => 2,
+      6 => 2,
+      7 => 0,
+      8 => 0,
+      9 => 0,
+      10 => 0,
+      11 => 0,
+      12 => 0,
+      _ => 0,
+    };
+    final row = switch (cellInArm) {
+      0 => 0,
+      1 => 0,
+      2 => 1,
+      3 => 2,
+      4 => 3,
+      5 => 4,
+      6 => 5,
+      7 => 5,
+      8 => 4,
+      9 => 3,
+      10 => 2,
+      11 => 1,
+      12 => 0,
+      _ => 0,
+    };
+    return hex6ArmGridCellCorners(arm, row, column);
   }
 
   Offset _hex6HomeStretch(int playerIndex, int stepIntoHome) {
@@ -256,67 +302,73 @@ class BoardConfig {
   }
 
   List<Offset> hex6HomeCellCorners(int playerIndex, int stepIntoHome) {
-    final centerPoint = _hex6HomeStretch(playerIndex, stepIntoHome);
-    final angle = playerIndex * pi / 3 - pi / 2;
-    final radial = Offset(cos(angle), sin(angle));
-    final tangent = Offset(-sin(angle), cos(angle));
-    final half = cellSize / 2;
-
-    return [
-      centerPoint + radial * half + tangent * half,
-      centerPoint - radial * half + tangent * half,
-      centerPoint - radial * half - tangent * half,
-      centerPoint + radial * half - tangent * half,
-    ];
+    final clampedStep = stepIntoHome
+        .clamp(0, boardType.homeStretchLength)
+        .toInt();
+    final row = clampedStep + 1;
+    return hex6ArmGridCellCorners(playerIndex, row, 1);
   }
 
   Offset hex6BaseCenter(int routeSlot) {
-    final angle = routeSlot * pi / 3 - pi / 3;
-    return center + Offset(cos(angle), sin(angle)) * cellSize * 7.2;
+    // Base 0 (Blue) is between Arm 5 (Orange) and Arm 0 (Blue) -> angle = -pi/6 + pi/3 = pi/6 ?
+    // In our armAngle = routeSlot * pi / 3 + pi / 3:
+    // Arm 0 (Blue) is at pi/3 (down-right).
+    // Arm 1 (Yellow) is at 2*pi/3 (down-left).
+    // The base pod for Slot 0 (Blue) sits between Arm 0 (Blue, pi/3) and Arm 1 (Yellow, 2*pi/3), which is at bottom angle = pi/2!
+    final angle = routeSlot * pi / 3 + pi / 2;
+    return center + Offset(cos(angle), sin(angle)) * (_hex6Inradius + 3.6 * cellSize);
   }
 
   Offset _hex6BasePosition(int routeSlot, int tokenIndex) {
-    final angle = routeSlot * pi / 3 - pi / 3;
+    final angle = routeSlot * pi / 3 + pi / 2;
     final radial = Offset(cos(angle), sin(angle));
     final tangent = Offset(-sin(angle), cos(angle));
     final row = tokenIndex ~/ 2;
     final col = tokenIndex % 2;
 
     return hex6BaseCenter(routeSlot) +
-        radial * ((row - 0.5) * cellSize * 0.85) +
+        radial * ((row - 0.5) * cellSize * 0.95) +
         tangent * ((col - 0.5) * cellSize * 1.35);
   }
 
-  /// The six-player base polygon points toward the center, as in the supplied
-  /// six-player reference, with its wide colored edge on the outside.
+  /// The six-player base polygon is an equilateral triangle fitting between adjacent straight arms.
   List<Offset> hex6BaseCorners(int routeSlot, {double scale = 1}) {
-    final angle = routeSlot * pi / 3 - pi / 3;
-    final radial = Offset(cos(angle), sin(angle));
-    final tangent = Offset(-sin(angle), cos(angle));
+    // Base routeSlot is between Arm(routeSlot) and Arm((routeSlot + 1) % 6)
+    final leftArm = routeSlot;
+    final rightArm = (routeSlot + 1) % 6;
+
+    // Left Arm outer right corner (Row 0 Column 2 outer-right vertex)
+    final leftCorners = hex6ArmGridCellCorners(leftArm, 0, 2);
+    final leftOuter = leftCorners[1]; // outer-right
+
+    // Right Arm outer left corner (Row 0 Column 0 outer-left vertex)
+    final rightCorners = hex6ArmGridCellCorners(rightArm, 0, 0);
+    final rightOuter = rightCorners[0]; // outer-left
+
+    // Hexagon vertex between Left Arm Row 5 Col 2 and Right Arm Row 5 Col 0
+    final innerAngle = routeSlot * pi / 3 + pi / 2;
+    final innerTip = center + Offset(cos(innerAngle), sin(innerAngle)) * (3.0 * cellSize);
+
     final base = hex6BaseCenter(routeSlot);
-    // Match the six-player reference: a narrow inward tip reaches the
-    // middle, while the outer room edge is the wider base.
-    final tip = base - radial * cellSize * 5.2 * scale;
-    final farLeft =
-        base +
-        radial * cellSize * 1.65 * scale -
-        tangent * cellSize * 3.4 * scale;
-    final farRight =
-        base +
-        radial * cellSize * 1.65 * scale +
-        tangent * cellSize * 3.4 * scale;
-    return [tip, farRight, farLeft];
+    if (scale != 1.0) {
+      return [
+        base + (innerTip - base) * scale,
+        base + (leftOuter - base) * scale,
+        base + (rightOuter - base) * scale,
+      ];
+    }
+    return [innerTip, leftOuter, rightOuter];
   }
 
   /// White inset triangle that contains the four pawn sockets in each room.
   List<Offset> hex6BaseInnerCorners(int routeSlot) {
-    final angle = routeSlot * pi / 3 - pi / 3;
+    final angle = routeSlot * pi / 3 + pi / 2;
     final radial = Offset(cos(angle), sin(angle));
     final tangent = Offset(-sin(angle), cos(angle));
     final base = hex6BaseCenter(routeSlot);
-    final tip = base - radial * cellSize * 1.75;
-    final farLeft = base + radial * cellSize * 0.9 - tangent * cellSize * 1.75;
-    final farRight = base + radial * cellSize * 0.9 + tangent * cellSize * 1.75;
+    final tip = base - radial * cellSize * 1.6;
+    final farLeft = base + radial * cellSize * 0.8 - tangent * cellSize * 1.45;
+    final farRight = base + radial * cellSize * 0.8 + tangent * cellSize * 1.45;
     return [tip, farRight, farLeft];
   }
 }
