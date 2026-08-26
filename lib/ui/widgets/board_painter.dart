@@ -748,6 +748,17 @@ class BoardPainter extends CustomPainter {
       _drawHex6Arm(canvas, slot, color, gridPaint);
     }
 
+    // Keep the two inner side-lane corner cells white on top of the connector
+    // layer, exactly like the marked junctions in the reference.
+    for (var slot = 0; slot < 6; slot++) {
+      for (final cellInArm in [6, 7]) {
+        final cell = slot * state.boardType.cellsPerArm + cellInArm;
+        final path = _polygonPath(config.hex6TrackCellCorners(cell));
+        canvas.drawPath(path, Paint()..color = Colors.white);
+        canvas.drawPath(path, gridPaint);
+      }
+    }
+
     // Each base is the HTML base-pod: a colored center-facing triangle with a
     // white circular four-token hub and a small label tab at its outer edge.
     for (var slot = 0; slot < 6; slot++) {
@@ -852,9 +863,9 @@ class BoardPainter extends CustomPainter {
     ) {
       final cell = slot * state.boardType.cellsPerArm + cellInArm;
       final path = _polygonPath(config.hex6TrackCellCorners(cell));
-      // Match the supplied HTML template: the opening row is white, while
-      // the final left-side route cell is the only colored outer cell.
-      final fill = cellInArm == 11 ? color : Colors.white;
+      // The marked outer route cells are all white; only the five-cell
+      // middle home lane below remains color-filled.
+      const fill = Colors.white;
       canvas.drawPath(path, Paint()..color = fill);
       canvas.drawPath(path, gridPaint);
 
