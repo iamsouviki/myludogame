@@ -137,9 +137,9 @@ enum BoardType {
     hex6 => const [
       PlayerColor.red,
       PlayerColor.green,
-      PlayerColor.yellow,
-      PlayerColor.blue,
       PlayerColor.orange,
+      PlayerColor.blue,
+      PlayerColor.yellow,
       PlayerColor.purple,
     ],
   };

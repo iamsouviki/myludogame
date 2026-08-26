@@ -245,20 +245,20 @@ void main() {
       );
 
       expect(List.generate(6, testState.playerPositionIndex), [
-        4,
+        2,
         0,
         5,
         1,
         3,
-        2,
+        4,
       ]);
       expect(List.generate(6, testState.startPosition), [
-        52,
+        26,
         0,
         65,
         13,
         39,
-        26,
+        52,
       ]);
       expect(
         testState.safeSpots,
@@ -269,7 +269,7 @@ void main() {
       testState.rollDice();
       expect(testState.validTokenMoves, [0, 1, 2, 3]);
       expect(testState.moveToken(0), isFalse);
-      expect(testState.tokenPositions[0][0], 52);
+      expect(testState.tokenPositions[0][0], 26);
     });
 
     test('Six-player home entries are one step before each player start', () {
