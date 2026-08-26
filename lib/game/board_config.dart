@@ -294,12 +294,17 @@ class BoardConfig {
     final radial = Offset(cos(angle), sin(angle));
     final tangent = Offset(-sin(angle), cos(angle));
     final base = hex6BaseCenter(routeSlot);
-    // Match the yellow reference: the broad edge reaches the middle and the
-    // room narrows to a small outward-facing point.
-    final middle = base - radial * cellSize * 5.2 * scale;
-    final outerTip = base + radial * cellSize * 1.6 * scale;
-    final middleLeft = middle - tangent * cellSize * 2.6 * scale;
-    final middleRight = middle + tangent * cellSize * 2.6 * scale;
-    return [middleLeft, outerTip, middleRight];
+    // Match the six-player reference: a narrow inward tip reaches the
+    // middle, while the outer room edge is the wider base.
+    final tip = base - radial * cellSize * 5.2 * scale;
+    final farLeft =
+        base +
+        radial * cellSize * 1.2 * scale -
+        tangent * cellSize * 2.6 * scale;
+    final farRight =
+        base +
+        radial * cellSize * 1.2 * scale +
+        tangent * cellSize * 2.6 * scale;
+    return [tip, farRight, farLeft];
   }
 }
