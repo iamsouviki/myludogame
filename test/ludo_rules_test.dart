@@ -377,6 +377,22 @@ void main() {
             (config.homeStretchPosition(slot, 5) - config.center).distance;
         expect(entryDistance, greaterThan(homeDistance));
         expect(homeDistance, 0);
+
+        final safeCell = config.trackCellPosition(
+          slot * BoardType.hex6.cellsPerArm + 8,
+        );
+        final referenceStarCell = config.hex6ArmGridCellPosition(slot, 4, 0);
+        final coloredHomeCell = config.hex6ArmGridCellPosition(slot, 4, 1);
+        expect(
+          (safeCell - referenceStarCell).distance,
+          lessThan(0.01),
+          reason: 'Star 6 room $slot safe star must sit in the side lane',
+        );
+        expect(
+          (safeCell - coloredHomeCell).distance,
+          greaterThan(config.cellSize * 0.5),
+          reason: 'Star 6 room $slot safe star must not sit in the home lane',
+        );
       }
     });
 
