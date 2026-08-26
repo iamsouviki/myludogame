@@ -299,11 +299,11 @@ class BoardConfig {
     final tip = base - radial * cellSize * 5.2 * scale;
     final farLeft =
         base +
-        radial * cellSize * 1.2 * scale -
+        radial * cellSize * 1.65 * scale -
         tangent * cellSize * 3.4 * scale;
     final farRight =
         base +
-        radial * cellSize * 1.2 * scale +
+        radial * cellSize * 1.65 * scale +
         tangent * cellSize * 3.4 * scale;
     return [tip, farRight, farLeft];
   }
