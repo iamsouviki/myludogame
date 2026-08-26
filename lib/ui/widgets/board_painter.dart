@@ -789,18 +789,36 @@ class BoardPainter extends CustomPainter {
               : state.players[ownerIndex].name,
           style: TextStyle(
             color: Colors.white,
-            fontSize: config.cellSize * 0.31,
+            fontSize: config.cellSize * 0.42,
             fontWeight: FontWeight.w900,
+            letterSpacing: 0.1,
             shadows: const [Shadow(color: Colors.black87, blurRadius: 3)],
           ),
         ),
         textDirection: TextDirection.ltr,
         maxLines: 1,
         ellipsis: '…',
-      )..layout(maxWidth: config.cellSize * 4.0);
+      )..layout(maxWidth: config.cellSize * 3.2);
       final labelCenter =
           baseCenter +
-          Offset(cos(radialAngle), sin(radialAngle)) * config.cellSize * 1.55;
+          Offset(cos(radialAngle), sin(radialAngle)) * config.cellSize * 1.82;
+      final badgeRect = Rect.fromCenter(
+        center: labelCenter,
+        width: labelPainter.width + config.cellSize * 0.48,
+        height: labelPainter.height + config.cellSize * 0.22,
+      );
+      final badge = RRect.fromRectAndRadius(
+        badgeRect,
+        Radius.circular(config.cellSize * 0.22),
+      );
+      canvas.drawRRect(badge, Paint()..color = const Color(0xCC0F172A));
+      canvas.drawRRect(
+        badge,
+        Paint()
+          ..color = Colors.white.withValues(alpha: 0.72)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.1,
+      );
       labelPainter.paint(
         canvas,
         labelCenter - Offset(labelPainter.width / 2, labelPainter.height / 2),
@@ -834,13 +852,15 @@ class BoardPainter extends CustomPainter {
     ) {
       final cell = slot * state.boardType.cellsPerArm + cellInArm;
       final path = _polygonPath(config.hex6TrackCellCorners(cell));
-      final fill = cellInArm == 0 ? color : Colors.white;
+      // Match the supplied HTML template: the opening row is white, while
+      // the final left-side route cell is the only colored outer cell.
+      final fill = cellInArm == 11 ? color : Colors.white;
       canvas.drawPath(path, Paint()..color = fill);
       canvas.drawPath(path, gridPaint);
 
-      // Start cells use the directional arrow. The second safe cell is the
-      // reference side-lane star for this arm.
-      if (state.safeSpots.contains(cell) && cellInArm != 0) {
+      // The reference star is fixed to the left side lane on row 2. The
+      // opening cell remains an arrow-only white cell.
+      if (cellInArm == 10) {
         _drawClassicStar(
           canvas,
           config.trackCellPosition(cell),
