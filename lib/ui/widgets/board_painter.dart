@@ -917,20 +917,24 @@ class BoardPainter extends CustomPainter {
   }
 
   void _drawHex6Center(Canvas canvas) {
-    final centerRadius = config.cellSize * 1.85;
+    // Match the supplied HTML junctions: each arm ends in a colored
+    // trapezoid, leaving the two neighboring route corners white.
+    final outerRadius = config.cellSize * 2.0;
+    final innerRadius = config.cellSize * 1.38;
+    final outerHalfWidth = config.cellSize * 1.5;
+    final innerHalfWidth = config.cellSize * 0.87;
     for (var slot = 0; slot < 6; slot++) {
-      final start = slot * pi / 3 - pi / 2 - pi / 6;
-      final path = Path()
-        ..moveTo(config.center.dx, config.center.dy)
-        ..lineTo(
-          config.center.dx + cos(start) * centerRadius,
-          config.center.dy + sin(start) * centerRadius,
-        )
-        ..lineTo(
-          config.center.dx + cos(start + pi / 3) * centerRadius,
-          config.center.dy + sin(start + pi / 3) * centerRadius,
-        )
-        ..close();
+      final angle = slot * pi / 3 - pi / 2;
+      final radial = Offset(cos(angle), sin(angle));
+      final tangent = Offset(-sin(angle), cos(angle));
+      final outer = config.center + radial * outerRadius;
+      final inner = config.center + radial * innerRadius;
+      final path = _polygonPath([
+        outer + tangent * outerHalfWidth,
+        outer - tangent * outerHalfWidth,
+        inner - tangent * innerHalfWidth,
+        inner + tangent * innerHalfWidth,
+      ]);
       final ownerIndex = _playerAtRouteSlot(slot);
       final color = ownerIndex == null
           ? BoardType.hex6.availableColors[slot].color
@@ -944,6 +948,24 @@ class BoardPainter extends CustomPainter {
           ..strokeWidth = 1.2,
       );
     }
+
+    final centerHex = _polygonPath([
+      for (var vertex = 0; vertex < 6; vertex++)
+        config.center +
+            Offset(
+                  cos(vertex * pi / 3 - pi / 2),
+                  sin(vertex * pi / 3 - pi / 2),
+                ) *
+                innerRadius,
+    ]);
+    canvas.drawPath(centerHex, Paint()..color = const Color(0xFF20112B));
+    canvas.drawPath(
+      centerHex,
+      Paint()
+        ..color = const Color(0xFF111111)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2,
+    );
 
     final dieOuter = RRect.fromRectAndRadius(
       Rect.fromCenter(
