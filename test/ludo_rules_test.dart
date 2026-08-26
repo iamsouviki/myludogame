@@ -253,23 +253,23 @@ void main() {
         1,
       ]);
       expect(List.generate(6, testState.startPosition), [
-        65,
-        39,
-        26,
-        52,
-        0,
-        13,
+        67,
+        41,
+        28,
+        54,
+        2,
+        15,
       ]);
       expect(
         testState.safeSpots,
-        containsAll([0, 13, 26, 39, 52, 65, 10, 23, 36, 49, 62, 75]),
+        containsAll([2, 15, 28, 41, 54, 67, 10, 23, 36, 49, 62, 75]),
       );
 
       testState.currentPlayerIndex = 0;
       testState.rollDice();
       expect(testState.validTokenMoves, [0, 1, 2, 3]);
       expect(testState.moveToken(0), isFalse);
-      expect(testState.tokenPositions[0][0], 65);
+      expect(testState.tokenPositions[0][0], 67);
     });
 
     test('Six-player home entries are one step before each player start', () {
@@ -344,7 +344,7 @@ void main() {
 
       final startCells = [
         for (var slot = 0; slot < 6; slot++)
-          config.trackCellPosition(slot * BoardType.hex6.cellsPerArm),
+          config.trackCellPosition(slot * BoardType.hex6.cellsPerArm + 2),
       ];
       final baseCenters = [
         for (var slot = 0; slot < 6; slot++) config.hex6BaseCenter(slot),

@@ -175,7 +175,10 @@ class BoardConfig {
   // Between the outer straight sides of adjacent arms are equilateral triangular base pods.
   // Because the center hexagon's 6 edges are of length 3 * cellSize and angle 120 deg, adjacent arms radiate at 60 deg with zero gap and zero overlap.
 
-  double get _hex6Inradius => 3.0 * cellSize * (sqrt(3) / 2.0); // distance from center to edge of center hexagon
+  double get _hex6Inradius =>
+      3.0 *
+      cellSize *
+      (sqrt(3) / 2.0); // distance from center to edge of center hexagon
 
   Offset hex6ArmGridCellPosition(int routeSlot, int row, int column) {
     // Reference orientation:
@@ -316,7 +319,8 @@ class BoardConfig {
     // Arm 1 (Yellow) is at 2*pi/3 (down-left).
     // The base pod for Slot 0 (Blue) sits between Arm 0 (Blue, pi/3) and Arm 1 (Yellow, 2*pi/3), which is at bottom angle = pi/2!
     final angle = routeSlot * pi / 3 + pi / 2;
-    return center + Offset(cos(angle), sin(angle)) * (_hex6Inradius + 3.6 * cellSize);
+    return center +
+        Offset(cos(angle), sin(angle)) * (_hex6Inradius + 3.6 * cellSize);
   }
 
   Offset _hex6BasePosition(int routeSlot, int tokenIndex) {
@@ -347,7 +351,8 @@ class BoardConfig {
 
     // Hexagon vertex between Left Arm Row 5 Col 2 and Right Arm Row 5 Col 0
     final innerAngle = routeSlot * pi / 3 + pi / 2;
-    final innerTip = center + Offset(cos(innerAngle), sin(innerAngle)) * (3.0 * cellSize);
+    final innerTip =
+        center + Offset(cos(innerAngle), sin(innerAngle)) * (3.0 * cellSize);
 
     final base = hex6BaseCenter(routeSlot);
     if (scale != 1.0) {
@@ -366,9 +371,11 @@ class BoardConfig {
     final radial = Offset(cos(angle), sin(angle));
     final tangent = Offset(-sin(angle), cos(angle));
     final base = hex6BaseCenter(routeSlot);
-    final tip = base - radial * cellSize * 1.6;
-    final farLeft = base + radial * cellSize * 0.8 - tangent * cellSize * 1.45;
-    final farRight = base + radial * cellSize * 0.8 + tangent * cellSize * 1.45;
+    // The reference uses a large inset triangle that comfortably contains
+    // all four pawn sockets without crowding the colored room edges.
+    final tip = base - radial * cellSize * 2.15;
+    final farLeft = base + radial * cellSize * 0.95 - tangent * cellSize * 2.0;
+    final farRight = base + radial * cellSize * 0.95 + tangent * cellSize * 2.0;
     return [tip, farRight, farLeft];
   }
 }
