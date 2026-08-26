@@ -726,6 +726,16 @@ class BoardPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.25;
 
+    // Paint room underlays first. The arm grids and center are then drawn above
+    // them, preventing triangle tips from covering lane corner cells.
+    for (var slot = 0; slot < 6; slot++) {
+      final ownerIndex = _playerAtRouteSlot(slot);
+      final color = ownerIndex == null
+          ? BoardType.hex6.availableColors[slot].color
+          : state.players[ownerIndex].color.color;
+      _drawHex6BaseTriangle(canvas, slot, color);
+    }
+
     for (var slot = 0; slot < 6; slot++) {
       final ownerIndex = _playerAtRouteSlot(slot);
       final color = ownerIndex == null
@@ -743,22 +753,6 @@ class BoardPainter extends CustomPainter {
       final playerColor = ownerIndex == null
           ? BoardType.hex6.availableColors[slot]
           : state.players[ownerIndex].color;
-      final basePath = _polygonPath(config.hex6BaseCorners(slot));
-      canvas.drawPath(
-        basePath,
-        Paint()
-          ..color = Colors.black.withValues(alpha: 0.24)
-          ..style = PaintingStyle.fill,
-      );
-      canvas.drawPath(basePath, Paint()..color = playerColor.color);
-      canvas.drawPath(
-        basePath,
-        Paint()
-          ..color = const Color(0xFF222222)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.4,
-      );
-
       final baseCenter = config.hex6BaseCenter(slot);
       final plateRadius = config.cellSize * 1.55;
       canvas.drawCircle(
@@ -810,6 +804,24 @@ class BoardPainter extends CustomPainter {
         labelCenter - Offset(labelPainter.width / 2, labelPainter.height / 2),
       );
     }
+  }
+
+  void _drawHex6BaseTriangle(Canvas canvas, int slot, Color color) {
+    final basePath = _polygonPath(config.hex6BaseCorners(slot));
+    canvas.drawPath(
+      basePath,
+      Paint()
+        ..color = Colors.black.withValues(alpha: 0.24)
+        ..style = PaintingStyle.fill,
+    );
+    canvas.drawPath(basePath, Paint()..color = color);
+    canvas.drawPath(
+      basePath,
+      Paint()
+        ..color = const Color(0xFF222222)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.4,
+    );
   }
 
   void _drawHex6Arm(Canvas canvas, int slot, Color color, Paint gridPaint) {

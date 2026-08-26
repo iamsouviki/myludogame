@@ -294,7 +294,7 @@ class BoardConfig {
     final radial = Offset(cos(angle), sin(angle));
     final tangent = Offset(-sin(angle), cos(angle));
     final base = hex6BaseCenter(routeSlot);
-    final tip = base - radial * cellSize * 4.5 * scale;
+    final tip = base - radial * cellSize * 5.05 * scale;
     final farLeft =
         base +
         radial * cellSize * 1.2 * scale -
