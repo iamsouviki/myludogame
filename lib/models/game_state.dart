@@ -68,7 +68,9 @@ class GameState extends ChangeNotifier {
 
   int _startPositionForSlot(int slot) {
     if (slot < 0 || slot >= boardType.maxPlayers) return 0;
-    return slot * boardType.cellsPerArm;
+    // Star 6 starts on the marked row-1 S cell (cellInArm 2).
+    final startOffset = boardType == BoardType.hex6 ? 2 : 0;
+    return slot * boardType.cellsPerArm + startOffset;
   }
 
   /// Absolute board position for a player's color-defined start cell.
@@ -94,7 +96,8 @@ class GameState extends ChangeNotifier {
     for (var slot = 0; slot < boardType.maxPlayers; slot++) {
       final start = _startPositionForSlot(slot);
       spots.add(start);
-      spots.add((start + 8) % boardType.trackLength);
+      final safeOffset = boardType == BoardType.hex6 ? 8 : 8;
+      spots.add((start + safeOffset) % boardType.trackLength);
     }
     return spots;
   }

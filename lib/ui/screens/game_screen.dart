@@ -803,8 +803,8 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   List<Widget> _buildTokens(BoardConfig config) {
     final tokens = <Widget>[];
     final defaultTokenSize = state.boardType == BoardType.hex6
-        ? config.cellSize * 0.86
-        : config.cellSize * 0.7;
+        ? config.cellSize * 1.05
+        : config.cellSize * 0.84;
 
     for (var p = 0; p < state.players.length; p++) {
       final routeSlot = state.playerPositionIndex(p);
@@ -1459,7 +1459,21 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       PlayerColor.blue => 'assets/images/tokens/star6_blue_pawn.png',
       PlayerColor.orange => 'assets/images/tokens/star6_orange_pawn.png',
       PlayerColor.purple => 'assets/images/tokens/star6_purple_pawn.png',
-      _ => 'assets/images/tokens/star6_red_pawn.png',
+      PlayerColor.pink => 'assets/images/tokens/star6_pink_pawn.png',
+      PlayerColor.cyan => 'assets/images/tokens/star6_cyan_pawn.png',
+      PlayerColor.lime => 'assets/images/tokens/star6_lime_pawn.png',
+      PlayerColor.amber => 'assets/images/tokens/star6_amber_pawn.png',
+      PlayerColor.teal => 'assets/images/tokens/star6_teal_pawn.png',
+      PlayerColor.indigo => 'assets/images/tokens/star6_indigo_pawn.png',
+      PlayerColor.deepOrange =>
+        'assets/images/tokens/star6_deep_orange_pawn.png',
+      PlayerColor.magenta => 'assets/images/tokens/star6_magenta_pawn.png',
+      PlayerColor.emerald => 'assets/images/tokens/star6_emerald_pawn.png',
+      PlayerColor.crimson => 'assets/images/tokens/star6_crimson_pawn.png',
+      PlayerColor.violet => 'assets/images/tokens/star6_violet_pawn.png',
+      PlayerColor.coral => 'assets/images/tokens/star6_coral_pawn.png',
+      PlayerColor.gold => 'assets/images/tokens/star6_gold_pawn.png',
+      PlayerColor.skyBlue => 'assets/images/tokens/star6_sky_blue_pawn.png',
     };
   }
 

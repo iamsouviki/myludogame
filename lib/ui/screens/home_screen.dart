@@ -23,10 +23,10 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final BoardType _boardType = BoardType.classic4;
+  BoardType _boardType = BoardType.classic4;
 
-  // VS Computer state: classic board only for now.
-  int _vsCompMatchSize = 4; // 2 or 4 players
+  // VS Computer state
+  int _vsCompMatchSize = 4; // 2, 4 or 6 players
   AIDifficulty _vsCompDifficulty = AIDifficulty.medium;
   final TextEditingController _vsCompNameController = TextEditingController(
     text: 'Player 1',
@@ -34,9 +34,9 @@ class _HomeScreenState extends State<HomeScreen> {
   PlayerColor _vsCompColor = PlayerColor.red;
 
   // Pass & Play state
-  BoardType _passPlayBoardType = BoardType.classic4;
-  int _passPlayMatchSize = 4; // Classic: 2/4
-  int _passPlayHumans = 2; // 2..match size
+  BoardType _passPlayBoardType = BoardType.hex6;
+  int _passPlayMatchSize = 6;
+  int _passPlayHumans = 6;
   bool _passPlayEnableTeamUp = false; // 2v2 team mode
   AIDifficulty _passPlayDifficulty = AIDifficulty.medium;
 
@@ -50,12 +50,12 @@ class _HomeScreenState extends State<HomeScreen> {
   ];
 
   final List<PlayerColor> _passPlayColors = [
+    PlayerColor.blue,
+    PlayerColor.yellow,
+    PlayerColor.purple,
     PlayerColor.red,
     PlayerColor.green,
-    PlayerColor.yellow,
-    PlayerColor.blue,
     PlayerColor.orange,
-    PlayerColor.purple,
   ];
 
   GameState? _savedGame;
@@ -229,6 +229,14 @@ class _HomeScreenState extends State<HomeScreen> {
                         ],
                       ),
                       const SizedBox(height: 16),
+                      _buildBoardTypeSelector(
+                        selected: _boardType,
+                        onSelected: (boardType) => setModalState(() {
+                          _boardType = boardType;
+                          _vsCompMatchSize = boardType == BoardType.hex6 ? 6 : 4;
+                        }),
+                      ),
+                      const SizedBox(height: 12),
                       _buildMatchSizeSelector(
                         selectedSize: _vsCompMatchSize,
                         sizes: _matchSizesForBoard(_boardType),
@@ -427,8 +435,14 @@ class _HomeScreenState extends State<HomeScreen> {
                           if (boardType == BoardType.hex6) {
                             _passPlayMatchSize = 6;
                             _passPlayHumans = 6;
+                            for (var i = 0; i < 6; i++) {
+                              _passPlayColors[i] = BoardType.hex6.availableColors[i];
+                            }
                           } else {
                             _passPlayMatchSize = 4;
+                            for (var i = 0; i < 4; i++) {
+                              _passPlayColors[i] = BoardType.classic4.availableColors[i];
+                            }
                           }
                           _passPlayHumans = _passPlayHumans
                               .clamp(2, _passPlayMatchSize)
@@ -1695,7 +1709,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 8),
           Row(
-            children: const [BoardType.classic4].map((boardType) {
+            children: [BoardType.classic4, BoardType.hex6].map((boardType) {
               final isSelected = selected == boardType;
               return Expanded(
                 child: Padding(
@@ -1716,7 +1730,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
                       child: Text(
-                        'Classic 4',
+                        boardType == BoardType.classic4 ? 'Classic 4' : 'Star 6',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: isSelected

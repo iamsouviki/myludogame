@@ -245,31 +245,31 @@ void main() {
       );
 
       expect(List.generate(6, testState.playerPositionIndex), [
-        4,
-        0,
         5,
-        1,
         3,
         2,
+        4,
+        0,
+        1,
       ]);
       expect(List.generate(6, testState.startPosition), [
-        52,
-        0,
-        65,
-        13,
-        39,
-        26,
+        67,
+        41,
+        28,
+        54,
+        2,
+        15,
       ]);
       expect(
         testState.safeSpots,
-        containsAll([0, 13, 26, 39, 52, 65, 8, 21, 34, 47, 60, 73]),
+        containsAll([2, 15, 28, 41, 54, 67, 10, 23, 36, 49, 62, 75]),
       );
 
       testState.currentPlayerIndex = 0;
       testState.rollDice();
       expect(testState.validTokenMoves, [0, 1, 2, 3]);
       expect(testState.moveToken(0), isFalse);
-      expect(testState.tokenPositions[0][0], 52);
+      expect(testState.tokenPositions[0][0], 67);
     });
 
     test('Six-player home entries are one step before each player start', () {
@@ -344,7 +344,7 @@ void main() {
 
       final startCells = [
         for (var slot = 0; slot < 6; slot++)
-          config.trackCellPosition(slot * BoardType.hex6.cellsPerArm),
+          config.trackCellPosition(slot * BoardType.hex6.cellsPerArm + 2),
       ];
       final baseCenters = [
         for (var slot = 0; slot < 6; slot++) config.hex6BaseCenter(slot),
@@ -355,22 +355,40 @@ void main() {
       for (var slot = 0; slot < 6; slot++) {
         final corners = config.hex6BaseCorners(slot);
         expect(corners.length, 3);
-        final outward = corners.first - config.hex6BaseCenter(slot);
-        final routeDirection =
-            config.trackCellPosition(slot * BoardType.hex6.cellsPerArm) -
-            config.center;
+        final tipFromBase = corners.first - config.hex6BaseCenter(slot);
+        final inwardDirection = config.center - config.hex6BaseCenter(slot);
         expect(
-          outward.dx * routeDirection.dx + outward.dy * routeDirection.dy,
+          tipFromBase.dx * inwardDirection.dx +
+              tipFromBase.dy * inwardDirection.dy,
           greaterThan(0),
-          reason: 'Star 6 room $slot must point away from the center',
+          reason: 'Star 6 room $slot must point toward the center',
         );
-        expect(
-          {
-            for (var token = 0; token < tokensPerPlayer; token++)
-              config.basePosition(slot, token),
-          }.length,
-          tokensPerPlayer,
-        );
+        final baseCenter = config.hex6BaseCenter(slot);
+        final inward = config.center - baseCenter;
+        final tangent = Offset(-inward.dy, inward.dx);
+        final sockets = [
+          for (var token = 0; token < tokensPerPlayer; token++)
+            config.basePosition(slot, token),
+        ];
+        expect(sockets.toSet().length, tokensPerPlayer);
+
+        double projection(Offset point, Offset axis) {
+          final delta = point - baseCenter;
+          return delta.dx * axis.dx + delta.dy * axis.dy;
+        }
+
+        final inwardProjections = [
+          for (final socket in sockets) projection(socket, inward),
+        ];
+        final tangentProjections = [
+          for (final socket in sockets) projection(socket, tangent),
+        ];
+        expect(inwardProjections[0], closeTo(inwardProjections[1], 0.001));
+        expect(inwardProjections[0], lessThan(inwardProjections[2]));
+        expect(inwardProjections[2], lessThan(inwardProjections[3]));
+        expect(tangentProjections[0], closeTo(-tangentProjections[1], 0.001));
+        expect(tangentProjections[2], closeTo(0, 0.001));
+        expect(tangentProjections[3], closeTo(0, 0.001));
 
         final entryDistance =
             (config.homeStretchPosition(slot, 0) - config.center).distance;
@@ -378,6 +396,22 @@ void main() {
             (config.homeStretchPosition(slot, 5) - config.center).distance;
         expect(entryDistance, greaterThan(homeDistance));
         expect(homeDistance, 0);
+
+        final safeCell = config.trackCellPosition(
+          slot * BoardType.hex6.cellsPerArm + 10,
+        );
+        final referenceStarCell = config.hex6ArmGridCellPosition(slot, 2, 0);
+        final coloredHomeCell = config.hex6ArmGridCellPosition(slot, 2, 1);
+        expect(
+          (safeCell - referenceStarCell).distance,
+          lessThan(0.01),
+          reason: 'Star 6 room $slot safe star must sit in the side lane',
+        );
+        expect(
+          (safeCell - coloredHomeCell).distance,
+          greaterThan(config.cellSize * 0.5),
+          reason: 'Star 6 room $slot safe star must not sit in the home lane',
+        );
       }
     });
 

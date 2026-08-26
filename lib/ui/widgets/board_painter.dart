@@ -722,135 +722,172 @@ class BoardPainter extends CustomPainter {
     _drawHex6BoardShell(canvas);
 
     final gridPaint = Paint()
-      ..color = const Color(0xFF172033)
+      ..color = const Color(0xFF1F2937)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.1;
+      ..strokeWidth = 1.25;
 
-    // Draw the two six-cell lanes that make up each of the six rotated arms.
-    for (var cell = 0; cell < state.boardType.trackLength; cell++) {
-      final slot = (cell ~/ state.boardType.cellsPerArm) % 6;
-      final ownerIndex = _playerAtRouteSlot(slot);
-      final ownerColor = ownerIndex == null
-          ? BoardType.hex6.availableColors[slot].color
-          : state.players[ownerIndex].color.color;
-      final isStart = cell % state.boardType.cellsPerArm == 0;
-      final corners = config.hex6TrackCellCorners(cell);
-      final path = _polygonPath(corners);
-      canvas.drawPath(
-        path,
-        Paint()..color = isStart ? ownerColor : Colors.white,
-      );
-      canvas.drawPath(path, gridPaint);
-
-      if (state.safeSpots.contains(cell) && !isStart) {
-        _drawClassicStar(
-          canvas,
-          config.trackCellPosition(cell),
-          config.cellSize * 0.27,
-          ownerColor.withValues(alpha: 0.95),
-        );
-      }
-    }
-
-    // Paint five inward-facing colored home cells per player.
+    // Paint room underlays first. The arm grids and center are then drawn above
+    // them, preventing triangle tips from covering lane corner cells.
     for (var slot = 0; slot < 6; slot++) {
       final ownerIndex = _playerAtRouteSlot(slot);
       final color = ownerIndex == null
           ? BoardType.hex6.availableColors[slot].color
           : state.players[ownerIndex].color.color;
-      for (var step = 0; step < state.boardType.homeStretchLength; step++) {
-        final path = _polygonPath(config.hex6HomeCellCorners(slot, step));
-        canvas.drawPath(path, Paint()..color = color);
-        canvas.drawPath(path, gridPaint);
-      }
-
-      final arrowCenter = config.homeStretchPosition(slot, 0);
-      _drawHex6Arrow(canvas, arrowCenter, slot, color);
+      _drawHex6BaseTriangle(canvas, slot, color);
     }
 
+    // Draw the center beneath the arm grids. The inner lane corners then paint
+    // over the wedge boundary instead of being covered by it.
     _drawHex6Center(canvas);
 
-    // Draw each player’s original triangular room after the lanes so its edge
-    // remains readable and the four pawn sockets stay inside the white inset.
+    for (var slot = 0; slot < 6; slot++) {
+      final ownerIndex = _playerAtRouteSlot(slot);
+      final color = ownerIndex == null
+          ? BoardType.hex6.availableColors[slot].color
+          : state.players[ownerIndex].color.color;
+      _drawHex6Arm(canvas, slot, color, gridPaint);
+    }
+
+    // Each base is the HTML base-pod: a colored center-facing triangle with a
+    // white circular four-token hub and a small label tab at its outer edge.
     for (var slot = 0; slot < 6; slot++) {
       final ownerIndex = _playerAtRouteSlot(slot);
       final playerColor = ownerIndex == null
           ? BoardType.hex6.availableColors[slot]
           : state.players[ownerIndex].color;
-      final basePath = _polygonPath(config.hex6BaseCorners(slot));
-      canvas.drawPath(
-        basePath,
-        Paint()
-          ..color = Colors.black.withValues(alpha: 0.32)
-          ..style = PaintingStyle.fill,
-      );
-      canvas.drawPath(basePath, Paint()..color = playerColor.color);
-      canvas.drawPath(
-        basePath,
-        Paint()
-          ..color = const Color(0xFF0F172A)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2,
-      );
-
       final baseCenter = config.hex6BaseCenter(slot);
-      final basePlateRadius = config.cellSize * 1.45;
-      canvas.drawCircle(
-        baseCenter + const Offset(0, 3),
-        basePlateRadius,
+      final innerBase = _polygonPath(config.hex6BaseInnerCorners(slot));
+      canvas.drawPath(
+        innerBase.shift(const Offset(0, 3)),
         Paint()
-          ..color = Colors.black.withValues(alpha: 0.18)
+          ..color = Colors.black.withValues(alpha: 0.16)
           ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
       );
-      canvas.drawCircle(
-        baseCenter,
-        basePlateRadius,
-        Paint()..color = Colors.white,
-      );
-      canvas.drawCircle(
-        baseCenter,
-        basePlateRadius,
+      canvas.drawPath(innerBase, Paint()..color = Colors.white);
+      canvas.drawPath(
+        innerBase,
         Paint()
-          ..color = const Color(0xFF0F172A)
+          ..color = const Color(0xFF222222)
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.2,
+          ..strokeWidth = 1.4,
       );
 
-      // The colored socket diameter matches the 0.86-cell Star 6 pawn widget.
-      final socketPaint = Paint()
-        ..color = playerColor.color
-        ..style = PaintingStyle.fill;
+      final socketPaint = Paint()..color = playerColor.color;
       for (var token = 0; token < tokensPerPlayer; token++) {
         final socket = config.basePosition(slot, token);
         canvas.drawCircle(socket, config.cellSize * 0.43, socketPaint);
         canvas.drawCircle(socket, config.cellSize * 0.43, gridPaint);
       }
 
-      final radialAngle = slot * pi / 3 - pi / 2;
+      final radialAngle = slot * pi / 3 + pi / 2;
       final labelPainter = TextPainter(
         text: TextSpan(
           text: ownerIndex == null
               ? playerColor.label
               : state.players[ownerIndex].name,
           style: TextStyle(
-            color: Colors.white,
+            color: const Color(0xFF111111),
             fontSize: config.cellSize * 0.34,
-            fontWeight: FontWeight.w900,
-            shadows: const [Shadow(color: Colors.black87, blurRadius: 3)],
+            fontWeight: FontWeight.w800,
           ),
         ),
         textDirection: TextDirection.ltr,
         maxLines: 1,
         ellipsis: '…',
-      )..layout(maxWidth: config.cellSize * 4.2);
-      final labelCenter =
-          config.hex6BaseCenter(slot) +
-          Offset(cos(radialAngle), sin(radialAngle)) * config.cellSize * 1.25;
+      )..layout(maxWidth: config.cellSize * 3.4);
+
+      // The reference uses a colored tab on the room's outer edge. Rotate the
+      // tab with the room so every player name follows the same six-seat axis.
+      final radial = Offset(cos(radialAngle), sin(radialAngle));
+      final tangent = Offset(-sin(radialAngle), cos(radialAngle));
+      final tabCenter = baseCenter + radial * config.cellSize * 1.45;
+      final tabHalfWidth = config.cellSize * 1.45;
+      final tabHalfHeight = config.cellSize * 0.34;
+      final tabCorners = [
+        tabCenter - tangent * tabHalfWidth - radial * tabHalfHeight,
+        tabCenter + tangent * tabHalfWidth - radial * tabHalfHeight,
+        tabCenter + tangent * tabHalfWidth + radial * tabHalfHeight,
+        tabCenter - tangent * tabHalfWidth + radial * tabHalfHeight,
+      ];
+      final tabPath = _polygonPath(tabCorners);
+      canvas.drawPath(
+        tabPath,
+        Paint()
+          ..color = playerColor.color
+          ..style = PaintingStyle.fill,
+      );
+      canvas.drawPath(
+        tabPath,
+        Paint()
+          ..color = const Color(0xFF111111)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.2,
+      );
+
+      canvas.save();
+      canvas.translate(tabCenter.dx, tabCenter.dy);
+      canvas.rotate(radialAngle + pi / 2);
       labelPainter.paint(
         canvas,
-        labelCenter - Offset(labelPainter.width / 2, labelPainter.height / 2),
+        Offset(-labelPainter.width / 2, -labelPainter.height / 2),
       );
+      canvas.restore();
     }
+  }
+
+  void _drawHex6BaseTriangle(Canvas canvas, int slot, Color color) {
+    final basePath = _polygonPath(config.hex6BaseCorners(slot));
+    canvas.drawPath(
+      basePath,
+      Paint()
+        ..color = Colors.black.withValues(alpha: 0.24)
+        ..style = PaintingStyle.fill,
+    );
+    canvas.drawPath(basePath, Paint()..color = color);
+    canvas.drawPath(
+      basePath,
+      Paint()
+        ..color = const Color(0xFF222222)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.4,
+    );
+  }
+
+  void _drawHex6Arm(Canvas canvas, int slot, Color color, Paint gridPaint) {
+    // The marked outer route boxes are white. Only the five-cell middle
+    // home lane below remains filled with the player's color.
+
+    for (
+      var cellInArm = 0;
+      cellInArm < state.boardType.cellsPerArm;
+      cellInArm++
+    ) {
+      final cell = slot * state.boardType.cellsPerArm + cellInArm;
+      final path = _polygonPath(config.hex6TrackCellCorners(cell));
+
+      canvas.drawPath(path, Paint()..color = Colors.white);
+      canvas.drawPath(path, gridPaint);
+
+      // Safe stars matching reference image
+      if (cellInArm == 2 || cellInArm == 10) {
+        _drawClassicStar(
+          canvas,
+          config.trackCellPosition(cell),
+          config.cellSize * 0.27,
+          Colors.black,
+        );
+      }
+    }
+
+    // The middle column is the player's five-cell colored home lane.
+    for (var step = 0; step < state.boardType.homeStretchLength; step++) {
+      final path = _polygonPath(config.hex6HomeCellCorners(slot, step));
+      canvas.drawPath(path, Paint()..color = color);
+      canvas.drawPath(path, gridPaint);
+    }
+
+    final arrow = config.hex6ArmGridCellPosition(slot, 0, 1);
+    _drawHex6Arrow(canvas, arrow, slot, color);
   }
 
   Path _polygonPath(List<Offset> points) {
@@ -862,15 +899,17 @@ class BoardPainter extends CustomPainter {
   }
 
   void _drawHex6BoardShell(Canvas canvas) {
-    // A compact regular hexagon keeps the board body continuous, like the
-    // supplied six-player references, while colored rooms form the six tips.
-    final outerRadius = config.cellSize * 8.85;
-    final points = [
-      for (var index = 0; index < 6; index++)
-        config.center +
-            Offset(cos(index * pi / 3 - pi / 2), sin(index * pi / 3 - pi / 2)) *
-                outerRadius,
-    ];
+    // 12-sided polygon connecting the outer corners of the 6 arms and 6 bases
+    final points = <Offset>[];
+    for (var slot = 0; slot < 6; slot++) {
+      // Outer left corner of arm (Row 0 Col 0)
+      final armCornersLeft = config.hex6ArmGridCellCorners(slot, 0, 0);
+      points.add(armCornersLeft[0]); // outer-left
+
+      // Outer right corner of arm (Row 0 Col 2)
+      final armCornersRight = config.hex6ArmGridCellCorners(slot, 0, 2);
+      points.add(armCornersRight[1]); // outer-right
+    }
     final shell = _polygonPath(points);
     canvas.drawPath(
       shell.shift(const Offset(0, 5)),
@@ -889,27 +928,30 @@ class BoardPainter extends CustomPainter {
   }
 
   void _drawHex6Center(Canvas canvas) {
-    final centerRadius = config.cellSize * 2.0;
+    // 1. Regular center flat-topped hexagon (radius 3.0 * cellSize)
+    // Vertices are at angles k * pi / 3 + pi / 2
+    final hexVertices = <Offset>[
+      for (var k = 0; k < 6; k++)
+        config.center +
+            Offset(cos(k * pi / 3 + pi / 2), sin(k * pi / 3 + pi / 2)) *
+                (3.0 * config.cellSize),
+    ];
+
+    // 2. Six colored trapezoidal wedges filling each sector of the center hexagon
+    // connecting each arm's Row 5 (Col 0..2) to the center point
     for (var slot = 0; slot < 6; slot++) {
-      final start = slot * pi / 3 - pi / 2 - pi / 6;
-      final path = Path()
-        ..moveTo(config.center.dx, config.center.dy)
-        ..lineTo(
-          config.center.dx + cos(start) * centerRadius,
-          config.center.dy + sin(start) * centerRadius,
-        )
-        ..lineTo(
-          config.center.dx + cos(start + pi / 3) * centerRadius,
-          config.center.dy + sin(start + pi / 3) * centerRadius,
-        )
-        ..close();
+      final vLeft = hexVertices[(slot + 5) % 6];
+      final vRight = hexVertices[slot];
+
+      final wedgePath = _polygonPath([vLeft, vRight, config.center]);
+
       final ownerIndex = _playerAtRouteSlot(slot);
       final color = ownerIndex == null
           ? BoardType.hex6.availableColors[slot].color
           : state.players[ownerIndex].color.color;
-      canvas.drawPath(path, Paint()..color = color);
+      canvas.drawPath(wedgePath, Paint()..color = color);
       canvas.drawPath(
-        path,
+        wedgePath,
         Paint()
           ..color = const Color(0xFF0F172A)
           ..style = PaintingStyle.stroke
@@ -917,41 +959,59 @@ class BoardPainter extends CustomPainter {
       );
     }
 
-    final dieOuter = RRect.fromRectAndRadius(
-      Rect.fromCenter(
-        center: config.center,
-        width: config.cellSize * 1.65,
-        height: config.cellSize * 1.65,
-      ),
-      Radius.circular(config.cellSize * 0.22),
+    // 3. Dark inner hexagon with cyan glowing die
+    final innerHexVertices = <Offset>[
+      for (var k = 0; k < 6; k++)
+        config.center +
+            Offset(cos(k * pi / 3 + pi / 2), sin(k * pi / 3 + pi / 2)) *
+                (1.5 * config.cellSize),
+    ];
+    final centerHex = _polygonPath(innerHexVertices);
+    canvas.drawPath(centerHex, Paint()..color = const Color(0xFF0A0F1D));
+    canvas.drawPath(
+      centerHex,
+      Paint()
+        ..color = const Color(0xFF1E293B)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.5,
     );
-    canvas.drawRRect(dieOuter, Paint()..color = const Color(0xFF111827));
-    final dieFace = RRect.fromRectAndRadius(
-      dieOuter.outerRect.deflate(config.cellSize * 0.14),
-      Radius.circular(config.cellSize * 0.16),
-    );
-    canvas.drawRRect(dieFace, Paint()..color = Colors.white);
 
-    final pipRadius = config.cellSize * 0.105;
-    final pipOffset = config.cellSize * 0.34;
-    for (final offset in <Offset>[
-      Offset(-pipOffset, -pipOffset),
-      Offset(0, -pipOffset),
-      Offset(pipOffset, -pipOffset),
-      Offset(-pipOffset, pipOffset),
-      Offset(0, pipOffset),
-      Offset(pipOffset, pipOffset),
-    ]) {
-      canvas.drawCircle(
-        config.center + offset,
-        pipRadius,
-        Paint()..color = Colors.black87,
-      );
-    }
+    // Glowing cyan dice container matching reference image
+    final dieSize = config.cellSize * 1.5;
+    final dieRRect = RRect.fromRectAndRadius(
+      Rect.fromCenter(center: config.center, width: dieSize, height: dieSize),
+      Radius.circular(config.cellSize * 0.35),
+    );
+
+    // Subtle cyan outer glow
+    canvas.drawRRect(
+      dieRRect.inflate(config.cellSize * 0.15),
+      Paint()
+        ..color = const Color(0xFF00E5FF).withValues(alpha: 0.35)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+    );
+
+    // Cyan dice block
+    final gradient = const LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [Color(0xFF00E5FF), Color(0xFF0284C7)],
+    );
+    canvas.drawRRect(
+      dieRRect,
+      Paint()..shader = gradient.createShader(dieRRect.outerRect),
+    );
+
+    // Center white dot on die face
+    canvas.drawCircle(
+      config.center,
+      config.cellSize * 0.16,
+      Paint()..color = Colors.white,
+    );
   }
 
   void _drawHex6Arrow(Canvas canvas, Offset center, int slot, Color color) {
-    final angle = slot * pi / 3 - pi / 2;
+    final angle = slot * pi / 3 + pi / 3;
     final direction = Offset(cos(angle), sin(angle));
     final tangent = Offset(-sin(angle), cos(angle));
     final tip = center - direction * config.cellSize * 0.3;
