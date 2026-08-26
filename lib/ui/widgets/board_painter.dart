@@ -854,15 +854,8 @@ class BoardPainter extends CustomPainter {
   }
 
   void _drawHex6Arm(Canvas canvas, int slot, Color color, Paint gridPaint) {
-    // In reference image each arm has 3 columns:
-    //   col 2 (right) = this arm's player color
-    //   col 0 (left)  = next arm's player color
-    //   col 1 (center, row 0) = white connecting cell
-    final nextSlot = (slot + 1) % 6;
-    final nextOwnerIndex = _playerAtRouteSlot(nextSlot);
-    final nextColor = nextOwnerIndex == null
-        ? BoardType.hex6.availableColors[nextSlot].color
-        : state.players[nextOwnerIndex].color.color;
+    // The marked outer route boxes are white. Only the five-cell middle
+    // home lane below remains filled with the player's color.
 
     for (
       var cellInArm = 0;
@@ -872,19 +865,7 @@ class BoardPainter extends CustomPainter {
       final cell = slot * state.boardType.cellsPerArm + cellInArm;
       final path = _polygonPath(config.hex6TrackCellCorners(cell));
 
-      // Determine fill color based on column:
-      // cellInArm 0 = row 0 col 1 (center connecting cell) -> colored with this arm's color (start cell)
-      // cellInArm 1-6 = col 2 (right column, rows 0-5) -> this arm's color
-      // cellInArm 7-12 = col 0 (left column, rows 5-0) -> previous arm's color
-      Color fill;
-      if (cellInArm == 0) {
-        fill = color; // starting cell colored with arm's own color
-      } else if (cellInArm >= 1 && cellInArm <= 6) {
-        fill = color; // right column = this arm's color
-      } else {
-        fill = nextColor; // left column = next arm's color
-      }
-      canvas.drawPath(path, Paint()..color = fill);
+      canvas.drawPath(path, Paint()..color = Colors.white);
       canvas.drawPath(path, gridPaint);
 
       // Safe stars matching reference image
@@ -893,7 +874,7 @@ class BoardPainter extends CustomPainter {
           canvas,
           config.trackCellPosition(cell),
           config.cellSize * 0.27,
-          Colors.white,
+          Colors.black,
         );
       }
     }
@@ -952,10 +933,7 @@ class BoardPainter extends CustomPainter {
     final hexVertices = <Offset>[
       for (var k = 0; k < 6; k++)
         config.center +
-            Offset(
-                  cos(k * pi / 3 + pi / 2),
-                  sin(k * pi / 3 + pi / 2),
-                ) *
+            Offset(cos(k * pi / 3 + pi / 2), sin(k * pi / 3 + pi / 2)) *
                 (3.0 * config.cellSize),
     ];
 
@@ -965,11 +943,7 @@ class BoardPainter extends CustomPainter {
       final vLeft = hexVertices[(slot + 5) % 6];
       final vRight = hexVertices[slot];
 
-      final wedgePath = _polygonPath([
-        vLeft,
-        vRight,
-        config.center,
-      ]);
+      final wedgePath = _polygonPath([vLeft, vRight, config.center]);
 
       final ownerIndex = _playerAtRouteSlot(slot);
       final color = ownerIndex == null
@@ -989,10 +963,7 @@ class BoardPainter extends CustomPainter {
     final innerHexVertices = <Offset>[
       for (var k = 0; k < 6; k++)
         config.center +
-            Offset(
-                  cos(k * pi / 3 + pi / 2),
-                  sin(k * pi / 3 + pi / 2),
-                ) *
+            Offset(cos(k * pi / 3 + pi / 2), sin(k * pi / 3 + pi / 2)) *
                 (1.5 * config.cellSize),
     ];
     final centerHex = _polygonPath(innerHexVertices);
@@ -1008,11 +979,7 @@ class BoardPainter extends CustomPainter {
     // Glowing cyan dice container matching reference image
     final dieSize = config.cellSize * 1.5;
     final dieRRect = RRect.fromRectAndRadius(
-      Rect.fromCenter(
-        center: config.center,
-        width: dieSize,
-        height: dieSize,
-      ),
+      Rect.fromCenter(center: config.center, width: dieSize, height: dieSize),
       Radius.circular(config.cellSize * 0.35),
     );
 
