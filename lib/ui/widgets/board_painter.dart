@@ -931,7 +931,8 @@ class BoardPainter extends CustomPainter {
     // Match the supplied HTML junctions: each arm ends in a colored
     // trapezoid, leaving the two neighboring route corners white.
     final outerRadius = config.cellSize * 2.0;
-    final innerRadius = config.cellSize * 1.38;
+    // A slightly larger center keeps the six junctions clear of the room tips.
+    final innerRadius = config.cellSize * 1.58;
     final outerHalfWidth = config.cellSize * 1.5;
     final innerHalfWidth = config.cellSize * 0.87;
     for (var slot = 0; slot < 6; slot++) {
@@ -981,8 +982,8 @@ class BoardPainter extends CustomPainter {
     final dieOuter = RRect.fromRectAndRadius(
       Rect.fromCenter(
         center: config.center,
-        width: config.cellSize * 1.65,
-        height: config.cellSize * 1.65,
+        width: config.cellSize * 1.82,
+        height: config.cellSize * 1.82,
       ),
       Radius.circular(config.cellSize * 0.22),
     );

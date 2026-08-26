@@ -294,9 +294,8 @@ class BoardConfig {
     final radial = Offset(cos(angle), sin(angle));
     final tangent = Offset(-sin(angle), cos(angle));
     final base = hex6BaseCenter(routeSlot);
-    // Keep the tip beyond the innermost route-cell edge; the arm grid owns
-    // the junction pixels, so the two shapes cannot draw over one another.
-    final tip = base - radial * cellSize * 3.9 * scale;
+    // Pull the room tip outward so it clears the enlarged center junction.
+    final tip = base - radial * cellSize * 3.25 * scale;
     final farLeft =
         base +
         radial * cellSize * 1.2 * scale -
