@@ -803,8 +803,8 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   List<Widget> _buildTokens(BoardConfig config) {
     final tokens = <Widget>[];
     final defaultTokenSize = state.boardType == BoardType.hex6
-        ? config.cellSize * 0.86
-        : config.cellSize * 0.7;
+        ? config.cellSize * 1.05
+        : config.cellSize * 0.84;
 
     for (var p = 0; p < state.players.length; p++) {
       final routeSlot = state.playerPositionIndex(p);
