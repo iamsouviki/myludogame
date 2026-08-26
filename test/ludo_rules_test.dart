@@ -262,7 +262,7 @@ void main() {
       ]);
       expect(
         testState.safeSpots,
-        containsAll([0, 13, 26, 39, 52, 65, 8, 21, 34, 47, 60, 73]),
+        containsAll([0, 13, 26, 39, 52, 65, 10, 23, 36, 49, 62, 75]),
       );
 
       testState.currentPlayerIndex = 0;
@@ -379,10 +379,10 @@ void main() {
         expect(homeDistance, 0);
 
         final safeCell = config.trackCellPosition(
-          slot * BoardType.hex6.cellsPerArm + 8,
+          slot * BoardType.hex6.cellsPerArm + 10,
         );
-        final referenceStarCell = config.hex6ArmGridCellPosition(slot, 4, 0);
-        final coloredHomeCell = config.hex6ArmGridCellPosition(slot, 4, 1);
+        final referenceStarCell = config.hex6ArmGridCellPosition(slot, 2, 0);
+        final coloredHomeCell = config.hex6ArmGridCellPosition(slot, 2, 1);
         expect(
           (safeCell - referenceStarCell).distance,
           lessThan(0.01),

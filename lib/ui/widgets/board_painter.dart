@@ -736,6 +736,10 @@ class BoardPainter extends CustomPainter {
       _drawHex6BaseTriangle(canvas, slot, color);
     }
 
+    // Draw the center beneath the arm grids. The inner lane corners then paint
+    // over the wedge boundary instead of being covered by it.
+    _drawHex6Center(canvas);
+
     for (var slot = 0; slot < 6; slot++) {
       final ownerIndex = _playerAtRouteSlot(slot);
       final color = ownerIndex == null
@@ -743,8 +747,6 @@ class BoardPainter extends CustomPainter {
           : state.players[ownerIndex].color.color;
       _drawHex6Arm(canvas, slot, color, gridPaint);
     }
-
-    _drawHex6Center(canvas);
 
     // Each base is the HTML base-pod: a colored center-facing triangle with a
     // white circular four-token hub and a small label tab at its outer edge.
@@ -836,7 +838,9 @@ class BoardPainter extends CustomPainter {
       canvas.drawPath(path, Paint()..color = fill);
       canvas.drawPath(path, gridPaint);
 
-      if (state.safeSpots.contains(cell)) {
+      // Start cells use the directional arrow. The second safe cell is the
+      // reference side-lane star for this arm.
+      if (state.safeSpots.contains(cell) && cellInArm != 0) {
         _drawClassicStar(
           canvas,
           config.trackCellPosition(cell),
@@ -893,7 +897,7 @@ class BoardPainter extends CustomPainter {
   }
 
   void _drawHex6Center(Canvas canvas) {
-    final centerRadius = config.cellSize * 2.0;
+    final centerRadius = config.cellSize * 1.85;
     for (var slot = 0; slot < 6; slot++) {
       final start = slot * pi / 3 - pi / 2 - pi / 6;
       final path = Path()

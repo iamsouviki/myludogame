@@ -94,7 +94,8 @@ class GameState extends ChangeNotifier {
     for (var slot = 0; slot < boardType.maxPlayers; slot++) {
       final start = _startPositionForSlot(slot);
       spots.add(start);
-      spots.add((start + 8) % boardType.trackLength);
+      final safeOffset = boardType == BoardType.hex6 ? 10 : 8;
+      spots.add((start + safeOffset) % boardType.trackLength);
     }
     return spots;
   }
