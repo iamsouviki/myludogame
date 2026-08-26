@@ -767,18 +767,16 @@ class BoardPainter extends CustomPainter {
           ? BoardType.hex6.availableColors[slot]
           : state.players[ownerIndex].color;
       final baseCenter = config.hex6BaseCenter(slot);
-      final plateRadius = config.cellSize * 1.55;
-      canvas.drawCircle(
-        baseCenter + const Offset(0, 3),
-        plateRadius,
+      final innerBase = _polygonPath(config.hex6BaseInnerCorners(slot));
+      canvas.drawPath(
+        innerBase.shift(const Offset(0, 3)),
         Paint()
           ..color = Colors.black.withValues(alpha: 0.16)
           ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
       );
-      canvas.drawCircle(baseCenter, plateRadius, Paint()..color = Colors.white);
-      canvas.drawCircle(
-        baseCenter,
-        plateRadius,
+      canvas.drawPath(innerBase, Paint()..color = Colors.white);
+      canvas.drawPath(
+        innerBase,
         Paint()
           ..color = const Color(0xFF222222)
           ..style = PaintingStyle.stroke

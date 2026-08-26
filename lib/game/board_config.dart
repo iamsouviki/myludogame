@@ -288,7 +288,7 @@ class BoardConfig {
   }
 
   /// The six-player base polygon points toward the center, as in the supplied
-  /// HTML design, with its wide colored edge on the outside.
+  /// six-player reference, with its wide colored edge on the outside.
   List<Offset> hex6BaseCorners(int routeSlot, {double scale = 1}) {
     final angle = routeSlot * pi / 3 - pi / 3;
     final radial = Offset(cos(angle), sin(angle));
@@ -300,11 +300,23 @@ class BoardConfig {
     final farLeft =
         base +
         radial * cellSize * 1.2 * scale -
-        tangent * cellSize * 2.6 * scale;
+        tangent * cellSize * 3.4 * scale;
     final farRight =
         base +
         radial * cellSize * 1.2 * scale +
-        tangent * cellSize * 2.6 * scale;
+        tangent * cellSize * 3.4 * scale;
+    return [tip, farRight, farLeft];
+  }
+
+  /// White inset triangle that contains the four pawn sockets in each room.
+  List<Offset> hex6BaseInnerCorners(int routeSlot) {
+    final angle = routeSlot * pi / 3 - pi / 3;
+    final radial = Offset(cos(angle), sin(angle));
+    final tangent = Offset(-sin(angle), cos(angle));
+    final base = hex6BaseCenter(routeSlot);
+    final tip = base - radial * cellSize * 1.75;
+    final farLeft = base + radial * cellSize * 0.9 - tangent * cellSize * 1.75;
+    final farRight = base + radial * cellSize * 0.9 + tangent * cellSize * 1.75;
     return [tip, farRight, farLeft];
   }
 }
