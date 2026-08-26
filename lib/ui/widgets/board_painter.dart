@@ -797,41 +797,52 @@ class BoardPainter extends CustomPainter {
               ? playerColor.label
               : state.players[ownerIndex].name,
           style: TextStyle(
-            color: Colors.white,
-            fontSize: config.cellSize * 0.42,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 0.1,
-            shadows: const [Shadow(color: Colors.black87, blurRadius: 3)],
+            color: const Color(0xFF111111),
+            fontSize: config.cellSize * 0.34,
+            fontWeight: FontWeight.w800,
           ),
         ),
         textDirection: TextDirection.ltr,
         maxLines: 1,
         ellipsis: '…',
-      )..layout(maxWidth: config.cellSize * 3.2);
-      final labelCenter =
-          baseCenter +
-          Offset(cos(radialAngle), sin(radialAngle)) * config.cellSize * 1.82;
-      final badgeRect = Rect.fromCenter(
-        center: labelCenter,
-        width: labelPainter.width + config.cellSize * 0.48,
-        height: labelPainter.height + config.cellSize * 0.22,
-      );
-      final badge = RRect.fromRectAndRadius(
-        badgeRect,
-        Radius.circular(config.cellSize * 0.22),
-      );
-      canvas.drawRRect(badge, Paint()..color = const Color(0xCC0F172A));
-      canvas.drawRRect(
-        badge,
+      )..layout(maxWidth: config.cellSize * 3.4);
+
+      // The reference uses a colored tab on the room's outer edge. Rotate the
+      // tab with the room so every player name follows the same six-seat axis.
+      final radial = Offset(cos(radialAngle), sin(radialAngle));
+      final tangent = Offset(-sin(radialAngle), cos(radialAngle));
+      final tabCenter = baseCenter + radial * config.cellSize * 1.45;
+      final tabHalfWidth = config.cellSize * 1.45;
+      final tabHalfHeight = config.cellSize * 0.34;
+      final tabCorners = [
+        tabCenter - tangent * tabHalfWidth - radial * tabHalfHeight,
+        tabCenter + tangent * tabHalfWidth - radial * tabHalfHeight,
+        tabCenter + tangent * tabHalfWidth + radial * tabHalfHeight,
+        tabCenter - tangent * tabHalfWidth + radial * tabHalfHeight,
+      ];
+      final tabPath = _polygonPath(tabCorners);
+      canvas.drawPath(
+        tabPath,
         Paint()
-          ..color = Colors.white.withValues(alpha: 0.72)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.1,
+          ..color = playerColor.color
+          ..style = PaintingStyle.fill,
       );
+      canvas.drawPath(
+        tabPath,
+        Paint()
+          ..color = const Color(0xFF111111)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.2,
+      );
+
+      canvas.save();
+      canvas.translate(tabCenter.dx, tabCenter.dy);
+      canvas.rotate(radialAngle + pi / 2);
       labelPainter.paint(
         canvas,
-        labelCenter - Offset(labelPainter.width / 2, labelPainter.height / 2),
+        Offset(-labelPainter.width / 2, -labelPainter.height / 2),
       );
+      canvas.restore();
     }
   }
 
