@@ -862,11 +862,12 @@ class BoardPainter extends CustomPainter {
       cellInArm < state.boardType.cellsPerArm;
       cellInArm++
     ) {
-      final cell = slot * state.boardType.cellsPerArm + cellInArm;
+      final cell = config.hex6RouteCellIndexForPhysicalSlot(slot, cellInArm);
       final path = _polygonPath(config.hex6TrackCellCorners(cell));
 
-      final cellColor = cellInArm == 11 ? color : Colors.white;
-      canvas.drawPath(path, Paint()..color = cellColor);
+      // Every shared outer-route cell stays white; only the separate home
+      // lane below carries the player color.
+      canvas.drawPath(path, Paint()..color = Colors.white);
       canvas.drawPath(path, gridPaint);
 
       // Safe stars matching reference image

@@ -223,8 +223,15 @@ class BoardConfig {
     ];
   }
 
+  /// Logical route cell for a physical arm and its local cell position.
+  int hex6RouteCellIndexForPhysicalSlot(int physicalSlot, int cellInArm) {
+    final routeSlot = (6 - physicalSlot) % 6;
+    return routeSlot * boardType.cellsPerArm + cellInArm;
+  }
+
   Offset _hex6TrackPosition(int cellIndex) {
-    final arm = (cellIndex ~/ 13) % 6;
+    final routeSlot = (cellIndex ~/ 13) % 6;
+    final arm = (6 - routeSlot) % 6;
     final cellInArm = cellIndex % 13;
     final column = switch (cellInArm) {
       0 => 1,
@@ -263,7 +270,8 @@ class BoardConfig {
 
   /// Corners for a Star 6 track cell (exact square cell).
   List<Offset> hex6TrackCellCorners(int cellIndex) {
-    final arm = (cellIndex ~/ 13) % 6;
+    final routeSlot = (cellIndex ~/ 13) % 6;
+    final arm = (6 - routeSlot) % 6;
     final cellInArm = cellIndex % 13;
     final column = switch (cellInArm) {
       0 => 1,

@@ -74,9 +74,13 @@ class GameState extends ChangeNotifier {
 
   int _startPositionForSlot(int slot) {
     if (slot < 0 || slot >= boardType.maxPlayers) return 0;
-    // Star 6 starts on the marked row-1 S cell (cellInArm 2).
-    final startOffset = boardType == BoardType.hex6 ? 2 : 0;
-    return slot * boardType.cellsPerArm + startOffset;
+    if (boardType == BoardType.hex6) {
+      // The logical route runs clockwise: Blue, Orange, Green, Red, Purple,
+      // Yellow. Each route arm still starts on its marked local cell 2.
+      final routeSlot = (boardType.maxPlayers - slot) % boardType.maxPlayers;
+      return routeSlot * boardType.cellsPerArm + 2;
+    }
+    return slot * boardType.cellsPerArm;
   }
 
   /// Absolute board position for a player's color-defined start cell.

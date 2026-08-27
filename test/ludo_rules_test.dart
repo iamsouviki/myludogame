@@ -255,12 +255,12 @@ void main() {
         1,
       ]);
       expect(List.generate(6, testState.startPosition), [
-        67,
-        41,
-        28,
-        54,
-        2,
         15,
+        41,
+        54,
+        28,
+        2,
+        67,
       ]);
       expect(
         testState.safeSpots,
@@ -271,7 +271,7 @@ void main() {
       testState.rollDice();
       expect(testState.validTokenMoves, [0, 1, 2, 3]);
       expect(testState.moveToken(0), isFalse);
-      expect(testState.tokenPositions[0][0], 67);
+      expect(testState.tokenPositions[0][0], 15);
     });
 
     test('Every Star 6 color follows the same rotated route sequence', () {
@@ -285,7 +285,7 @@ void main() {
       ];
 
       for (var routeSlot = 1; routeSlot < 6; routeSlot++) {
-        final angle = routeSlot * math.pi / 3;
+        final angle = -routeSlot * math.pi / 3;
         for (var localCell = 0; localCell < 13; localCell++) {
           final actual =
               config.trackCellPosition(routeSlot * 13 + localCell) -
@@ -402,7 +402,9 @@ void main() {
 
       final startCells = [
         for (var slot = 0; slot < 6; slot++)
-          config.trackCellPosition(slot * BoardType.hex6.cellsPerArm + 2),
+          config.trackCellPosition(
+            config.hex6RouteCellIndexForPhysicalSlot(slot, 2),
+          ),
       ];
       final baseCenters = [
         for (var slot = 0; slot < 6; slot++) config.hex6BaseCenter(slot),
@@ -456,7 +458,7 @@ void main() {
         expect(homeDistance, 0);
 
         final safeCell = config.trackCellPosition(
-          slot * BoardType.hex6.cellsPerArm + 10,
+          config.hex6RouteCellIndexForPhysicalSlot(slot, 10),
         );
         final referenceStarCell = config.hex6ArmGridCellPosition(slot, 2, 0);
         final coloredHomeCell = config.hex6ArmGridCellPosition(slot, 2, 1);
