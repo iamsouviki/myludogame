@@ -1,5 +1,7 @@
 import 'dart:ui';
 
+import 'dart:math' as math;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:my_ludo/game/board_config.dart';
 import 'package:my_ludo/models/dice.dart';
@@ -271,6 +273,62 @@ void main() {
       expect(testState.moveToken(0), isFalse);
       expect(testState.tokenPositions[0][0], 67);
     });
+
+    test('Every Star 6 color follows the same rotated route sequence', () {
+      final config = BoardConfig(
+        boardType: BoardType.hex6,
+        canvasSize: const Size(360, 360),
+      );
+      final reference = [
+        for (var localCell = 0; localCell < 13; localCell++)
+          config.trackCellPosition(localCell) - config.center,
+      ];
+
+      for (var routeSlot = 1; routeSlot < 6; routeSlot++) {
+        final angle = routeSlot * math.pi / 3;
+        for (var localCell = 0; localCell < 13; localCell++) {
+          final actual =
+              config.trackCellPosition(routeSlot * 13 + localCell) -
+              config.center;
+          final source = reference[localCell];
+          final expected = Offset(
+            source.dx * math.cos(angle) - source.dy * math.sin(angle),
+            source.dx * math.sin(angle) + source.dy * math.cos(angle),
+          );
+          expect(
+            (actual - expected).distance,
+            lessThan(0.001),
+            reason: 'Star 6 route slot $routeSlot cell $localCell drifted',
+          );
+        }
+      }
+    });
+
+    test(
+      'Unsupported Star 6 colors cannot fall into an arbitrary route slot',
+      () {
+        final testState = GameState(
+          boardType: BoardType.hex6,
+          players: [
+            const Player(
+              id: 'pink',
+              name: 'Pink',
+              color: PlayerColor.pink,
+              type: PlayerType.human,
+            ),
+            const Player(
+              id: 'blue',
+              name: 'Blue',
+              color: PlayerColor.blue,
+              type: PlayerType.human,
+            ),
+          ],
+        );
+
+        expect(() => testState.playerPositionIndex(0), throwsStateError);
+        expect(testState.playerPositionIndex(1), 0);
+      },
+    );
 
     test('Six-player home entries are one step before each player start', () {
       final players = BoardType.hex6.availableColors

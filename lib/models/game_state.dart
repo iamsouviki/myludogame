@@ -62,8 +62,14 @@ class GameState extends ChangeNotifier {
   /// Physical route slot for a player. Turn order remains list/index-based.
   int playerPositionIndex(int playerIndex) {
     if (playerIndex < 0 || playerIndex >= players.length) return 0;
-    final slot = boardType.availableColors.indexOf(players[playerIndex].color);
-    return slot >= 0 ? slot : playerIndex % boardType.maxPlayers;
+    final color = players[playerIndex].color;
+    final slot = boardType.availableColors.indexOf(color);
+    if (slot < 0) {
+      throw StateError(
+        '${color.label} has no physical route slot on the ${boardType.label} board.',
+      );
+    }
+    return slot;
   }
 
   int _startPositionForSlot(int slot) {
