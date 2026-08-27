@@ -61,8 +61,6 @@ class _TokenWidgetState extends State<TokenWidget>
   Widget build(BuildContext context) {
     final color = widget.playerColor.color;
     final size = widget.size;
-    final highlightGlow = Color.lerp(color, Colors.white, 0.2)!;
-
     return GestureDetector(
       onTap: widget.onTap,
       child: AnimatedBuilder(
@@ -74,43 +72,25 @@ class _TokenWidgetState extends State<TokenWidget>
           return Transform.scale(scale: scale, child: child);
         },
         child: widget.pawnAsset == null
-            ? _buildProceduralToken(color, size, highlightGlow)
-            : _buildPawnToken(color, size, highlightGlow),
+            ? _buildProceduralToken(color, size)
+            : _buildPawnToken(color, size),
       ),
     );
   }
 
-  Widget _buildPawnToken(Color color, double size, Color highlightGlow) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.55),
-            blurRadius: 7,
-            offset: const Offset(0, 4),
-          ),
-          if (widget.isHighlighted)
-            BoxShadow(
-              color: highlightGlow.withValues(alpha: 0.95),
-              blurRadius: 18 + (_pulseController.value * 8),
-              spreadRadius: 3 + (_pulseController.value * 3),
-            ),
-        ],
-      ),
-      child: Image.asset(
-        widget.pawnAsset!,
-        width: size,
-        height: size,
-        fit: BoxFit.contain,
-        filterQuality: FilterQuality.high,
-        errorBuilder: (context, error, stackTrace) =>
-            _buildProceduralToken(color, size, highlightGlow),
-      ),
+  Widget _buildPawnToken(Color color, double size) {
+    return Image.asset(
+      widget.pawnAsset!,
+      width: size,
+      height: size,
+      fit: BoxFit.contain,
+      filterQuality: FilterQuality.high,
+      errorBuilder: (context, error, stackTrace) =>
+          _buildProceduralToken(color, size),
     );
   }
 
-  Widget _buildProceduralToken(Color color, double size, Color highlightGlow) {
+  Widget _buildProceduralToken(Color color, double size) {
     return Container(
       width: size,
       height: size,
@@ -127,20 +107,6 @@ class _TokenWidgetState extends State<TokenWidget>
           ],
           stops: const [0.0, 0.22, 0.7, 1.0],
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.6),
-            blurRadius: 8,
-            spreadRadius: 1,
-            offset: const Offset(0, 5),
-          ),
-          if (widget.isHighlighted)
-            BoxShadow(
-              color: highlightGlow.withValues(alpha: 0.95),
-              blurRadius: 20 + (_pulseController.value * 10),
-              spreadRadius: 4 + (_pulseController.value * 4),
-            ),
-        ],
       ),
       child: Padding(
         padding: const EdgeInsets.all(2.5),

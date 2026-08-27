@@ -56,7 +56,12 @@ class BoardConfig {
   /// Map a player's color to its physical board route slot.
   int colorPositionIndex(PlayerColor color) {
     final slot = boardType.availableColors.indexOf(color);
-    return slot >= 0 ? slot : 0;
+    if (slot < 0) {
+      throw StateError(
+        '${color.label} has no physical route slot on the ${boardType.label} board.',
+      );
+    }
+    return slot;
   }
 
   Offset _gridToPixel(double gridX, double gridY) {

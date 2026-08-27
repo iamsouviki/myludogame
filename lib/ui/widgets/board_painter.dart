@@ -865,7 +865,8 @@ class BoardPainter extends CustomPainter {
       final cell = slot * state.boardType.cellsPerArm + cellInArm;
       final path = _polygonPath(config.hex6TrackCellCorners(cell));
 
-      canvas.drawPath(path, Paint()..color = Colors.white);
+      final cellColor = cellInArm == 11 ? color : Colors.white;
+      canvas.drawPath(path, Paint()..color = cellColor);
       canvas.drawPath(path, gridPaint);
 
       // Safe stars matching reference image
